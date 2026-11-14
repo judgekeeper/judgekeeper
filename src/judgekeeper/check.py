@@ -204,7 +204,7 @@ def _day(stamp: str | None) -> str | None:
         made = datetime.strptime(stamp or "", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError:
         return None
-    local = made.astimezone()
+    local = find.local(made)
     return f"{local.day} {MONTHS[local.month - 1]}"
 
 

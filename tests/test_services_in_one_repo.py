@@ -67,7 +67,7 @@ def test_the_session_in_the_folder_run_in_is_this_folder(repo, capsys, monkeypat
     assert code == 3, said
     assert HERE in said, said
     assert "./" not in said and "cd ." not in said, said
-    assert "Next: run `judgekeeper`." in said, said
+    assert "Next: run `judgekeeper --no-browser`." in said, said
 
 
 def test_a_folder_with_nothing_to_read_names_every_session_below(repo, capsys, monkeypatch):

@@ -38,6 +38,11 @@
 - `--tool table` with no results now says "your CSV, TSV or JSONL results file".
 - A tool's output folder (Inspect logs, DeepEval results) is never a project of its own: `judgekeeper logs` keeps your marks in the project that holds it, so clearing old logs no longer deletes them. Your session's results file is always read, however many other files the project has, and judgekeeper says when it stopped looking. From a code folder in a project with marks, every command points to the project above. A run inside `.judgekeeper/` never reads its files. `Logs/` is found once on a disk that ignores case.
 - On the marking page, an Undo after your last mark makes your result again from the marks that stand. A different mark on an answer shown again now says "Noted. Your first mark (Pass) still counts.", since only the first mark counts. With answers and no grades, the result says when you marked a repeated answer differently, `fix` gives the result's next step instead of asking for grades, and once the questions kept aside are used up the result gives one next step: new questions.
+- Every command judgekeeper prints for another folder now works when you paste it there. `judgekeeper rag` reads rag/'s file after you named it there. A file of other questions a folder away is named as another eval. A file left out inside a project below names that project. The project named is the nearest one that holds the results. `--tool` with results only in a project below names that project. A folder with results of its own reads them, even when the folder above has only a judge set up (`.judgekeeper/judge.json`).
+- Commands printed for another project keep `--no-browser` and leave out `--port`, so they never ask for the port of a page that is open. A run whose `--port` is taken now stops before it writes `.judgekeeper/`.
+- An Inspect logs folder named from a folder beside it (`judgekeeper ../runs/logs`) keeps its marks in the project that holds it, as one named from above does.
+- On Windows, a results file dated at or near 1970 (as the Nix store dates every file) no longer stops the run with an unexpected error: its date is shown in UTC.
+- A folder that `MLFLOW_TRACKING_URI` names counts as MLflow only when it holds an MLflow experiment, so results beside it are read without a choice of tool that would read nothing.
 
 ## 1.1.2 (2026-11-08)
 

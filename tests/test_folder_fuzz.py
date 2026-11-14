@@ -2,7 +2,9 @@
 
 I7 a run never crashes (no exception, no "hit a problem it didn't expect");
 I8 every command a run prints, pasted where its line says, does what the line says: it parses,
-   any file or folder it names is there, and one that reads results finds results.
+   any file or folder it names is there, and one that reads results finds results;
+I9 and it works: pasted there, it reads results and never stops because they belong to another
+   project or look like another eval.
 
 Each seed makes one tree (depth up to 5, 2-8 folders). Each folder gets a kind (nothing, a
 project file, code, .git, a judge.json-only .judgekeeper/, a stray script), maybe results (CSV,
@@ -31,6 +33,7 @@ import os
 import random
 import re
 import shlex
+import shutil
 import time
 import traceback
 from pathlib import Path
@@ -50,7 +53,9 @@ from tests.start_projects import (
 )
 from tests.test_front import flat
 
-FIXED = (*range(13), 35, 100, 135, 201, 207, 4646, 5062, 10626, 15846, 17815, 35769, 35831, 37214, 41714, 50210, 52010, 54496)  # 12 and up: layouts once found here
+FIXED = (*range(13), 35, 45, 100, 105, 124, 135, 201, 207, 256, 410, 597, 1655, 2288, 4213,
+         4646, 5062, 10626, 15846, 17815, 35769, 35831, 37214, 41714, 50210, 52010,
+         54496)  # 12 and up: layouts once found here
 KINDS = ("plain", "plain", "file", "code", "git", "judged", "script")
 CONTENTS = ("none", "none", "csv", "jsonl", "promptfoo", "deepeval", "inspect", "answers")
 NAMES = ("a", "b", "c", "data", "evals", "proj", "sub", "runs", "my evals")
@@ -59,8 +64,10 @@ PROJECT_FILES = ("pyproject.toml", "package.json", "requirements.txt", "setup.py
 CODE_FILES = ("app.py", "index.js", "main.ts")
 CODE = (".py", ".js", ".ts")
 HAS_INSPECT = importlib.util.find_spec("inspect_ai") is not None
+EXTRA = 'pip install "judgekeeper['  # a pasted command that says to add an extra leads on
 NONE_FOUND = ("No eval results found", "No saved", "There is no file", "There is no folder")
 READS_ELSEWHERE = ("mark", "check", "fix", "measure")
+REFUSES = ("belong to the project", "looks like another eval", "shares few questions")
 STARTS_OVER = ("Starting a new project here? Run",  # each finds nothing until the step its
                "coding agent, then run",  # line asks for first is done
                "put it in a folder of its own and run")
@@ -76,6 +83,7 @@ class Folder:
     rows: int = 12
     link: str = ""  # "file:<folder>", "dir:<folder>", "file:@out", "dir:@out"
     session: bool = False
+    named: bool = False  # the session's run named its file
     late: str = ""  # after the session: other.jsonl "beside" or in "more/"
     age: int = 0  # minutes before now
     older: str = ""  # an older file of another eval: "beside" (old_results.csv) or "archive"
@@ -155,6 +163,9 @@ def _more(tree: Tree, rng: random.Random) -> Tree:
     if rng.random() < 0.08:  # the last draw, so the layouts above stay as they were
         named = [f for f in tree.folders if f.tool_named == "mlruns"] or tree.folders
         tree.uri = _join(rng.choice(named).path, "mlruns")
+    for f in tree.folders:  # after the draws above, so their layouts stay as they were
+        if f.session and rng.random() < 0.4:
+            f.named = True
     return tree
 
 
@@ -280,7 +291,9 @@ class World:
         for f in tree.folders:  # a session started by a real run there
             if f.session and f.content != "none":
                 self.reads.clear()
-                code, _ = self.run(self.top / f.path, (), "session")
+                named = (Path(_file_of(f)).relative_to(f.path).as_posix(),) if f.named \
+                    else ()
+                code, _ = self.run(self.top / f.path, named, "session")
                 if code == 0 and self.reads:
                     self.sessions[(self.top / f.path)] = set(self.reads[-1][1])
                 if f.late:
@@ -402,13 +415,20 @@ class World:
 
     # I8 -------------------------------------------------------------------------------------
 
-    def follow(self, folder: Path, argv: tuple, said: str) -> None:
-        """Run (or, for another step, parse) every command `said` prints. The command just run,
+    def follow(self, folder: Path, argv: tuple, said: str, seen: set | None = None) -> bool:
+        """Run (or, for another step, parse) every command `said` prints, and those a pasted
+        one prints when it reads nothing (a choice to make): True if `said` leads on. Each
+        is pasted in the tree as it was when `said` was printed (a choice of one, then
+        another: the first one's session never stops the second). A command already run,
         printed again, is left out: its line says what to do first."""
+        seen = {(folder, tuple(argv))} if seen is None else seen
+        on = False
         for where, args in commands(said):
             at = (folder / where).resolve() if where else folder
-            if at == folder and _without_page_flags(args) == tuple(argv):
+            if (at, _without_page_flags(args)) in seen:
                 continue
+            seen.add((at, _without_page_flags(args)))
+            on = True
             text = shlex.join(["judgekeeper", *args])
             if not at.is_dir():
                 self.note(folder, f"I8: `{text}` is to run in {where}, not a folder", said)
@@ -425,9 +445,31 @@ class World:
             if getattr(ns, "command", None) in READS_ELSEWHERE or \
                     any(getattr(ns, flag, False) for flag in ("stop", "wait")):
                 continue
-            _, said2 = self.run(at, _without_page_flags(args), f"pasted `{text}`")
+            kept = self.keep()
+            code, said2 = self.run(at, _without_page_flags(args), f"pasted `{text}`")
             if any(s in said2 for s in NONE_FOUND):
                 self.note(at, f"I8: `{text}` in {self.rel(at)} found nothing", said2)
+            elif code == 3 and any(s in said2 for s in REFUSES):
+                self.note(at, f"I9: `{text}` in {self.rel(at)} stops", said2)
+            elif not self.reads and EXTRA not in said2 and not self.follow(
+                    at, _without_page_flags(args), said2, seen):
+                self.note(at, f"I9: `{text}` in {self.rel(at)} reads nothing", said2)
+            self.back_to(kept)
+        return on
+
+    def keep(self) -> Path:
+        """A copy of the tree (links as links, times kept), for back_to."""
+        self.kept = getattr(self, "kept", 0) + 1
+        copy = self.base / "kept" / str(self.kept)
+        shutil.copytree(self.top, copy, symlinks=True)
+        return copy
+
+    def back_to(self, copy: Path) -> None:
+        """The tree as `copy` (keep) holds it."""
+        self.monkeypatch.chdir(self.base)
+        shutil.rmtree(self.top)
+        shutil.copytree(copy, self.top, symlinks=True)
+        shutil.rmtree(copy)
 
     def note(self, folder: Path, broken: str, said: str) -> None:
         self.runs.append({"why": "follow", "in": self.rel(folder), "argv": [], "code": None,
@@ -524,7 +566,8 @@ def listing(tree: Tree) -> str:
         if f.link:
             bits.append(f"link {f.link}")
         if f.session:
-            bits.append("session" + (f" + newer other.jsonl {f.late}" if f.late else ""))
+            bits.append("session" + (" (file named)" if f.named else "")
+                        + (f" + newer other.jsonl {f.late}" if f.late else ""))
         if f.older:
             bits.append(f"older other eval {f.older}")
         if f.tool_named:
@@ -599,7 +642,8 @@ def _smaller(tree: Tree):
         yield dataclasses.replace(tree, uri="")
     for i, f in enumerate(tree.folders):
         for change in ({"older": ""}, {"tool_named": ""}, {"records": False},
-                       {"late": ""}, {"session": False, "late": ""}, {"link": ""},
+                       {"late": ""}, {"named": False}, {"session": False, "late": "",
+                                                          "named": False}, {"link": ""},
                        {"kind": "plain"}, {"rows": 6}, {"age": 0}, {"content": "none"},
                        {"content": "csv"}):
             if all(getattr(f, k) == v for k, v in change.items()) or \

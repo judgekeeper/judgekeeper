@@ -149,7 +149,7 @@ def test_nothing_is_written_before_the_yes(tmp_path, capsys, terminal):
     assert code == 0
     assert snapshot(tmp_path) == before
     assert "Nothing was saved: judgekeeper reads" in out
-    assert next_lines(out)[-1] == "Next: run `judgekeeper` again and answer yes."
+    assert next_lines(out)[-1] == "Next: run `judgekeeper .` again and answer yes."
 
 
 def test_one_side_when_each_is_not_its_own_answer(tmp_path, capsys, terminal):
@@ -582,7 +582,7 @@ def test_a_no_to_saving_says_once_that_nothing_was_saved(tmp_path, capsys, termi
     flat = " ".join(out.split())
     assert ("Nothing was saved: judgekeeper reads results.json only once judgekeeper.toml says "
             "how.") in flat and flat.count("Nothing was saved") == 1
-    assert next_lines(out) == ["Next: run `judgekeeper` again and answer yes."]
+    assert next_lines(out) == ["Next: run `judgekeeper .` again and answer yes."]
 
 
 def test_answers_with_no_grade_are_not_asked_about(tmp_path, capsys, terminal):

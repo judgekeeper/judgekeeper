@@ -9,8 +9,8 @@ from tests.start_projects import deepeval_project, split, table_project
 from tests.test_answers_without_grades import write_answers
 from tests.test_services_in_one_repo import _run, repo  # noqa: F401
 
-BOTH_TOO = ("The projects in a/ and a2/ have results too: to check them, run `judgekeeper a` "
-            "or `judgekeeper a2`.")
+BOTH_TOO = ("The projects in a/ and a2/ have results too: to check them, run "
+            "`judgekeeper a --no-browser` or `judgekeeper a2 --no-browser`.")
 
 
 @pytest.fixture
@@ -49,7 +49,8 @@ def test_after_a_run_named_from_above_the_plain_run_still_reads_b(services2, cap
 
 
 THREE_TOO = ("The projects in a/, a2/ and de-bot/ have results too: to check them, run "
-             "`judgekeeper a`, `judgekeeper a2` or `judgekeeper de-bot`.")
+             "`judgekeeper a --no-browser`, `judgekeeper a2 --no-browser` or "
+             "`judgekeeper de-bot --no-browser`.")
 
 
 @pytest.fixture

@@ -288,8 +288,15 @@ class FrontTalk(start.Talk):
     def command_at(self, where: str | Path, *extra: str) -> str:
         return super().command_at(where, *_with_given_map(self.options.get("label_map"), extra))
 
-    def command_in(self, folder: str, *extra: str) -> str:
-        return super().command_in(folder, *_with_given_map(self.options.get("label_map"), extra))
+    def command_in(self, folder: str, *extra: str, away: bool = False) -> str:
+        return super().command_in(folder, *_with_given_map(self.options.get("label_map"), extra),
+                                  away=away)
+
+    @property
+    def away(self) -> str:
+        """What a command for another project's folder repeats after the program: --no-browser
+        when given, never --port (start.Talk.command_in)."""
+        return " --no-browser" if self.options.get("no_browser") else ""
 
     def looking(self, root: Path) -> None:
         """Said only when nothing is found."""
@@ -468,6 +475,8 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
         where = Path(os.path.relpath(holder, Path.cwd())).as_posix()
         talk.para(KEPT_HERE.format(folder=f"{textio.WORKSPACE}/"))
         raise talk.stop(EXIT_QUESTION, f"run `{talk.command_in('' if where == '.' else where)}`.")
+    if (busy := _port_taken(talk, path)) is not None:  # a run that can't show its page
+        raise busy  # writes nothing
     talk.held = [] if given is not None else None  # never above a stop about the labels
     found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
     _read_labels(talk, found, given)  # nothing is written before the labels are read
@@ -610,8 +619,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         # results in a folder with its own session belong to it
         sessions = _sessions_below(path, judged=True)
         raise _go_to(talk, [(_from_here(path, [n])[0], k) for n, k in sessions])
-    held = _saved_marks(path) or _session_in(project.project_of(path))  # never sent below
     here = _reads_here(talk, path, project.project_of(asked))
+    held = _saved_marks(path) or _session_in(project.project_of(path)) or \
+        _judged(here)  # never sent below
     if here.is_dir() and not held and (folders := _projects_below(
             here, talk.options["tool"])):  # nor one
         # session for several projects, at a git top too
@@ -632,19 +642,20 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         if rest:  # every project of its own below with results, read from here or not
             below = _held_below(path, talk.options["tool"])
             talk.left_below = _from_here(path, sorted({*owners, *below}))
-    if path.is_file() and (owner := _session_owning(path)) is not None:
-        # its own project's answers, never a batch here
+    if asked.is_file() and (owner := _session_owning(path)) is not None:
+        # its own project's answers, never a batch here (a folder named reads its own file)
         command = _file_there(talk, owner, path)
         talk.para(_nested_line([owner], Path.cwd(), command))
         raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd(), command))
     store = project.project_of(asked)
     if path.is_file() and (marked := project.other_eval(store, path)) is not None:
-        line, step = project.other_eval_stop(path, marked)  # never read, marked or set apart
+        line, step = project.other_eval_stop(path, marked, talk.away)  # never read, marked
+        # or set apart
         talk.para(line)
         raise talk.stop(EXIT_QUESTION, step)
     if not asked.is_file():  # the marked file is read still: why not the other
         for other, marked in project.other_evals(store):
-            talk.para(project.other_eval_line(other, marked))
+            talk.para(project.other_eval_line(other, marked, talk.away))
             talk.say()
     if (read := _project_reads(path, store)) != path:  # the project above's, as before
         path, only, talk.left_below = read, None, []
@@ -670,18 +681,19 @@ def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
     """The project that holds `path` when `path` is an eval tool's own output folder (an
     Inspect AI logs folder, a DeepEval results folder, with the logs read right in it): never
     a project of its own, so its marks stay when its logs are cleared. Named from the folder
-    run in, the nearest project on the way up to it, else the folder that holds it; run in
-    it, the project above."""
+    run in (or from one beside it), the nearest project on the way up to it (to the folder
+    both are in), else the folder that holds it; run in it, the project above."""
     if found.tool not in ("deepeval", "inspect") or not path.is_dir() or not found.results:
         return None
     folder, here = path.resolve(), Path.cwd().resolve()
     if find.is_project(folder) or any(r.path.resolve().parent != folder for r in found.results):
         return None
-    if folder != here and folder.is_relative_to(here):  # named from the folder run in
+    if folder != here:  # named from the folder run in, or from one beside it (../runs/logs)
+        top = here if folder.is_relative_to(here) else Path(os.path.commonpath((folder, here)))
         for up in folder.parents:
             if find.is_project(up):
                 return up
-            if up == here:
+            if up == top:
                 return folder.parent
     holder = project.project_of(folder.parent)
     return holder if find.is_project(holder) else None
@@ -805,11 +817,16 @@ def _marked_files(talk: FrontTalk, path: Path, saved, found: start.Found) -> sta
 
 def _remembered(talk: FrontTalk, path: Path) -> Path:
     """The results file (or MLflow store) given by path when marking started, for a run
-    with no path; else `path`."""
+    with no path; else `path`. Never past a nearer project (a project file, code or its own
+    .judgekeeper/ on the way), as _project_reads."""
     o = talk.options
     if path.is_file() or find.is_mlflow_folder(path) or o["tool"] or o["tracking_uri"]:
         return path
-    ws = Workspace(project.project_of(path))
+    store = project.project_of(path)
+    if any(find.is_project(f) or find.holds_code(f) for f in (path.resolve(), *path.resolve(
+            ).parents) if f.is_relative_to(store) and f != store):
+        return path
+    ws = Workspace(store)
     try:
         if not ws.start.is_file() or start._saved(ws.root) is not None:
             return path
@@ -1144,7 +1161,8 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
 OTHERS_HOME = "in another person's home folder, which judgekeeper doesn't name in full"
 
 
-def _nested_line(nested: list[str], base: Path, command: str | None = None) -> str:
+def _nested_line(nested: list[str], base: Path, command: str | None = None,
+                 away: str = "") -> str:
     """Results in projects of their own below this one (find.nested_results, named from the
     folder `base`): whose they are, and where to check them. A folder in another person's
     home folder (cut short) is said to be there."""
@@ -1152,17 +1170,19 @@ def _nested_line(nested: list[str], base: Path, command: str | None = None) -> s
     cut = any(textio.cut_short(p) for p in nested)
     return (f"These results belong to the {'project' if len(nested) == 1 else 'projects'} in "
             f"{named}{f', {OTHERS_HOME}' if cut else ''}. To check them, "
-            f"{run_there(nested, base, command)}")
+            f"{run_there(nested, base, command, away)}")
 
 
-def run_there(folders: list[str], base: Path, command: str | None = None) -> str:
+def run_there(folders: list[str], base: Path, command: str | None = None,
+              away: str = "") -> str:
     """"run `<program>` in <folder>." for `folders` (named from `base`), or `command`: "in
-    that folder" when one is cut short, which no one can go to by its name."""
+    that folder" when one is cut short, which no one can go to by its name. `away`: what the
+    program repeats there (FrontTalk.away)."""
     if any(textio.cut_short(p) for p in folders):
         where = "that folder" if len(folders) == 1 else "one of those folders"
     else:
         where = start._or([f"{p}/" for p in folders])
-    return f"run `{command or _program_there(folders, base)}` in {where}."
+    return f"run `{command or _program_there(folders, base) + away}` in {where}."
 
 
 def _from_here(base: Path, names: list[str]) -> list[str]:
@@ -1198,8 +1218,8 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         return _go_to(talk, [(_from_here(root, [n])[0], k) for n, k in sessions])
     if nested:
         nested = _from_here(root, nested)
-        talk.para(_nested_line(nested, Path.cwd()))
-        return talk.stop(EXIT_QUESTION, run_there(nested, Path.cwd()))
+        talk.para(_nested_line(nested, Path.cwd(), away=talk.away))
+        return talk.stop(EXIT_QUESTION, run_there(nested, Path.cwd(), away=talk.away))
     saved = _marks_in(Workspace(root)) if talk.given else _saved_marks(root)  # a folder named
     # is the project: never the marks of a project around it
     holder = root.resolve() if talk.given else project.project_of(root)
@@ -1266,7 +1286,7 @@ def above_line(talk: FrontTalk, root: Path) -> str | None:
         return None
     path = Path(os.path.relpath(up, Path.cwd())).as_posix()
     said = FOLDERS_ABOVE if len(Path(path).parts) > 1 else FOLDER_ABOVE
-    return said.format(command=talk.command_in(path))
+    return said.format(command=talk.command_in(path, away=True))
 
 
 def _questions_prompt(talk: FrontTalk) -> None:
@@ -1300,6 +1320,14 @@ def _session_in(folder: Path) -> bool:
         return ws.start.is_file() or ws.labels.is_file()
     except OSError:  # a folder that can't be read (/lost+found): no session
         return False
+
+
+def _judged(folder: Path) -> bool:
+    """Whether the .judgekeeper/ in `folder` holds the judge.json of a first run that stopped
+    before marking: a run below reads there (_project_reads), so a run that reads `folder`
+    reads its own results too, never sends them back below. A run below it that reads its
+    own folder still names the projects below that one."""
+    return project.session_tool(folder) is not None
 
 
 def _sessions_below(folder: Path, names: list[str] | None = None,
@@ -1422,7 +1450,7 @@ def _in_home_windows(shown: str) -> str | None:
 
 def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
     """Sessions in folders below this one: where they are, never a second one here."""
-    said, step = go_to_words(sessions, program())
+    said, step = go_to_words(sessions, program() + talk.away)
     talk.para(said)
     return talk.stop(EXIT_QUESTION, step)
 
@@ -1468,7 +1496,7 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
         "/" not in sign for kept in signs.values() for sign in kept)  # results or a tool's
     # config of its own: one project, as a project file makes it
     # a project below's results never weigh here: they only name it
-    owners = {find.owner(r.path, folder) for r in results} - {None}
+    owners = {find.holder_below(r.path, folder) for r in results} - {None}
     results = [r for r in results if find.owner(r.path, folder) is None]
     tops = set()
     for result in results:
@@ -1506,8 +1534,8 @@ def _tool_below(folder: Path, tools: list[str]) -> tuple[list[str], list[str]]:
     owners, rest = set(), []
     found = find.search(folder)
     for result in (r for tool in tools for r in found.results.get(tool, [])):
-        owner = find.owner(folder / result.rel, folder)
-        if owner is None:
+        owner = find.holder_below(folder / result.rel, folder)  # the nearest: a run there
+        if owner is None:  # reads it
             rest.append(result.rel)
         else:
             owners.add(owner.relative_to(folder.resolve()).as_posix())
@@ -1550,8 +1578,8 @@ def _checked_there(talk: FrontTalk, folders: list[str]) -> Stop:
     """Results in projects of their own below (from here), never run here: where to check
     them."""
     if len(folders) == 1:
-        talk.para(_nested_line(folders, Path.cwd()))
-        return talk.stop(EXIT_QUESTION, run_there(folders, Path.cwd()))
+        talk.para(_nested_line(folders, Path.cwd(), away=talk.away))
+        return talk.stop(EXIT_QUESTION, run_there(folders, Path.cwd(), away=talk.away))
     return _go_to_one(talk, folders)
 
 
@@ -1598,7 +1626,8 @@ def _file_there(talk: FrontTalk, owner: str, path: Path) -> str:
     there = textio.folder_of(owner, Path.cwd())
     there = Path(there) if there != textio.ANYWHERE else path.resolve().parent
     rel = Path(os.path.relpath(path.resolve(), there.resolve())).as_posix()
-    command = talk.command_in(textio.quote_arg(rel), *(("--yes",) if talk.yes else ()))
+    command = talk.command_in(textio.quote_arg(rel), *(("--yes",) if talk.yes else ()),
+                              away=True)
     return _program_there([owner], Path.cwd()) + command[len(talk.program):]
 
 
@@ -1606,7 +1635,7 @@ def _go_to_one(talk: FrontTalk, folders: list[str]) -> Stop:
     """Results in projects below, never run: which, and to go to one."""
     talk.para(f"{start._and([f'{name}/' for name in folders])} hold eval results: judgekeeper "
               "keeps a project's marks in its own folder, so it checks one at a time.")
-    return talk.stop(EXIT_QUESTION, _go_step(folders, program()))
+    return talk.stop(EXIT_QUESTION, _go_step(folders, program() + talk.away))
 
 
 def sessions_here(path: str | Path) -> list[tuple[str, int]]:
@@ -1666,8 +1695,9 @@ def _notes(found: start.Found, labels_command: str | None = None) -> list[str]:
 
 def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
     """Results files found next to the one read, never read with it: named (at most
-    OTHERS), with the command that checks one, the person's flags kept. Another eval beside
-    it can't be checked here once marking starts (project.other_eval): a folder of its own."""
+    OTHERS), with the command that checks one, the person's flags kept. Another eval in this
+    project can't be checked here once marking starts (project.other_eval): a folder of its
+    own."""
     if found.tool not in FILE_TOOLS or found.given:
         return None
     others = [r for r in found.results if r.rel not in found.used][:OTHERS]
@@ -1681,20 +1711,21 @@ def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
     if apart:
         said.append(f"Also found {start._and(apart)}, with other questions. To check "
                     f"{'it' if len(apart) == 1 else 'one'}, put it in a folder of its own and "
-                    f"run `{project.program_anywhere()}` there.")
+                    f"run `{project.program_anywhere()}{talk.away}` there.")
     return " ".join(said) or None
 
 
 def _another_eval(result: find.Result, found: start.Found) -> bool:
-    """Whether `result`, not read, sits beside a file read and is another eval than `found`."""
-    read = {r.path.resolve().parent for r in found.results if r.rel in found.used}
-    if result.path.resolve().parent not in read or not found.pool.answers:
+    """Whether `result`, not read, is in the project read (beside a file read or a folder
+    away: project.other_eval stops at either) and is another eval than `found`."""
+    if not result.path.resolve().is_relative_to(Path(found.root).resolve()) or \
+            not found.pool.answers:
         return False
     held = [{"input": a.input, "output": a.output, "id": a.id} for a in found.pool.answers]
     return not project.same_questions(result.path.resolve(), found.tool, held)
 
 
-def _other_projects(found: start.Found) -> str | None:
+def _other_projects(found: start.Found, away: str = "") -> str | None:
     """Run from a folder that is no project but holds several: which project the results
     are from, and the others that hold results (at most OTHERS), each with its command."""
     root = Path(found.root)
@@ -1715,30 +1746,32 @@ def _other_projects(found: start.Found) -> str | None:
                      if (p := project_of(r.path)) not in (None, read)})[:OTHERS]
     if read is None or not others:
         return None
-    return f"These results are from the project in {read}/. {_results_too(others)}"
+    return f"These results are from the project in {read}/. {_results_too(others, away)}"
 
 
-def _results_too(others: list[str]) -> str:
-    """The projects in `others` (paths from here) have results too, each with its command."""
+def _results_too(others: list[str], away: str = "") -> str:
+    """The projects in `others` (paths from here) have results too, each with its command
+    (`away`: what it repeats, FrontTalk.away)."""
     one = len(others) == 1
     named = start._and([f"{p}/" for p in others])
-    commands = start._or([f"`{program()} {quote_arg(p)}`" for p in others])
+    commands = start._or([f"`{program()} {quote_arg(p)}{away}`" for p in others])
     return (f"The {'project' if one else 'projects'} in {named} {'has' if one else 'have'} "
             f"results too: to check them, run {commands}.")
 
 
-def _nested_here(found: start.Found) -> str | None:
+def _nested_here(found: start.Found, away: str = "") -> str | None:
     """Results in a project of its own below this one, never read with these: named."""
     if found.given:
         return None
     nested = find.nested_results(find.search(found.root), answers=True)
-    return _results_too(_from_here(found.root, nested)) if nested else None
+    return _results_too(_from_here(found.root, nested), away) if nested else None
 
 
 def _below_here(talk: FrontTalk, found: start.Found) -> str | None:
     """The projects of their own below with results, never read with these: those left out
     from a folder that is no project (talk.left_below), else those below this project."""
-    return _results_too(talk.left_below) if talk.left_below else _nested_here(found)
+    return _results_too(talk.left_below, talk.away) if talk.left_below else \
+        _nested_here(found, talk.away)
 
 
 def _outer_marks(found: start.Found) -> str | None:
@@ -2314,7 +2347,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     for note in _notes(found, None if talk.labels is not None else talk.command("--labels")):
         talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
-    for others in (_other_files(found, talk), _other_projects(found), _below_here(talk, found),
+    for others in (_other_files(found, talk), _other_projects(found, talk.away), _below_here(talk, found),
                    _outer_marks(found), _kept_apart(found)):
         if others:
             talk.para(others)
@@ -2451,7 +2484,7 @@ def _to_save(talk: FrontTalk, found: start.Found,
         talk.para(f"Nothing was saved: judgekeeper reads "
                   f"{textio.shown_in(Path(found.root) / mapped.file, found.root)} only once "
                   "judgekeeper.toml says how.")
-        raise talk.stop(EXIT_OK, f"run `{program()}` again and answer yes.", as_given=True)
+        raise talk.stop(EXIT_OK, f"run `{talk.command()}` again and answer yes.", as_given=True)
     return new
 
 
@@ -2466,7 +2499,7 @@ def _save(talk: FrontTalk, found: start.Found, new: settings.StartSettings,
         for line in settings.render(new).splitlines():
             talk.say(f"  {line}")
         raise talk.stop(EXIT_QUESTION, f"add the lines above to {settings.FILE}, then run "
-                                       f"`{program()}` again.") from None
+                                       f"`{talk.command()}` again.") from None
     talk.say(f"Saved {settings.FILE} (where your LLM-as-a-judge's results are and how to read "
              "them).")
     if made:  # judgekeeper.toml keeps the judge, its model and pass mark now
@@ -2679,7 +2712,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             (read := _newest_path(found)) is not None and project.rewritten(ws.root, read):
         talk.para(project.REWRITTEN.format(file=textio.line_path(read)))  # never one pool
         raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
-            file=textio.line_path(read), program=project.program_anywhere()))
+            file=textio.line_path(read), program=project.program_anywhere() + talk.away))
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
@@ -2869,6 +2902,31 @@ def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | 
     return True
 
 
+def _port_stop(talk: FrontTalk, port: int, path: str, options: dict) -> Stop:
+    """The page can't start: `port` is taken (by another project's page, or not). The
+    command that opens it on any free port."""
+    command = " ".join((program(), *start.repeated_flags(path, **{**options, "port": 0})))
+    if is_page(port):  # another project's page (its name needs its token): close it
+        talk.para(PORT_PAGE.format(port=port))
+        with textio.run_from(textio.ANYWHERE):  # its folder can't be named
+            stop = program("--stop")
+        return talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(stop=stop, command=command))
+    talk.say(PORT_TAKEN.format(port=port))
+    return talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
+
+
+def _port_taken(talk: FrontTalk, path: Path) -> Stop | None:
+    """Before anything is written: the port the person gave is taken, and not by this
+    project's own page (opening it again closes that one first). None when it is free."""
+    port = talk.options.get("port")
+    if port in (None, 0, page.DEFAULT_PORT) or page.port_free(port):  # the default moves
+        return None
+    lock = read_lock(Workspace(project.project_of(path)).dir)
+    if lock and lock.get("port") == port:
+        return None
+    return _port_stop(talk, port, talk.path, talk.options)
+
+
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
           result: bool = False) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown). `result`:
@@ -2892,17 +2950,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
             background.stop(ws.dir)
         tried = page.choose_port(talk.options["port"], lambda line: None)
         if opened is None and not page.port_free(tried):  # --wait would need the same port
-            path, options = answered(talk, saved)
-            command = " ".join((program(), *start.repeated_flags(path, **{**options,
-                                                                          "port": 0})))
-            if is_page(tried):  # another project's page (its name needs its token): close it
-                talk.para(PORT_PAGE.format(port=tried))
-                with textio.run_from(textio.ANYWHERE):  # its folder can't be named
-                    stop = program("--stop")
-                raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(stop=stop,
-                                                                      command=command))
-            talk.say(PORT_TAKEN.format(port=tried))
-            raise talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
+            raise _port_stop(talk, tried, *answered(talk, saved))
         talk.say(f"The marking page could not start in the background (what went wrong is in "
                  f"{link(ws.dir / background.LOG, f'{shown_folder(ws)}/{background.LOG}')}).")
         raise talk.stop(EXIT_QUESTION, COULD_NOT.format(command=talk.command("--wait")))

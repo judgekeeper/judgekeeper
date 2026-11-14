@@ -26,7 +26,7 @@ import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from judgekeeper import keys, recorder, textio
@@ -109,9 +109,28 @@ class Result:
         """When the results were made: the tool's own date when the file has one, else the
         file's modified time. Always with a time zone."""
         if self._date is None:
-            self._date = _made_at(self) or datetime.fromtimestamp(
-                self.path.stat().st_mtime).astimezone()
+            self._date = _made_at(self) or file_time(self.path.stat().st_mtime)
         return self._date
+
+
+def local(moment: datetime) -> datetime:
+    """`moment` in this computer's time zone (one with no zone is local time already). On
+    Windows, local time near or before 1970 is unknown (localtime() takes no time before 1970,
+    and Python looks a day back), and asking raises OSError: then it stays in UTC."""
+    try:
+        return moment.astimezone()
+    except (OSError, OverflowError, ValueError):
+        return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def file_time(stamp: float) -> datetime:
+    """A time stamp (a file's modified time, say) as a local time: see local. One past what
+    datetime holds is 1970."""
+    try:
+        moment = datetime.fromtimestamp(stamp, UTC)
+    except (OSError, OverflowError, ValueError):
+        moment = datetime.fromtimestamp(0, UTC)
+    return local(moment)
 
 
 @dataclass
@@ -395,7 +414,7 @@ def store_facts(path: Path) -> tuple[datetime | None, int | None]:
         if "runs" in tables:
             (ms,) = con.execute("select max(start_time) from runs").fetchone()
             if isinstance(ms, int | float):
-                newest = datetime.fromtimestamp(ms / 1000).astimezone()
+                newest = file_time(ms / 1000)
         if "assessments" in tables:
             (count,) = con.execute("select count(*) from assessments").fetchone()
         if count == 0 and "metrics" in tables and con.execute(
@@ -469,7 +488,7 @@ def _made_at(result: Result) -> datetime | None:
             return _parse_date(stamp)
         if result.tool == "deepeval":
             m = DEEPEVAL_RUN.fullmatch(result.path.name)
-            return datetime(*map(int, m.groups())).astimezone() if m else None
+            return local(datetime(*map(int, m.groups()))) if m else None
         if result.tool == "inspect" and result.path.suffix.lower() == ".json":
             m = _CREATED.search(_head(result.path))
             return _parse_date(m[1].decode("utf-8", errors="replace")) if m else None
@@ -484,7 +503,7 @@ def _parse_date(text) -> datetime | None:
     if not isinstance(text, str) or not text:
         return None
     try:
-        return datetime.fromisoformat(text).astimezone()
+        return local(datetime.fromisoformat(text))
     except ValueError:
         return None
 
@@ -865,7 +884,7 @@ def search(root: str | Path) -> Search:
                     walk.add("records", Path(entry.path), entry.stat().st_size)
         if store is not None and store.is_file():
             walk.add("mlflow", store, store.stat().st_size)
-        elif store is not None and store.is_dir():
+        elif store is not None and is_mlflow_folder(store):  # its name is not enough
             walk.add("mlflow", store)
         for entry in sorted(os.scandir(root), key=lambda e: e.name):
             try:
@@ -941,6 +960,19 @@ def owner(path: Path, root: Path) -> Path | None:
     for folder in reversed(path.parents):
         if folder == root or not folder.is_relative_to(root):
             continue
+        if is_project(folder) and not _left_empty(folder):
+            return folder
+    return None
+
+
+def holder_below(path: Path, root: Path) -> Path | None:
+    """The nearest project of its own to `path` (a file found from `root`) below `root`: the
+    one a run there reads it in (owner gives the first on the way down). None when it is
+    `root`'s own."""
+    root = Path(root).resolve()
+    for folder in Path(os.path.abspath(path)).parents:
+        if folder == root or not folder.is_relative_to(root):
+            return None
         if is_project(folder) and not _left_empty(folder):
             return folder
     return None
@@ -1032,14 +1064,17 @@ def _left_empty(folder: Path) -> bool:
 
 def nested_results(found: Search, answers: bool = False) -> list[str]:
     """The projects below the folder searched (`found.nested`) that hold results judgekeeper
-    reads, there or in a project inside them (named in turn), by their path from it;
-    `answers`: answers with no grade too (to name them)."""
+    reads, by their path from it; one that holds none of its own, the projects inside it
+    that do (a run there would only name them); `answers`: answers with no grade too (to
+    name them)."""
     out = []
     for folder in found.nested:
         below = search(folder)
-        if holds_results(below) or answers and below.answers_read or \
-                nested_results(below, answers):
-            out.append(folder.relative_to(found.root).as_posix())
+        rel = folder.relative_to(found.root).as_posix()
+        if holds_results(below) or answers and below.answers_read:
+            out.append(rel)
+        else:
+            out += [f"{rel}/{inner}" for inner in nested_results(below, answers)]
     return out
 
 
@@ -1222,7 +1257,7 @@ NEWEST_RUN = ("Read DeepEval's newest run, {read} ({read_day}). {other} holds an
 
 def _day(result: Result) -> str:
     """"1 Oct", in local time."""
-    day = result.date().astimezone()
+    day = local(result.date())
     return f"{day.day} {MONTHS[day.month - 1]}"
 
 

@@ -34,7 +34,7 @@ def test_the_top_reading_results_below_names_the_projects_with_results_too(repo,
     assert code == 3 and "File: plain/results.csv" in said, said  # 20 answers: too few
     assert BELONG not in said, said
     assert ("The project in services/support-bot/ has results too: to check them, run "
-            "`judgekeeper services/support-bot`.") in said, said
+            "`judgekeeper services/support-bot --no-browser`.") in said, said
 
 
 def test_the_top_reading_results_below_names_no_project_without_results(repo, capsys,  # noqa: F811
