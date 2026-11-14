@@ -155,8 +155,9 @@ def search(root: Path, unlooked: list[OwnFile] | None = None,
     queue, seen = [root], 0
     while queue and seen < MAX_FILES and time.monotonic() - started < MAX_SECONDS:
         folder = queue.pop(0)
-        try:
-            entries = sorted(os.scandir(folder), key=lambda e: e.name)
+        try:  # folders named like results first, as find's walk
+            entries = sorted(os.scandir(folder),
+                             key=lambda e: (e.name.lower() not in find.RESULT_FOLDERS, e.name))
         except OSError:
             continue
         for entry in entries:

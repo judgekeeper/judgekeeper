@@ -78,6 +78,8 @@ LABEL_MAP = '"VALUE=pass,VALUE=fail,VALUE=error"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
 GO_TO_PROJECT = ("judgekeeper reads eval results in your project folder. Go to it (`cd <your "
                  "project folder>`), then run `{command}` there.")
+KEPT_HERE = ("{folder} is where judgekeeper keeps its own files, so nothing in it is read as "
+             "results.")
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
 QUESTIONS = "judgekeeper needs your answer to {which}:"
@@ -462,6 +464,10 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     if path.is_dir() and textio.above_projects(path):  # a search would walk home folders
         talk.para(GO_TO_PROJECT.format(command=program()))
         return EXIT_NEEDS_YOU
+    if (holder := _holder_of_kept(path)) is not None:  # never its own files as answers
+        where = Path(os.path.relpath(holder, Path.cwd())).as_posix()
+        talk.para(KEPT_HERE.format(folder=f"{textio.WORKSPACE}/"))
+        raise talk.stop(EXIT_QUESTION, f"run `{talk.command_in('' if where == '.' else where)}`.")
     talk.held = [] if given is not None else None  # never above a stop about the labels
     found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
     _read_labels(talk, found, given)  # nothing is written before the labels are read
@@ -480,6 +486,15 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     if not marking and _find_anew(talk, ws, found):
         return _say(talk, found, mapped, wait)
     return _go_on(talk, found, mapped, wait, marking)
+
+
+def _holder_of_kept(path: Path) -> Path | None:
+    """The project that holds `path` when `path` is judgekeeper's own folder (.judgekeeper/)
+    or inside it, else None."""
+    parts = path.resolve().parts
+    if textio.WORKSPACE not in parts:
+        return None
+    return Path(*parts[:parts.index(textio.WORKSPACE)])
 
 
 def _find_anew(talk: FrontTalk, ws: Workspace, found: start.Found) -> bool:
@@ -645,7 +660,31 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     elif root != path.resolve() and _log_folder_of(root, found):  # in the marked project
         found = start.rebased(found, root, path)
         _folder_chosen(talk, found, path.resolve())
+    elif (holder := _tool_folder_holder(path, found)) is not None:  # a first run too
+        found = start.rebased(found, holder, path)
+        _folder_chosen(talk, found, path.resolve())
     return found, saved
+
+
+def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
+    """The project that holds `path` when `path` is an eval tool's own output folder (an
+    Inspect AI logs folder, a DeepEval results folder, with the logs read right in it): never
+    a project of its own, so its marks stay when its logs are cleared. Named from the folder
+    run in, the nearest project on the way up to it, else the folder that holds it; run in
+    it, the project above."""
+    if found.tool not in ("deepeval", "inspect") or not path.is_dir() or not found.results:
+        return None
+    folder, here = path.resolve(), Path.cwd().resolve()
+    if find.is_project(folder) or any(r.path.resolve().parent != folder for r in found.results):
+        return None
+    if folder != here and folder.is_relative_to(here):  # named from the folder run in
+        for up in folder.parents:
+            if find.is_project(up):
+                return up
+            if up == here:
+                return folder.parent
+    holder = project.project_of(folder.parent)
+    return holder if find.is_project(holder) else None
 
 
 def _project_reads(path: Path, store: Path) -> Path:
@@ -1163,6 +1202,14 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         return talk.stop(EXIT_QUESTION, run_there(nested, Path.cwd()))
     saved = _marks_in(Workspace(root)) if talk.given else _saved_marks(root)  # a folder named
     # is the project: never the marks of a project around it
+    holder = root.resolve() if talk.given else project.project_of(root)
+    if saved and holder != root.resolve():  # a folder (with code) in the marked project
+        where = Path(os.path.relpath(holder, Path.cwd())).as_posix()
+        talk.say_step()
+        talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "
+                  f"{'is' if saved == 1 else 'are'} saved in the project above, in "
+                  f"{where}/{FOLDER}/.")
+        return talk.stop(EXIT_QUESTION, f"run `{talk.command_in(where)}`.")
     if saved:  # the results file is gone, the marks are not
         talk.say_step()
         talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "

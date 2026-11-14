@@ -1582,11 +1582,23 @@ def _locate(talk: Talk, path: Path, tool: str | None,
             f"Several tools found; choose one with {_or([f'--tool {t}' for t in available])}",
             flag="--tool", values=available, what="which eval tool's results to check")]
         _next_time(talk, "--tool", kind)
+    if (cut := _cut_short(found)) is not None:  # an older file is never read in silence
+        talk.say(f"{cut} Newer results may be in a file it did not reach: to read them, run "
+                 f"`{talk.command_at('PATH')}` with their file or folder.")
     if root.name == find.HIDDEN_KEPT:  # a .deepeval/ folder: its project is the one it is in
         root = root.parent
         return root, kind, [replace(r, rel=r.path.relative_to(root).as_posix())
                             for r in by_date[kind]], found.signs
     return root, kind, by_date[kind], found.signs
+
+
+def _cut_short(found: find.Search) -> str | None:
+    """The walk's limit that was reached, as a sentence about judgekeeper, or None."""
+    if found.stopped:
+        return f"judgekeeper {found.stopped[0].lower()}{found.stopped[1:]}"
+    if found.json_left:
+        return f"judgekeeper looked into the first {find.MAX_JSON:,} JSON files only."
+    return None
 
 
 def _eval_folder(result: find.Result) -> str | None:

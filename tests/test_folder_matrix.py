@@ -282,6 +282,212 @@ def test_a_tool_with_no_results_never_says_to_run_the_same_command_again(
     assert "run `judgekeeper --tool promptfoo" not in said[said.rindex("Next:"):], said
 
 
+# A tool's folder, the walk's limits, a code folder, .judgekeeper/ ----------------------------
+
+
+def _marked(folder: Path, n: int) -> None:
+    """The first n answers of the session in `folder` marked, Pass and Fail in turn."""
+    from judgekeeper import start_label
+
+    page = start_label.StartSession(start_label.Workspace(folder))
+    for i, item in enumerate(page.items[:n]):
+        page.update({"id": item["id"], "label": "pass" if i % 2 == 0 else "fail", "seconds": 3})
+
+
+def _many(folder: Path, n: int, suffix: str, text: str = "") -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    for i in range(n):
+        (folder / f"doc{i:04}{suffix}").write_text(text, encoding="utf-8")
+
+
+def _older(path: Path, days: int = 300) -> None:
+    then = time.time() - days * 86400
+    os.utime(path, (then, then))
+
+
+def test_the_chosen_inspect_logs_folder_keeps_the_session_in_the_project(
+        tmp_path, capsys, monkeypatch):
+    """`judgekeeper logs`, as the choice of folders prints it, marks in proj/, never in
+    proj/logs/ (cleared with old logs), and `check` in proj/ never says `cd logs`."""
+    from tests.start_projects import inspect_project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    inspect_project(proj, split(6, 6), tag="a")
+    inspect_project(proj, split(6, 6), name="old/logs/2026-10-02_support.json", tag="b")
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert "`judgekeeper logs " in said, said
+    code, said = _say(capsys, monkeypatch, proj, "logs", "--yes")
+    assert code in (0, 3) and "Answers:" in said, said
+    assert not (proj / "logs" / ".judgekeeper").exists(), said
+    assert (proj / ".judgekeeper" / "judge.json").is_file(), said
+    assert str(tmp_path) not in said, said  # every path from here
+    monkeypatch.chdir(proj)
+    project.forget()
+    code, out, err = run(capsys, "check")
+    assert "cd logs" not in flat(out + err), out + err
+
+
+def test_a_named_deepeval_results_folder_keeps_the_session_in_the_project(
+        tmp_path, capsys, monkeypatch):
+    """DeepEval: a results folder named as PATH is no project of its own."""
+    from tests.start_projects import deepeval_project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    deepeval_project(proj, split(6, 6), name="results-a/test_run_20261002_120000.json")
+    deepeval_project(proj, split(6, 6), name="results-b/test_run_20261001_120000.json")
+    code, said = _say(capsys, monkeypatch, proj, "results-a", "--yes")
+    assert code in (0, 3) and "Answers:" in said, said
+    assert not (proj / "results-a" / ".judgekeeper").exists(), said
+    assert (proj / ".judgekeeper" / "judge.json").is_file(), said
+    assert str(tmp_path) not in said, said
+    code, said = _say(capsys, monkeypatch, proj / "results-b", "--yes")  # run from inside it
+    assert code in (0, 3) and "Answers:" in said, said
+    assert not (proj / "results-b" / ".judgekeeper").exists(), said
+    assert str(tmp_path) not in said, said
+
+
+def test_a_named_logs_folder_with_no_project_file_above_keeps_the_session_out(
+        tmp_path, capsys, monkeypatch):
+    """No project file: `judgekeeper logs` from a plain folder, or `judgekeeper
+    a/b/logs` from the project, never makes the logs folder a project of its own."""
+    from tests.start_projects import inspect_project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    plain = tmp_path / "plain"
+    inspect_project(plain, split(6, 6), tag="a")
+    code, said = _say(capsys, monkeypatch, plain, "logs", "--yes")
+    assert code in (0, 3) and "Answers:" in said, said
+    assert not (plain / "logs" / ".judgekeeper").exists(), said
+    assert (plain / ".judgekeeper" / "judge.json").is_file(), said
+    said = _say(capsys, monkeypatch, plain, "mark", "logs")[1]
+    assert not (plain / "logs" / ".judgekeeper").exists(), said
+    assert (plain / ".judgekeeper" / "start.json").is_file(), said
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    inspect_project(proj / "a" / "b", split(6, 6), tag="b")
+    code, said = _say(capsys, monkeypatch, proj, "a/b/logs", "--yes")
+    assert code in (0, 3) and "Answers:" in said, said
+    assert not (proj / "a" / "b" / "logs" / ".judgekeeper").exists(), said
+    assert (proj / ".judgekeeper" / "judge.json").is_file(), said
+
+
+def test_many_json_files_never_hide_the_results(tmp_path, capsys, monkeypatch, reads):
+    """250 JSON documents in data/ use up no budget the eval's folder needs."""
+    from tests.start_projects import promptfoo_project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    _many(proj / "data", 250, ".json", '{"text": "a document"}')
+    promptfoo_project(proj / "evals", split(6, 6), tag="e")
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert reads and reads[-1][1] == [(proj / "evals" / "results.json").resolve()], said
+
+
+def test_the_sessions_own_file_is_always_found(tmp_path, capsys, monkeypatch, reads):
+    """After marking, 250 JSON files sorted before the results never make plain,
+    `mark` or `check` say there are no saved results (a loop)."""
+    from tests.start_projects import promptfoo_project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    promptfoo_project(proj / "bench", split(20, 20), tag="b")
+    _say(capsys, monkeypatch, proj)
+    assert (proj / ".judgekeeper" / "start.json").is_file()
+    _marked(proj, 10)
+    _many(proj / "aaa", 250, ".json", '{"text": "a document"}')
+    for argv in ((), ("mark",)):
+        reads.clear()
+        said = _say(capsys, monkeypatch, proj, *argv)[1]
+        assert "no saved results file yet" not in said, (argv, said)
+        assert reads and reads[-1][1][0] == (proj / "bench" / "results.json").resolve(), said
+    monkeypatch.chdir(proj)
+    project.forget()
+    _, out, err = run(capsys, "check")
+    assert "no saved results file yet" not in flat(out + err), out + err
+
+
+def test_a_walk_that_stopped_says_so_even_when_it_read_something(tmp_path, capsys,
+                                                                 monkeypatch, reads):
+    """Over 5,000 files: the folder named like results is looked in first, and the
+    run says it stopped looking, so an older file is never read in silence."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    _many(proj / "assets", 5100, ".png")
+    table_project(proj / "runs", split(6, 6), tag="r")
+    _older(table_project(proj, split(6, 6), name="old_results.csv", tag="o"))
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert reads and reads[-1][1][0] == (proj / "runs" / "results.csv").resolve(), said
+    assert "stopped looking after 5,000 files" in said, said
+    (proj / "runs" / "results.csv").rename(proj / "zz-later.csv")
+    (proj / "runs").rmdir()
+    _many(proj / "zz", 1, ".txt")
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert "stopped looking after 5,000 files" in said, said
+
+
+def test_a_code_folder_under_a_project_with_marks_names_the_project(tmp_path, capsys,
+                                                                    monkeypatch):
+    """From proj/scripts/ (code), plain and `mark` agree with `check`: the marks are in
+    the project above, run there; never "they come back when your results file is back"."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    table_project(proj / "evals", split(20, 20), tag="p")
+    assert _say(capsys, monkeypatch, proj)[0] == 0
+    _marked(proj, 14)
+    _kind(proj / "scripts", "code")
+    for argv in ((), ("mark",)):
+        said = _say(capsys, monkeypatch, proj / "scripts", *argv)[1]
+        assert "come back when your results file is back" not in said, (argv, said)
+        assert "saved in the project above, in ../.judgekeeper/." in said, (argv, said)
+        assert f"Next: run `judgekeeper {' '.join((*argv, '..'))} --port 0" in said, (argv, said)
+    for argv in (("check",), ("fix",)):
+        monkeypatch.chdir(proj / "scripts")
+        project.forget()
+        _, out, err = run(capsys, *argv)
+        said = flat(out + err)
+        assert "come back when your results file is back" not in said, (argv, said)
+        assert "no saved results" not in said.lower(), (argv, said)
+    assert not (proj / "scripts" / ".judgekeeper").exists()
+
+
+def test_a_run_inside_judgekeepers_folder_never_reads_its_files(tmp_path, capsys,
+                                                                monkeypatch):
+    """Run in proj/.judgekeeper/, pool.jsonl is never read as answers and no
+    .judgekeeper/ is made inside it."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    table_project(proj / "evals", split(20, 20), tag="p")
+    assert _say(capsys, monkeypatch, proj)[0] == 0
+    _marked(proj, 6)
+    jk = proj / ".judgekeeper"
+    said = _say(capsys, monkeypatch, jk)[1]
+    assert "pool.jsonl" not in said and "pool-judge.jsonl" not in said, said
+    assert "Next: run `judgekeeper .. " in said, said
+    assert not (jk / ".judgekeeper").exists(), said
+
+
+def test_a_logs_folder_named_with_a_capital_is_found_once(tmp_path, capsys, monkeypatch):
+    """On a disk that ignores case, Logs/ is the known logs/ folder: one folder."""
+    from tests.start_projects import inspect_project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    inspect_project(proj, split(6, 6), name="Logs/2026-10-02_support.json")
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert "more than one folder" not in said, said
+    assert "Answers:" in said, said
+
+
 # Layouts the random trees found (tests/test_folder_fuzz.py) --------------------------------
 
 def _tool_results(folder: Path, tool: str, n: int, tag: str) -> Path:
