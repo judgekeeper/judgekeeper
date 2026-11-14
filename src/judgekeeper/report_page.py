@@ -1696,9 +1696,10 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
         if started_else:
             act += ('<p class="small">' + _e(STARTED_ELSE).replace(
                 "`judgekeeper`", "<code>judgekeeper</code>") + "</p>")
-        from judgekeeper.start_label import link_lines, quick_lines
+        from judgekeeper.start_label import link_lines, quick_lines, repeat_lines
 
-        notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))]
+        notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))
+                 + repeat_lines((r.get("made") or {}).get("repeats"))]
         body = (f'<section class="verdict" aria-labelledby="verdict-h"><h1 id="verdict-h" '
                 f'class="plain">{head}</h1></section>{_since(fixing)}'
                 '<section class="sec score" aria-labelledby="nums-h"><div class="sh">'
