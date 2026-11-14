@@ -946,6 +946,19 @@ def owner(path: Path, root: Path) -> Path | None:
     return None
 
 
+def holder_below(path: Path, root: Path) -> Path | None:
+    """The nearest project of its own to `path` (a file found from `root`) below `root`: the
+    one a run there reads it in (owner gives the first on the way down). None when it is
+    `root`'s own."""
+    root = Path(root).resolve()
+    for folder in Path(os.path.abspath(path)).parents:
+        if folder == root or not folder.is_relative_to(root):
+            return None
+        if is_project(folder) and not _left_empty(folder):
+            return folder
+    return None
+
+
 def _own_results(own) -> bool:
     """Whether own_format.search found results in a format of its own: a table with a label
     column is a person's labels (--labels), not an LLM-as-a-judge's."""
@@ -1032,14 +1045,17 @@ def _left_empty(folder: Path) -> bool:
 
 def nested_results(found: Search, answers: bool = False) -> list[str]:
     """The projects below the folder searched (`found.nested`) that hold results judgekeeper
-    reads, there or in a project inside them (named in turn), by their path from it;
-    `answers`: answers with no grade too (to name them)."""
+    reads, by their path from it; one that holds none of its own, the projects inside it
+    that do (a run there would only name them); `answers`: answers with no grade too (to
+    name them)."""
     out = []
     for folder in found.nested:
         below = search(folder)
-        if holds_results(below) or answers and below.answers_read or \
-                nested_results(below, answers):
-            out.append(folder.relative_to(found.root).as_posix())
+        rel = folder.relative_to(found.root).as_posix()
+        if holds_results(below) or answers and below.answers_read:
+            out.append(rel)
+        else:
+            out += [f"{rel}/{inner}" for inner in nested_results(below, answers)]
     return out
 
 

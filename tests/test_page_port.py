@@ -13,7 +13,7 @@ import pytest
 from judgekeeper import page
 from judgekeeper.cli import main
 from judgekeeper.label import LabelServer, LabelSession
-from tests.start_projects import promptfoo_project, split
+from tests.start_projects import promptfoo_project, split, table_project
 from tests.test_front import next_lines
 
 ANOTHER = ("Another judgekeeper page is already open on port {old}, so this page uses port {new}. "
@@ -106,3 +106,49 @@ def test_no_free_port_never_suggests_wait(here, taken, capsys, pages, monkeypatc
     assert "--wait" not in out
     assert f"Port {port} is in use" in out
     assert next_lines(out)[-1].startswith("Next: run `judgekeeper --port 0")
+
+
+def _free_port() -> int:
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def test_a_command_for_another_project_keeps_no_browser_and_never_the_port(tmp_path, capsys,
+                                                                           pages, monkeypatch):
+    """services/ holds loose/ (read) and rag/ (a project with a session of its own): the run with
+    --port and --no-browser opens its page on that port, so the command it prints for rag/
+    keeps --no-browser and leaves the port out (the default moves to a free one)."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    services = tmp_path / "services"
+    table_project(services / "loose", split(20, 20), tag="l")
+    (services / "rag").mkdir()
+    (services / "rag" / "rag.py").write_text("", encoding="utf-8")
+    (services / "rag" / "answers.csv").write_text(
+        "input,output\n" + "".join(f"Q{i}?,A{i}.\n" for i in range(12)), encoding="utf-8")
+    monkeypatch.chdir(services / "rag")
+    _run(capsys, "answers.csv", "--port", 0, "--no-browser")  # its own session
+    monkeypatch.chdir(services)
+    port = _free_port()
+    _, out = _run(capsys, "--port", port, "--no-browser")
+    said = " ".join(out.split())
+    assert "`judgekeeper rag --no-browser`" in said, said
+
+
+def test_the_folder_above_is_named_with_no_browser_and_never_the_port(tmp_path, capsys,
+                                                                      pages, monkeypatch):
+    """proj/ holds results, proj/src/ nothing: the run in src/ names the folder above with
+    --no-browser, never the port given."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    promptfoo_project(proj, split(5, 5))
+    (proj / "pyproject.toml").write_text("", encoding="utf-8")
+    (proj / "src").mkdir()
+    (proj / "src" / "app.py").write_text("", encoding="utf-8")
+    monkeypatch.chdir(proj / "src")
+    port = _free_port()
+    _, out = _run(capsys, "--port", port, "--no-browser")
+    said = " ".join(out.split())
+    assert "Run `judgekeeper .. --no-browser`" in said, said
