@@ -1657,6 +1657,14 @@ def write_report(ws: Workspace, worse: str | None = None) -> None:
                                                     worse=worse, last=_last_check(ws, worse)))
 
 
+def result_again(ws: Workspace, session: StartSession, flags: dict | None = None) -> None:
+    """A result saved before a mark was taken back (the page's undo or skip): made again
+    from the marks that stand (store_result), so result.json and report.html never keep a
+    mark that is gone; under a result's marks, they say so, as the terminal does."""
+    if ws.result_json.is_file():
+        store_result(ws, session, flags)
+
+
 def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
                 back: str = "/") -> str:
     """The result page the marking page serves at /result: the result from the marks so far,

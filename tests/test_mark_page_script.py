@@ -1349,3 +1349,36 @@ def test_a_pass_click_while_an_undo_saves_marks_the_answer_that_stayed_on_screen
     assert got["back"] == "Question 0?"
     assert got["sent"] == [["a0", "pass"], ["a0", None], ["a0", "fail"]]
     assert got["at"] == "Question 1?" and got["status"] == ""
+
+
+def test_an_undo_pressed_while_the_last_mark_saves_takes_it_back_and_no_result_opens():
+    """Pass on the last answer and Z at once: the undo waits for the save, takes the mark
+    back, and the result page never opens on a mark that no longer stands."""
+    got = _run("""
+      for (var i = 0; i < 2; i++) { key("ArrowRight"); await settle(); later(500); }
+      var answer = [], real = fetch;
+      fetch = function (url, opts) { var r = real(url, opts);
+        return new Promise(function (ok) { answer.push(function () { ok(r); }); }); };
+      key("ArrowRight"); key("z"); await settle();
+      while (answer.length) { answer.shift()(); for (var n = 0; n < 4; n++) { await settle(); } }
+      console.log(JSON.stringify({href: window.location.href, at: ids["q-text"].textContent,
+        card: ids["answer-card"].hidden,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(3))
+    assert got["sent"][-2:] == [["a2", "pass"], ["a2", None]]
+    assert got["href"] == ""
+    assert got["card"] is False and got["at"] == "Question 2?"
+
+
+def test_an_undo_after_the_result_started_opening_says_so_and_sends_nothing():
+    """Every answer marked: the result is opening. Z then takes nothing back behind it; the
+    page says the result is opening."""
+    got = _run("""
+      for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      var before = sent.length;
+      key("z"); await settle();
+      console.log(JSON.stringify({href: window.location.href, more: sent.length - before,
+        said: ids["status"].textContent}));""", data=_data(3))
+    assert got["href"] == "/result?token=t0k"
+    assert got["more"] == 0
+    assert got["said"] == mark_page.OPENING

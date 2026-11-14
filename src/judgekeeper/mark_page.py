@@ -858,7 +858,12 @@ __TOP__
         setText("end-note", WORDS.change);
         focusCard(); return;
       }
-      window.location.href = url("/result");
+      if (queued.length) {  // a key pressed while the last mark saved (Z, say) comes first;
+        // the result opens after it only when every answer is still marked
+        queued.push(function () { if (ended && !changing) { leave(); } });
+        return;
+      }
+      leave();
       return;
     }
     $("end-note").hidden = true;
@@ -1062,7 +1067,13 @@ __TOP__
 
   // Z: a first mark (or skip) is taken back; a changed mark goes back to the mark it had (an
   // ordinary mark line in marks.jsonl, so every step stays there).
+  // The result opening: nothing more is taken back behind it (it is made from the marks
+  // that stand when it opens), and the page says so.
+  var leaving = false;
+  function leave() { leaving = true; window.location.href = url("/result"); }
+
   function undo(key) {
+    if (leaving) { say(WORDS.opening, true); return; }
     if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked(key)) { return; }
     closeReady();  // an undo can take the result back below ready
@@ -1178,6 +1189,9 @@ def _progress() -> str:
             f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
 
 
+# Z while the result opens (every answer marked): nothing is taken back behind it
+OPENING = 'Your result is opening. To change a mark, click "Change a mark" on it.'
+
 # Gone, or no answer: the footer names the command, as typed where it ran (and NAME's lines)
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
              "the command at the bottom of this page. Your marks are kept.")
@@ -1197,7 +1211,7 @@ def _words() -> str:
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
              "seeReady": SEE_READY, "noAnswer": NO_ANSWER, "notMarked": NOT_MARKED,
-             "change": CHANGE_MARK,
+             "change": CHANGE_MARK, "opening": OPENING,
              # the end card with only skipped answers left; the page puts in their number
              "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
              "skippedMany": only_skipped(2, ONLY_SKIPPED_CARD).replace("2", "{n}"),
