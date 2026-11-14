@@ -422,6 +422,16 @@ def is_mlflow_folder(path: Path) -> bool:
         return False
 
 
+def _mlflow_artifacts(path: Path) -> bool:
+    """Whether `path` (a folder named mlruns/ that is no store) holds MLflow's logged
+    artifacts: an experiment folder (a number). Else it is a plain folder, walked as logs/
+    is, so a table saved in it is found."""
+    try:
+        return any(d.is_dir() and d.name.isdigit() for d in path.iterdir())
+    except OSError:
+        return True
+
+
 def classify_file(path: Path) -> str | None:
     """The tool whose results `path` is, or None. For a file named on the command line."""
     suffix = path.suffix.lower()
@@ -661,10 +671,11 @@ class _Walk:
                     sub = Path(entry.path)
                     if entry.name == HIDDEN_KEPT:
                         self.sign("deepeval", self.rel(sub) + "/")
-                    if entry.name == "mlruns":
-                        if is_mlflow_folder(sub):  # else only mlflow.db's artifacts
-                            self.add("mlflow", sub)
-                            self.sign("mlflow", self.rel(sub) + "/")
+                    if entry.name == "mlruns" and is_mlflow_folder(sub):
+                        self.add("mlflow", sub)
+                        self.sign("mlflow", self.rel(sub) + "/")
+                    elif entry.name == "mlruns" and _mlflow_artifacts(sub):
+                        pass  # mlflow.db's logged artifacts: MLflow's, never walked
                     elif walked(entry) and self.project and is_project(sub) \
                             and not _left_empty(sub):
                         if sub not in self.search.nested:

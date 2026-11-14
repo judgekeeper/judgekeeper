@@ -1441,7 +1441,9 @@ def _read_above(root: Path, found: find.Search, tool: str | None,
             return "records", above
     if stay:
         return None
-    if not available and tool is None and not found.too_big() and not found.unreadable:
+    if not available and tool is None and not found.too_big() and not found.unreadable \
+            and not any(how == find.LINK for _, how in found.skipped):  # a linked results
+        # file here is said, never read above by another path
         above = find.results_above(root)
         if above is not None:
             return "results", above
