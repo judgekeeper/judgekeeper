@@ -1354,3 +1354,19 @@ def test_an_empty_folder_never_reads_a_named_file_past_a_nearer_project(tmp_path
     reads.clear()
     said = _say(capsys, monkeypatch, top / "b" / "runs")[1]
     assert all(root != top.resolve() for root, _ in reads), said
+
+
+def test_a_folder_the_tracking_uri_names_is_mlflow_only_with_mlflow_in_it(tmp_path, capsys,
+                                                                         monkeypatch, reads):
+    """proj/ holds graded results and mlruns/ with no experiment in it, which
+    MLFLOW_TRACKING_URI names. The run reads the results: it never offers MLflow, whose
+    command would read nothing."""
+    proj = tmp_path / "proj"
+    results = table_project(proj, split(20, 20), tag="p")
+    (proj / "mlruns").mkdir()
+    (proj / "mlruns" / "notes.txt").write_text("not a run\n", encoding="utf-8")
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", str(proj / "mlruns"))
+    reads.clear()
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert "more than one eval tool" not in said and "--tool mlflow" not in said, said
+    assert reads and reads[-1] == (proj.resolve(), [results.resolve()]), said

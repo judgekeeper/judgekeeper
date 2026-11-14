@@ -865,7 +865,7 @@ def search(root: str | Path) -> Search:
                     walk.add("records", Path(entry.path), entry.stat().st_size)
         if store is not None and store.is_file():
             walk.add("mlflow", store, store.stat().st_size)
-        elif store is not None and store.is_dir():
+        elif store is not None and is_mlflow_folder(store):  # its name is not enough
             walk.add("mlflow", store)
         for entry in sorted(os.scandir(root), key=lambda e: e.name):
             try:
