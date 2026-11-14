@@ -1168,3 +1168,22 @@ def test_a_file_named_after_reading_the_session_above_is_named_from_here(tmp_pat
     run_in, args = (evals.parent, ("evals/b",)) if given else (evals / "b", ())
     said = _say(capsys, monkeypatch, run_in, *args)[1]
     _every_command_reads(capsys, monkeypatch, run_in, said)
+
+
+# Folder corner cases -----------------------------------------------------------------------
+
+@pytest.mark.parametrize("kind", ["plain", "file"])
+@pytest.mark.parametrize("sub", ["logs", "mlruns"])
+@pytest.mark.parametrize("top", [False, True])
+def test_a_table_in_a_folder_named_like_a_tools_is_found(tmp_path, capsys, monkeypatch, reads,
+                                                         kind, sub, top):
+    """A graded CSV in mlruns/ (no MLflow store) is found as one in logs/ is: the newest file,
+    read before an older top.csv, and read when it is all there is."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    ml = tmp_path / "ml"
+    _kind(ml, kind)
+    if top:
+        _older(table_project(ml, split(5, 5), tag="t", name="top.csv"))
+    graded = table_project(ml / sub, split(6, 6), tag="g", name="graded.csv")
+    said = _say(capsys, monkeypatch, ml)[1]
+    assert reads and reads[-1][1] == [graded.resolve()], said
