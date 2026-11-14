@@ -1212,3 +1212,25 @@ def test_a_run_from_an_empty_folder_stops_as_the_folder_above_does(tmp_path, cap
     assert all(f"{name}/" in said for name in "abc"), said
     assert not (repo / ".judgekeeper").exists(), said
     assert not (repo / "empty" / ".judgekeeper").exists(), said
+
+
+@pytest.mark.parametrize("kind", ["plain", "file"])
+def test_a_folder_holding_only_a_linked_file_says_it_is_a_link(tmp_path, capsys, monkeypatch,
+                                                                reads, kind):
+    """repo/ (a git top) holds data/real-results.csv; names/link/ holds only results.csv, a
+    link to it. A run in link/ says the file is a link judgekeeper doesn't follow, and never
+    reads its target by another path (the repo top's) or writes in the repo top."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    repo = tmp_path / "repo"
+    _kind(repo, "git")
+    target = table_project(repo / "data", split(20, 20), tag="r", name="real-results.csv")
+    link = repo / "names" / "link"
+    _kind(link, kind)
+    try:
+        (link / "results.csv").symlink_to(target)
+    except OSError:
+        pytest.skip("no symbolic links here")
+    said = _say(capsys, monkeypatch, link)[1]
+    assert "results.csv (a link: judgekeeper doesn't follow links)" in said, said
+    assert not any(target.resolve() in files for _, files in reads), said
+    assert not (repo / ".judgekeeper").exists(), said
