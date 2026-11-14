@@ -1007,8 +1007,10 @@ class StartSession(LabelSession):
         return all(i["label"] in ("pass", "fail") for i in self.items)
 
     def _again(self, item_id: str) -> dict:
-        """An answer shown again, as the page shows any answer still to mark."""
-        return {**self._shown(self.by_id[item_id]), "label": None, "skipped": False}
+        """An answer shown again, as the page shows any answer still to mark, with the mark
+        that counts (`first`, never shown on the card)."""
+        return {**self._shown(self.by_id[item_id]), "label": None, "skipped": False,
+                "first": self.by_id[item_id]["label"]}
 
     def _repeat(self, item: dict, body: dict) -> None:
         """A mark on an answer shown again (`again`: its slot): a repeat line, never a mark. The
