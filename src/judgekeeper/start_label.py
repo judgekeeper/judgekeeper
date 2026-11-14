@@ -931,6 +931,7 @@ class StartSession(LabelSession):
                 raise ValueError("a reason is given on your result page, not with a mark")
             self.add_reasons(item, body)
             return
+        self._seen(item, body)
         before = dict(item)
         try:
             self._apply(item, body)

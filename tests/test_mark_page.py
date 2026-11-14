@@ -224,3 +224,43 @@ def test_a_page_that_opens_with_a_verdict_brings_no_pop_up_later(ws):
     session = start_label.StartSession(ws, status=lambda s: {"text": "x", "ready": True})
     session.state()
     assert ws.ready_seen.is_file() and not session.pop_up({"ready": True})
+
+
+# Two tabs on one card ---------------------------------------------------------------------------
+
+def test_a_mark_from_a_page_whose_card_was_marked_elsewhere_is_not_applied(ws, served):
+    """Tab B marks the card Pass; tab A, which still shows it unmarked, sends Fail with the
+    mark it saw (`was`: none): the server keeps Pass and says the card was marked elsewhere."""
+    _, _, client = served
+    item = client.state()["items"][0]["id"]
+    assert client.label(id=item, label="pass", was=None)[0] == 200  # tab B
+    status, body = client.label(id=item, label="fail", was=None)  # tab A
+    assert status == 409 and body["stale"] is True and "another tab" in body["error"]
+    assert [(m["id"], m["mark"]) for m in _clicks(ws)] == [(item, "pass")]
+
+
+def test_a_mark_from_a_page_that_saw_the_card_as_it_is_now_is_applied(ws, served):
+    _, _, client = served
+    item = client.state()["items"][0]["id"]
+    client.label(id=item, label="pass", was=None)
+    assert client.label(id=item, label="fail", was="pass")[0] == 200  # a changed mark
+    assert client.label(id=item, label=None, was="fail")[0] == 200  # an undo
+    assert [m["mark"] for m in _clicks(ws)] == ["pass", "fail", None]
+
+
+def test_an_undo_from_a_page_whose_mark_was_changed_elsewhere_is_not_applied(ws, served):
+    _, _, client = served
+    item = client.state()["items"][0]["id"]
+    client.label(id=item, label="pass", was=None)
+    client.label(id=item, label="fail", was="pass")  # tab B changes it
+    status, body = client.label(id=item, label=None, was="pass")  # tab A undoes its Pass
+    assert status == 409 and body["stale"] is True
+    assert [m["mark"] for m in _clicks(ws)] == ["pass", "fail"]
+
+
+def test_a_mark_that_says_nothing_of_what_it_saw_is_applied_as_before(ws, served):
+    _, _, client = served
+    item = client.state()["items"][0]["id"]
+    client.label(id=item, label="pass")
+    assert client.label(id=item, label="fail")[0] == 200
+    assert [m["mark"] for m in _clicks(ws)] == ["pass", "fail"]

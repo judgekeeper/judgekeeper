@@ -939,6 +939,7 @@ __TOP__
     busy = true; saving(true);
     change.id = items[pos].id;
     if (items[pos].again != null) { change.again = items[pos].again; }  // shown again: its slot
+    else { change.was = items[pos].label || null; }  // the mark this page saw: else it is refused
     change.seconds = Math.max(0, (Date.now() - shownAt) / 1000);
     // No answer in SAVE_MS (judgekeeper stopped, or the computer slept): not saved, as below.
     var stop = new AbortController(), waited = setTimeout(function () { stop.abort(); }, SAVE_MS);
@@ -946,9 +947,11 @@ __TOP__
       method: "POST", headers: {"Content-Type": "application/json"},
       referrerPolicy: "same-origin", body: JSON.stringify(change), signal: stop.signal
     }).then(function (r) {
-      return r.json().then(function (body) { return {ok: r.ok, body: body}; });
+      return r.json().then(function (body) { return {ok: r.ok, status: r.status, body: body}; });
     }).then(function (res) {
       clearTimeout(waited);
+      if (res.status === 409 && res.body.stale) {  // marked in another tab since this page loaded
+        queued = []; say(WORDS.otherTab); refresh(WORDS.otherTab, false); return; }
       if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
@@ -1199,6 +1202,10 @@ def _progress() -> str:
 # Gone, or no answer: the footer names the command, as typed where it ran (and NAME's lines)
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
              "the command at the bottom of this page. Your marks are kept.")
+# A mark or an undo the server refused: the answer was marked in another tab since this page
+# loaded. The page takes its list again.
+OTHER_TAB = ("Not marked: this answer was already marked in another tab. "
+             "The list is up to date again.")
 # An Undo made while a mark was saving, dropped because the list was taken again
 NOT_UNDONE = ("Not undone: the list changed while your last mark was saving. "
               "Press Undo again.")
@@ -1217,7 +1224,7 @@ def _words() -> str:
     from judgekeeper.start_label import FIRST_NUMBERS, ONLY_SKIPPED_CARD, only_skipped
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER, "notMarked": NOT_MARKED, "notUndone": NOT_UNDONE,
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER, "notMarked": NOT_MARKED, "notUndone": NOT_UNDONE, "otherTab": OTHER_TAB,
              "change": CHANGE_MARK,
              # the end card with only skipped answers left; the page puts in their number
              "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
