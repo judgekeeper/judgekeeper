@@ -37,6 +37,7 @@
 - A CSV, TSV or JSONL file of answers under other column names, such as `question` and `answer`, with no grades: judgekeeper names its columns and says to rename them `input` and `output`, instead of asking for grades or printing the prompt that writes answers. With grades, the line on how to switch names the file's own grade column.
 - `--tool table` with no results now says "your CSV, TSV or JSONL results file".
 - A tool's output folder (Inspect logs, DeepEval results) is never a project of its own: `judgekeeper logs` keeps your marks in the project that holds it, so clearing old logs no longer deletes them. Your session's results file is always read, however many other files the project has, and judgekeeper says when it stopped looking. From a code folder in a project with marks, every command points to the project above. A run inside `.judgekeeper/` never reads its files. `Logs/` is found once on a disk that ignores case.
+- On the marking page, an Undo after your last mark makes your result again from the marks that stand. With answers and no grades, the result says when you marked a repeated answer differently, `fix` gives the result's next step instead of asking for grades, and once the questions kept aside are used up the result gives one next step: new questions.
 
 ## 1.1.2 (2026-11-08)
 
