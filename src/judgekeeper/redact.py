@@ -126,11 +126,22 @@ _END_SIGNS = ".,;:!?)]}"  # what ends a sentence or a bracket after a word
 _JOINED_WORDS = re.compile(r"(?<=[^\W\d_])[-'](?=[^\W\d_])")  # well-being, don't
 
 
+# Words with signs that a person writes, never a credential: a link, a domain or a path, an
+# email, a word in brackets, a menu path (Settings>Account) and a digits-hyphen word in lower
+# case (2-factor; 2026-Summer looks set)
+_PROSE_SIGNS = re.compile(
+    r"(?i:[a-z][a-z0-9+.-]*://|www\.|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/:]|$)"
+    r"|[^@\s]+@(?:[a-z0-9-]+\.)+[a-z]{2,}$|[(\[{<]|[a-z]+(?:>[a-z]+)+$)"
+    r"|[0-9]+(?:-[a-z]+)+$")
+
+
 def _looks_set(word: str) -> bool:
     """A credential, not a word: 8 characters or more, with a digit or a sign in it (not
-    one that only ends a sentence, nor a hyphen or an apostrophe between letters)."""
-    core = _JOINED_WORDS.sub("", word.rstrip(_END_SIGNS))
-    return len(word) >= MIN_SECRET_LENGTH and not core.isalpha()
+    one that only ends a sentence, nor a hyphen or an apostrophe between letters), and not
+    a link, an email or another word with signs that people write (_PROSE_SIGNS)."""
+    end = word.rstrip(_END_SIGNS)
+    return (len(word) >= MIN_SECRET_LENGTH and not _JOINED_WORDS.sub("", end).isalpha()
+            and not _PROSE_SIGNS.match(end))
 # A private key block: from its BEGIN line to its END line, or to the end of its lines of
 # base64 when the text was cut before END. Its body never holds five dashes in a row, so one
 # pass finds where it ends.

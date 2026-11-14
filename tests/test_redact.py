@@ -319,6 +319,9 @@ PEM_IN_JSON = _pem().replace("\n", "\\n")  # as JSON keeps it in a string
     ('Secret = "s3cr3t-value"', f'Secret = "{REDACTED}"'),
     ('{"password": "hunter22"}', f'{{"password": "{REDACTED}"}}'),
     ("MY_CLIENT_SECRET:xyz789abc next", f"MY_CLIENT_SECRET:{REDACTED} next"),
+    ("Secret: Zq9#kLm2", f"Secret: {REDACTED}"),
+    ("Password: Summer2026", f"Password: {REDACTED}"),
+    ("password: 2026-Summer!", f"password: {REDACTED}"),
     ('{\\"db\\": \\"x\\",\\npassword=hunter22\\n}',
      f'{{\\"db\\": \\"x\\",\\npassword={REDACTED}\\n}}'),
 ])
@@ -352,6 +355,14 @@ def test_a_split_stripe_key_or_password_is_still_hidden(text):
     "The secret of good soup is time.",
     "Set a strong password, then save it.",
     "sk_live is how the docs name a live key",
+    # a link, a domain and path, a bracketed word, an email, a menu path, digits-hyphen word
+    "Reset your password: https://shop.example.com/reset",
+    "Forgot your password: shop.example.com/reset to get a new one.",
+    "Password: (required) at least 8 characters.",
+    "Password: user@example.com is not a valid password.",
+    "Set password: Settings>Account>Security.",
+    "Password: 2-factor login is on by default.",
+    "Secret: 30-day trials convert best.",
 ])
 def test_words_like_password_in_prose_stay(text):
     assert scrub(text) == text
