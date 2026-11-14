@@ -26,7 +26,7 @@ import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from judgekeeper import keys, recorder, textio
@@ -109,9 +109,28 @@ class Result:
         """When the results were made: the tool's own date when the file has one, else the
         file's modified time. Always with a time zone."""
         if self._date is None:
-            self._date = _made_at(self) or datetime.fromtimestamp(
-                self.path.stat().st_mtime).astimezone()
+            self._date = _made_at(self) or file_time(self.path.stat().st_mtime)
         return self._date
+
+
+def local(moment: datetime) -> datetime:
+    """`moment` in this computer's time zone (one with no zone is local time already). On
+    Windows, local time near or before 1970 is unknown (localtime() takes no time before 1970,
+    and Python looks a day back), and asking raises OSError: then it stays in UTC."""
+    try:
+        return moment.astimezone()
+    except (OSError, OverflowError, ValueError):
+        return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def file_time(stamp: float) -> datetime:
+    """A time stamp (a file's modified time, say) as a local time: see local. One past what
+    datetime holds is 1970."""
+    try:
+        moment = datetime.fromtimestamp(stamp, UTC)
+    except (OSError, OverflowError, ValueError):
+        moment = datetime.fromtimestamp(0, UTC)
+    return local(moment)
 
 
 @dataclass
@@ -395,7 +414,7 @@ def store_facts(path: Path) -> tuple[datetime | None, int | None]:
         if "runs" in tables:
             (ms,) = con.execute("select max(start_time) from runs").fetchone()
             if isinstance(ms, int | float):
-                newest = datetime.fromtimestamp(ms / 1000).astimezone()
+                newest = file_time(ms / 1000)
         if "assessments" in tables:
             (count,) = con.execute("select count(*) from assessments").fetchone()
         if count == 0 and "metrics" in tables and con.execute(
@@ -469,7 +488,7 @@ def _made_at(result: Result) -> datetime | None:
             return _parse_date(stamp)
         if result.tool == "deepeval":
             m = DEEPEVAL_RUN.fullmatch(result.path.name)
-            return datetime(*map(int, m.groups())).astimezone() if m else None
+            return local(datetime(*map(int, m.groups()))) if m else None
         if result.tool == "inspect" and result.path.suffix.lower() == ".json":
             m = _CREATED.search(_head(result.path))
             return _parse_date(m[1].decode("utf-8", errors="replace")) if m else None
@@ -484,7 +503,7 @@ def _parse_date(text) -> datetime | None:
     if not isinstance(text, str) or not text:
         return None
     try:
-        return datetime.fromisoformat(text).astimezone()
+        return local(datetime.fromisoformat(text))
     except ValueError:
         return None
 
@@ -1238,7 +1257,7 @@ NEWEST_RUN = ("Read DeepEval's newest run, {read} ({read_day}). {other} holds an
 
 def _day(result: Result) -> str:
     """"1 Oct", in local time."""
-    day = result.date().astimezone()
+    day = local(result.date())
     return f"{day.day} {MONTHS[day.month - 1]}"
 
 
