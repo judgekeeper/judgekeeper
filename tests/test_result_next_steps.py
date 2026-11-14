@@ -77,3 +77,37 @@ def test_the_since_heading_is_left_out_when_it_has_nothing_under_it(project):
     section = report.split('id="since-h"', 1)[1].split("</section>", 1)[0] \
         if 'id="since-h"' in report else ""
     assert not section or "<p" in section, (said, section)
+
+
+# "Can't tell yet" with too few kept-aside Fails: the step its line asks for, the one step ----
+
+HARDER = "Add harder questions, ones your AI may get wrong, and mark their answers."
+
+
+def _one_step(project, said: str, step: str) -> None:
+    """`step` is the Next of the terminal, `mark` (every answer marked), `fix` (no answer
+    failed is left to fix) and the page, never more answers to the same questions."""
+    assert SURER not in said, said
+    assert step in _next(said), said
+    for argv in (("mark", "--no-browser"), ("fix",)):
+        _code, out, err = run(project.capsys, *argv)
+        assert _next(flat(out + err)) == _next(said), out + err
+    report = flat(_ws(project.here).report_html.read_text(encoding="utf-8"))
+    assert SURER not in report, report
+    assert step[0].upper() + step[1:] in report.split("What next", 1)[1], report
+
+
+def test_too_few_kept_aside_fails_for_a_clear_answer_the_step_is_harder_questions(project):
+    project.first(fails=set(range(4)), n=40)  # 4 in 40 fail: new ones would rarely fail
+    said = project.again({i: "pass" for i in project.kept("fail") + project.shown("fail")})
+    assert "Can't tell yet" in said and HARDER in said, said  # the line as it was
+    _one_step(project, said, "add harder questions, ones your AI may get wrong, to ")
+
+
+def test_kept_aside_fails_short_of_a_clear_answer_the_step_is_the_questions_it_asks(project):
+    project.first(fails=set(range(12)), n=20)
+    said = project.again({i: "pass" for i in project.kept("fail")[:2] + project.shown("fail")})
+    assert "Can't tell yet" in said, said
+    extra = said.split("Add about ", 1)[1].split(" more questions.", 1)[0]
+    assert extra.isdigit(), said
+    _one_step(project, said, f"add about {extra} more questions to ")

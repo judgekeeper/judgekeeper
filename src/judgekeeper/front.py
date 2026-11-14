@@ -3533,7 +3533,9 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
         talk.say()
-        talk.para("Next: " + no_grades.more_answers(ws, _command_of(talk, False), surer=True))
+        talk.para("Next: " + no_grades.next_step(ws, no_grades.compute(ws, session),
+                                                 _command_of(talk, False, "mark"),
+                                                 _command_of(talk, False)))
         if opened.server is not None:
             page.serve(opened.server)
         return EXIT_OK
