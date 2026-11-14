@@ -19,7 +19,7 @@ from tests.test_answers_without_grades import _rows, write_answers
 from tests.test_services_in_one_repo import _run, repo  # noqa: F401
 
 OTHER_EVAL_TOO = ("The project in other-eval/ has results too: to check them, run "
-                  "`judgekeeper other-eval`.")
+                  "`judgekeeper other-eval --no-browser`.")
 BELONG = "These results belong to the project in other-eval/."
 
 
@@ -96,7 +96,8 @@ def test_answers_with_no_session_are_read_and_name_the_project_below(repo, capsy
 ONE_AT_A_TIME = ("de-bot/, insp-bot/ and pf-bot/ hold eval results: judgekeeper keeps a "
                  "project's marks in its own folder, so it checks one at a time.")
 THREE_TOO = ("The projects in de-bot/, insp-bot/ and pf-bot/ have results too: to check them, "
-             "run `judgekeeper de-bot`, `judgekeeper insp-bot` or `judgekeeper pf-bot`.")
+             "run `judgekeeper de-bot --no-browser`, `judgekeeper insp-bot --no-browser` or "
+             "`judgekeeper pf-bot --no-browser`.")
 
 
 @pytest.fixture

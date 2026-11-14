@@ -613,7 +613,7 @@ def test_answers_here_are_read_and_a_project_below_with_results_named(here, caps
     said = flat(out)
     assert "File: dataset.csv" in said and "support-bot/results.csv" not in said, said
     assert ("The project in support-bot/ has results too: to check them, run "
-            "`judgekeeper support-bot`.") in said, said
+            "`judgekeeper support-bot --no-browser`.") in said, said
 
 
 def test_the_answers_here_are_read_and_the_hint_names_the_results_above(here, capsys,

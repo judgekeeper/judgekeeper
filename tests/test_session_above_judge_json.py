@@ -64,7 +64,7 @@ def test_the_project_then_reads_its_own_results_and_names_the_session_below(
     for argv in ((), (".",)):
         code, said = _run(capsys, monkeypatch, bot, *argv)
         assert code == 3 and "File: evals/results.csv" in said, said  # 20 answers: too few
-        assert ("The project in src/ has results too: to check them, run `judgekeeper src`."
+        assert ("The project in src/ has results too: to check them, run `judgekeeper src --no-browser`."
                 in said), said
         assert "already hold" not in said, said
 
@@ -184,5 +184,5 @@ def test_answers_beside_a_judge_json_are_read_and_name_the_project_below(
     code, said = _run(capsys, monkeypatch, repo)
     assert code == 0 and "File: results.csv" in said, said
     assert ("The project in other-eval/ has results too: to check them, run "
-            "`judgekeeper other-eval`.") in said, said
+            "`judgekeeper other-eval --no-browser`.") in said, said
     assert not (other / ".judgekeeper").exists()
