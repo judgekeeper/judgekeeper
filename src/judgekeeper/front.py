@@ -619,9 +619,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         # results in a folder with its own session belong to it
         sessions = _sessions_below(path, judged=True)
         raise _go_to(talk, [(_from_here(path, [n])[0], k) for n, k in sessions])
-    held = _saved_marks(path) or _session_in(project.project_of(path)) or \
-        _judged(project.project_of(path))  # never sent below
     here = _reads_here(talk, path, project.project_of(asked))
+    held = _saved_marks(path) or _session_in(project.project_of(path)) or \
+        _judged(here)  # never sent below
     if here.is_dir() and not held and (folders := _projects_below(
             here, talk.options["tool"])):  # nor one
         # session for several projects, at a git top too
@@ -1323,8 +1323,9 @@ def _session_in(folder: Path) -> bool:
 
 def _judged(folder: Path) -> bool:
     """Whether the .judgekeeper/ in `folder` holds the judge.json of a first run that stopped
-    before marking: a run below reads there (_project_reads), so a run there reads its own
-    folder too, never sends them back below."""
+    before marking: a run below reads there (_project_reads), so a run that reads `folder`
+    reads its own results too, never sends them back below. A run below it that reads its
+    own folder still names the projects below that one."""
     return project.session_tool(folder) is not None
 
 
