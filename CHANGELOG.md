@@ -12,6 +12,7 @@
 - Text in answers can no longer fake the markers that fence answers off in files written for a coding agent; this also covers mistakes.md.
 - The `inspect` extra keeps agent-client-protocol below 1, because Inspect AI 0.3.288 can't import with 1.0.0.
 - Quick Pass and Fail clicks count now: only a click in the first quarter second after an answer shows does nothing, so no answer is marked before you see it.
+- A Pass, Fail or Skip you click or press while the last mark is still saving is no longer lost without a word. It counts if its answer is still showing when the save ends; if not, the page says it was not marked and which answer is showing.
 - The "Your result is ready." box no longer blocks the card: a Pass or Fail click marks the answer and closes it.
 - Percentages round half up (23 of 40 is 58%).
 - A folder you name (`judgekeeper PATH`, `mark PATH`), or a folder with code in it, is always the project: judgekeeper no longer reads results in the folder above it instead. Lines saved with `judgekeeper.record()` still come from the project root, where it saves them. A folder with a `requirements*.txt` file is a project of its own, so a run in the folder above no longer reads its results. `judgekeeper.record()` also takes a folder with `package.json` as the project root, so in a repository with such subfolders it saves in that subfolder's `.judgekeeper/`, not at the repository root.
