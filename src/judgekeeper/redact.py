@@ -4,8 +4,9 @@ Two layers. First, the current value of every credential environment variable th
 can see (the known names, every provider key name `keys.py` knows or found, and any name
 ending in _API_KEY, _TOKEN, _SECRET or _PASSWORD); values shorter than 8 characters are
 ignored, since they would match ordinary text. Second, as a backstop for keys not in the
-environment, strings shaped like a key (_KEY_SHAPES), Bearer and Basic headers, and the
-login part of a URL (`user:password@`, `:password@`, or a long token alone). A key split by
+environment, strings shaped like a key (_KEY_SHAPES), Bearer and Basic headers, the
+login part of a URL (`user:password@`, `:password@`, or a long token alone), private key
+blocks (_PEM), and the value after a password's or a secret's name (_PASSWORD). A key split by
 a hidden character is looked for with the character dropped, and a key right after one even
 after a letter. A secret with a terminal code in it, or right after one, is looked for with
 the code taken out.
@@ -75,14 +76,17 @@ _KEY_SHAPES = (
     _key("g", r"sk_[A-Za-z0-9]{20,}"),  # Groq
     _key("h", r"f_[A-Za-z0-9]{30,}"),  # Hugging Face
     _key("x", r"ai-[A-Za-z0-9]{20,}"),  # xAI
+    _key("s", r"k_live_[A-Za-z0-9]{16,}"),  # Stripe secret and restricted keys
+    _key("r", r"k_live_[A-Za-z0-9]{16,}"),
     # a JWT: two base64url parts that start with {" and a signature (empty when unsigned)
     _key("e", r"yJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*"),
 )
 # How each key above starts
-_KEY_BEGINS = r"(?:sk-|AKIA|ASIA|gh[opsu]_|github_pat_|AIza|xox[bp]-|gsk_|hf_|xai-|eyJ)"
+_KEY_BEGINS = (r"(?:sk-|AKIA|ASIA|gh[opsu]_|github_pat_|AIza|xox[bp]-|gsk_|hf_|xai-|sk_live_"
+               r"|rk_live_|eyJ)")
 _KEY_START = re.compile(_KEY_BEGINS)
 # How a secret with a name before its value starts
-_NAME_BEGINS = r"(?i:bearer\s|basic\s|aws_secret_access_key)"
+_NAME_BEGINS = r"(?i:bearer\s|basic\s|aws_secret_access_key|passw(?:or)?d|pwd|secret)"
 # An escaped character right before a secret: `\n` or `\t` (JSON kept as a string in JSON),
 # `"`, `\x00` or `\0` (repr of bytes), a URL's `%20`, or cat -A's `^I`. Its last letter or digit
 # would join the secret's word.
@@ -110,8 +114,42 @@ _TERMINAL_CODE = re.compile(
 _AWS_SECRET = re.compile(
     r"((?<![A-Za-z0-9])(?:aws[_-]?secret[_-]?(?:access[_-]?)?key|secret[_-]?access[_-]?key)"
     r"[\"'\\]*(?:\s*(?:=>|[:=])\s*|\s+)[\"'\\]*)[A-Za-z0-9/+=]{40}", re.IGNORECASE)
+# The word after a password's or a secret's name and `:` or `=`, on the same line, up to a
+# space or a quote (`password: hunter2!x`, `DB_PASSWORD=s3cr3t-val`, `"secret": "Zq9#kLm2"`).
+# Hidden only when it looks like a credential (_looks_set): "The secret: practice daily"
+# and "password: letmein" stay as the person wrote them.
+_PASSWORD = re.compile(r"((?<![A-Za-z0-9])(?:password|passwd|pwd|secret)[\"'\\]*[ \t]*[:=]"
+                       r"[ \t]*[\"'\\]*)([^\s\"'\\]+)", re.IGNORECASE)
+_END_SIGNS = ".,;:!?)]}"  # what ends a sentence or a bracket after a word
+
+
+_JOINED_WORDS = re.compile(r"(?<=[^\W\d_])[-'](?=[^\W\d_])")  # well-being, don't
+
+
+# Words with signs that a person writes, never a credential: a link, a domain or a path, an
+# email, a word in brackets, a menu path (Settings>Account) and a digits-hyphen word in lower
+# case (2-factor; 2026-Summer looks set)
+_PROSE_SIGNS = re.compile(
+    r"(?i:[a-z][a-z0-9+.-]*://|www\.|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/:]|$)"
+    r"|[^@\s]+@(?:[a-z0-9-]+\.)+[a-z]{2,}$|[(\[{<]|[a-z]+(?:>[a-z]+)+$)"
+    r"|[0-9]+(?:-[a-z]+)+$")
+
+
+def _looks_set(word: str) -> bool:
+    """A credential, not a word: 8 characters or more, with a digit or a sign in it (not
+    one that only ends a sentence, nor a hyphen or an apostrophe between letters), and not
+    a link, an email or another word with signs that people write (_PROSE_SIGNS)."""
+    end = word.rstrip(_END_SIGNS)
+    return (len(word) >= MIN_SECRET_LENGTH and not _JOINED_WORDS.sub("", end).isalpha()
+            and not _PROSE_SIGNS.match(end))
+# A private key block: from its BEGIN line to its END line, or to the end of its lines of
+# base64 when the text was cut before END. Its body never holds five dashes in a row, so one
+# pass finds where it ends.
+_PEM = re.compile(r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----(?:[A-Za-z0-9+/=\s:,.\\]"
+                  r"|-(?!----))*(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY-----)?")
 # Something every pattern in _scrub needs: a text with none of these holds nothing they find
-_SECRET_SIGN = re.compile(rf"{_KEY_BEGINS}|:\\?/|(?i:bearer|basic|secret[_-]?(?:access[_-]?)?key)")
+_SECRET_SIGN = re.compile(rf"{_KEY_BEGINS}|:\\?/|PRIVATE KEY-----"
+                          r"|(?i:bearer|basic|secret|passw(?:or)?d|pwd)")
 _AWS_KEY_ID = _KEY_SHAPES[2]
 _AWS_SECRET_SHAPE = re.compile(r"(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])")
 _LINE = re.compile(r"[^\n]+")
@@ -139,7 +177,7 @@ _HIDDEN_IN_CODE = tuple(re.compile(f"(?![{keep}]){_SPLITTERS.pattern}")
                         for keep in (r"\x07\x1b\x8e\x8f\x9b\x9c", r"\x1b\x8e\x8f\x9b"))
 # Hidden characters right after a letter or digit, before the first letter of a key's start:
 # a key may start after them (`key<ZWSP>sk-…`, `key<ZWSP>AK<ZWSP>IA…`)
-_AFTER_LETTER = re.compile(f"(?<=[A-Za-z0-9]){_SPLITTERS.pattern}+(?=[sAghxe])")
+_AFTER_LETTER = re.compile(f"(?<=[A-Za-z0-9]){_SPLITTERS.pattern}+(?=[sAghxer])")
 _MASKED = re.compile(f"{_MASK}+")
 # A page keeps the two joiners (U+200C, U+200D): joined emoji and scripts such as Persian
 # and Hindi need them to read right. A credential split by one is still found (_SPLITTERS).
@@ -483,11 +521,13 @@ def _scrub(text: str, hide=lambda found: REDACTED) -> str:
         return text
     for value in secrets:
         text = text.replace(value, hide(value))
+    text = _PEM.sub(lambda m: hide(m[0]), text)
     text = _BEARER.sub(after_name, text)
     text = _BASIC.sub(after_name, text)
     text = _URL_USERINFO.sub(login, text)
     text = _URL_TOKEN.sub(login, text)
     text = _AWS_SECRET.sub(after_name, text)
+    text = _PASSWORD.sub(lambda m: after_name(m) if _looks_set(m[2]) else m[0], text)
     if _AWS_KEY_ID.search(text):
         text = _LINE.sub(lambda m: _AWS_SECRET_SHAPE.sub(lambda s: hide(s[0]), m[0])
                          if _AWS_KEY_ID.search(m[0]) else m[0], text)

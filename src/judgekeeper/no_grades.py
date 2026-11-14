@@ -409,7 +409,8 @@ def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
         saved = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         saved = None
-    if isinstance(saved, dict) and saved.get("marks_sha256") == d and saved.get("graded") is False:
+    if isinstance(saved, dict) and saved.get("marks_sha256") == d and \
+            saved.get("graded") is False and _as_written(saved):
         write_failed(ws, session, saved)
         _damage_said(ws, saved)
         return saved
@@ -436,14 +437,45 @@ def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
     return r
 
 
+_SINCE_COUNTS = ("kept", "fixed", "broke", "same", "test", "fails", "marked")
+_SINCE_FLAGS = ("damaged", "waiting", "new_set", "clear", "last")
+
+
+def _count(x) -> bool:
+    return type(x) is int and x >= 0
+
+
+def _as_written(r: dict) -> bool:
+    """Whether a saved result's values have the types judgekeeper writes, so it can be used
+    again as it is. One changed by hand (kept=-1, since="x") is damaged: made again from the
+    marks."""
+    labels, since = r.get("labels"), r.get("since")
+    if not _count(r.get("kept", 0)) or not isinstance(r.get("fails", []), list) or \
+            not all(isinstance(i, str) for i in r.get("fails", [])):
+        return False
+    if not isinstance(labels, dict) or not all(_count(labels.get(k)) for k in ("correct",
+                                                                             "wrong")):
+        return False
+    if since is None:
+        return True
+    return isinstance(since, dict) and \
+        all(_count(since[k]) for k in _SINCE_COUNTS if k in since) and \
+        all(type(since[k]) is bool for k in _SINCE_FLAGS if k in since) and \
+        isinstance(since.get("shown_broke", []), list) and \
+        all(isinstance(i, str) for i in since.get("shown_broke", []))
+
+
 def _damage_said(ws, r: dict) -> None:
     """BEFORE_DAMAGED is said by the result that found the damage only: later ones compare as
     usual."""
     if not (r.get("since") or {}).get("damaged"):
         return
     before = read_before(ws)
-    if before and before["repaired"] and not _before_path(ws).is_symlink():
-        _write_before(ws, {**before, "repaired": False})
+    if before and before["repaired"]:
+        try:
+            _write_before(ws, {**before, "repaired": False})
+        except marks.MarksError:
+            pass  # never written through a link
 
 
 def status(session, run: str | None = None) -> dict:
@@ -1124,9 +1156,12 @@ def read_before(ws) -> dict | None:
 
 
 def _write_before(ws, before: dict) -> None:
+    """before.json written; a MarksError when it, fix/ or a folder above it in .judgekeeper/
+    is a link: nothing is written through one."""
     from judgekeeper.fix import _sum
 
     path = _before_path(ws)
+    marks._refuse_links(path)
     make_private(path.parent)
     d = {"questions": before["questions"],
          **({"round": before["round"]} if before.get("round") else {}),
@@ -1158,9 +1193,12 @@ def removed_unsaid(ws) -> bool:
 def set_removed_unsaid(ws, on: bool) -> None:
     """removed_unsaid kept in before.json; never written through a link."""
     before = read_before(ws)
-    if before is None or before["removed_unsaid"] == on or _before_path(ws).is_symlink():
+    if before is None or before["removed_unsaid"] == on:
         return
-    _write_before(ws, {**before, "removed_unsaid": on})
+    try:
+        _write_before(ws, {**before, "removed_unsaid": on})
+    except marks.MarksError:
+        pass
 
 
 def _round_now(ws) -> dict | None:
