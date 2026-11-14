@@ -497,18 +497,22 @@ USED_UP_NEXT = "{add} to {file}, then run `{command}` to mark their answers."
 CLEAR_ADD_NEXT = "Add about {extra} more questions"
 
 
-def questions_next(c: dict | None, file: str, command: str) -> str | None:
+def questions_next(c: dict | None, file: str, command: str,
+                   none_failed: bool = False) -> str | None:
     """USED_UP_NEXT once the questions kept aside are used up (compare's `c` after the last
     change they test, or asking for a new set): the new questions new_set_line asks for; with
-    "Can't tell yet" and too few kept-aside Fails, the questions clear_line asks for. Never
-    more answers to the same questions. None otherwise."""
-    if not c or c.get("waiting"):
+    "Can't tell yet" and too few kept-aside Fails, the questions clear_line asks for; with no
+    answer failed (`none_failed`), none to keep aside: harder questions. Never more answers to
+    the same questions. None otherwise."""
+    if c and c.get("waiting"):
         return None
-    if c.get("last") or c.get("new_set"):
+    if c and (c.get("last") or c.get("new_set")):
         n = new_questions(c)
         add = NEW_SET_HARDER if n is None or n > MOST_ASKED else NEW_SET_ADD.format(n=n)
-    elif c.get("kept") and not c.get("clear") and (more := _clear_more(c)) != 0:
+    elif c and c.get("kept") and not c.get("clear") and (more := _clear_more(c)) != 0:
         add = NEW_SET_HARDER if more is None else CLEAR_ADD_NEXT.format(extra=more)
+    elif none_failed:
+        add = NEW_SET_HARDER
     else:
         return None
     return USED_UP_NEXT.format(add=add[0].lower() + add[1:], file=file, command=command)
@@ -520,8 +524,8 @@ _ONCE_FLAGS = re.compile(r" --(?:wait|yes)(?= |$)")  # for that run alone, never
 def next_step(ws, r: dict, mark: str, run: str | None = None) -> str:
     """The Next step of the result `r` with no grade, as the terminal, `fix` and the page say
     it: mark the answers left (`mark`: the command), the new questions once the questions
-    kept aside are used up or too few failed (questions_next), else more answers for a surer
-    number (MORE_ANSWERS before a
+    kept aside are used up or too few failed, or none failed (questions_next), else more
+    answers for a surer number (MORE_ANSWERS before a
     result)."""
     from judgekeeper.front import NEXT_MARK_MORE
     from judgekeeper.textio import program
@@ -530,7 +534,8 @@ def next_step(ws, r: dict, mark: str, run: str | None = None) -> str:
         return NEXT_MARK_MORE.format(command=mark)
     command = _ONCE_FLAGS.sub("", run or program())
     if r.get("check") == "result" and (
-            used := questions_next(r.get("since"), results_file(ws), command)):
+            used := questions_next(r.get("since"), results_file(ws), command,
+                                   none_failed=not r["labels"]["wrong"])):
         return used
     return more_answers(ws, run, surer=r.get("check") == "result")
 

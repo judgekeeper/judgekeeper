@@ -2,6 +2,8 @@
 no Fail, and three changes tested on the questions kept aside."""
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from tests.test_answers_without_grades import here, mark, write_answers  # noqa: F401
@@ -84,14 +86,20 @@ def test_the_since_heading_is_left_out_when_it_has_nothing_under_it(project):
 HARDER = "Add harder questions, ones your AI may get wrong, and mark their answers."
 
 
+def _without_page_flags(step: str) -> str:
+    """`step` as `fix` gives it: fix takes no page flags (--no-browser, --port N)."""
+    return re.sub(r" --(?:no-browser|port \d+)(?= |`)", "", step)
+
+
 def _one_step(project, said: str, step: str) -> None:
     """`step` is the Next of the terminal, `mark` (every answer marked), `fix` (no answer
     failed is left to fix) and the page, never more answers to the same questions."""
     assert SURER not in said, said
     assert step in _next(said), said
-    for argv in (("mark", "--no-browser"), ("fix",)):
-        _code, out, err = run(project.capsys, *argv)
-        assert _next(flat(out + err)) == _next(said), out + err
+    _code, out, err = run(project.capsys, "mark", "--no-browser")
+    assert _next(flat(out + err)) == _next(said), out + err
+    _code, out, err = run(project.capsys, "fix")  # fix takes no page flags
+    assert _next(flat(out + err)) == _without_page_flags(_next(said)), out + err
     report = flat(_ws(project.here).report_html.read_text(encoding="utf-8"))
     assert SURER not in report, report
     assert step[0].upper() + step[1:] in report.split("What next", 1)[1], report
@@ -111,3 +119,18 @@ def test_kept_aside_fails_short_of_a_clear_answer_the_step_is_the_questions_it_a
     extra = said.split("Add about ", 1)[1].split(" more questions.", 1)[0]
     assert extra.isdigit(), said
     _one_step(project, said, f"add about {extra} more questions to ")
+
+
+def test_with_no_answer_failed_the_one_step_is_harder_questions(here, capsys):  # noqa: F811
+    write_answers(here, 10)
+    _say(capsys)
+    mark(here, ["pass"] * 10)
+    said = flat(_say(capsys)[1])
+    assert "You passed 10 of 10" in said and SURER not in said, said
+    step = "add harder questions, ones your AI may get wrong, to "
+    assert _next(said).startswith(step + "results.csv, then run "), said
+    _code, out, err = run(capsys, "fix")  # fix takes no page flags
+    assert _next(flat(out + err)) == _without_page_flags(_next(said)), out + err
+    report = flat(_ws(here).report_html.read_text(encoding="utf-8"))
+    assert SURER not in report, report
+    assert step[0].upper() + step[1:] in report.split("What next", 1)[1], report
