@@ -10,6 +10,7 @@ node is not installed (CI's runners have it).
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -69,6 +70,7 @@ El.prototype.querySelector = function () { return null; };
 El.prototype.closest = function (sel) {
   var e = this; while (e && e.tagName !== sel.toUpperCase()) { e = e.parentNode; } return e; };
 El.prototype.fire = function (type, extra) {
+  if (type === "click" && this.disabled) { return {type: type, defaultPrevented: false}; }  // as a browser
   var e = Object.assign({type: type, target: this, defaultPrevented: false,
     preventDefault: function () { this.defaultPrevented = true; }}, extra || {});
   (this.listeners[type] || []).slice().forEach(function (f) { f(e); });
@@ -155,6 +157,8 @@ def _run(scenario: str, data: dict | None = None, seen_intro: bool = True,
     the welcome box (state()'s `intro`)."""
     node = shutil.which("node")
     if node is None:
+        if os.environ.get("JUDGEKEEPER_NEEDS_NODE"):  # CI installs node: no silent skip there
+            pytest.fail("node is missing: the page's script must run here")
         pytest.skip("needs node to run the page's script")
     data = {**(data or _data()), **({} if seen_intro else {"intro": True})}
     code = (f"var DATA = {json.dumps(data)};\n{DOM}\n" + before
@@ -1242,3 +1246,106 @@ def test_a_named_part_equal_to_the_answer_shows_unless_it_is_the_answer():
     text = shown([["question", "What is 38 - 15?"], ["i", "23"]])
     assert text == "questionWhat is 38 - 15?i23", text  # each name above its value
     assert shown([["question", "What is 38 - 15?"], ["answer", "23"]]) == "What is 38 - 15?"
+
+
+# Clicks and keys while a mark is saving -------------------------------------------------------
+
+NOT_MARKED = ("Not marked: your last click or key came while a mark was saving. Showing now: "
+              '"{shown}". Mark it again.')
+
+# A save that takes SAVE_MS of the page's clock: `tick(ms)` moves the clock, and a save answers
+# once the clock reaches its time. `pending` lists the saves not answered yet.
+SLOW_SAVES = r"""
+var SAVE_MS = %d, pending = [], seq = 0, answered = {}, lastAnswer = -1e9;
+var realFetch = fetch;
+fetch = function (url, opts) {
+  var r = realFetch(url, opts), mine = {n: seq++, due: NOW + SAVE_MS};
+  return new Promise(function (ok) { mine.ok = function () { ok(r); }; pending.push(mine); });
+};
+async function tick(ms) {
+  var end = NOW + ms;
+  for (;;) {
+    var due = pending.filter(function (p) { return p.due <= end; })
+      .sort(function (a, b) { return a.due - b.due; })[0];
+    if (!due) { break; }
+    NOW = Math.max(NOW, due.due); pending.splice(pending.indexOf(due), 1); due.ok();
+    for (var n = 0; n < 6; n++) { await settle(); }
+    answered[due.n] = {at: NOW, status: document.getElementById("status").textContent,
+                       shown: document.getElementById("q-text").textContent}; lastAnswer = NOW;
+  }
+  NOW = end; await settle();
+}
+"""
+
+
+@pytest.mark.parametrize("gap, save", [(150, 600), (500, 600), (1000, 1200)])
+def test_clicks_while_a_mark_saves_land_on_the_answer_clicked_or_say_they_did_not(gap, save):
+    """40 answers, Pass and Fail clicked `gap` ms apart on whatever is on screen, each save
+    taking `save` ms. A click while a save runs is held for the answer it was made on: when
+    the save ends that answer is gone, so it is not marked and the page says which answer
+    is showing. Every other
+    click marks the answer on screen, in the order clicked. Only a click within 250 ms of an
+    answer showing does nothing without a word."""
+    got = _run(SLOW_SAVES % save + """
+      var GAP = __GAP__, clicks = [];
+      for (var i = 0; i < 40; i++) {
+        var on = ids["q-text"].textContent.replace("Question ", "a").replace("?", "");
+        var btn = i % 2 ? "fail" : "pass", saving = pending.length ? pending[0].n : null;
+        clicks.push({on: on, btn: btn, saving: saving,
+                     guarded: saving === null && NOW - lastAnswer < 250});
+        ids[btn].fire("click"); await settle();
+        await tick(GAP);
+      }
+      await tick(5000);
+      console.log(JSON.stringify({clicks: clicks, answered: answered,
+        buttons: [ids["pass"].disabled, ids["fail"].disabled],
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""".replace(
+                   "__GAP__", str(gap)), data=_data(45))
+    clicks, sent = got["clicks"], got["sent"]
+    # a click with no save running, on an answer shown 250 ms or more, lands: in order
+    direct = [[c["on"], c["btn"]] for c in clicks if c["saving"] is None and not c["guarded"]]
+    assert sent == direct and len(sent) > 5
+    assert len({i for i, _ in sent}) == len(sent)  # no answer marked twice
+    # a click made while a save ran: the end of that save says it was not used
+    held = {c["saving"] for c in clicks if c["saving"] is not None}
+    assert held
+    for save_n in held:
+        done = got["answered"][str(save_n)]
+        assert done["status"] == NOT_MARKED.format(shown=done["shown"]), (gap, save_n)
+    assert got["buttons"] == [False, False]
+
+
+def test_a_skip_click_and_keys_while_a_mark_saves_are_said_not_dropped():
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await settle();
+      later(300); ids["skip"].fire("click"); key("ArrowLeft"); key("s"); await settle();
+      var waiting = [sent.length, ids["q-text"].textContent, document.getElementById("status").textContent];
+      await tick(1000);
+      await new Promise(function (r) { setTimeout(r, 250); });  // the line read aloud comes a moment later
+      console.log(JSON.stringify({waiting: waiting, at: ids["q-text"].textContent,
+        status: document.getElementById("status").textContent,
+        heard: document.getElementById("done").textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label || "skip"]; })}));""")
+    assert got["waiting"] == [1, "Question 0?", ""]
+    assert got["sent"] == [["a0", "pass"]] and got["at"] == "Question 1?"
+    line = NOT_MARKED.format(shown="Question 1?")
+    assert got["status"] == line
+    assert got["heard"] == "Marked Pass. " + line  # said aloud, after the mark that was saved
+
+
+def test_a_pass_click_while_an_undo_saves_marks_the_answer_that_stayed_on_screen():
+    """Undo shows the answer again at once; a click made on it while the undo saves is for
+    it, and it is still on screen when the save ends: it marks it."""
+    got = _run("""
+      ids["pass"].fire("click"); await settle(); later(500);
+""" + SLOW_SAVES % 600 + """
+      ids["undo"].fire("click"); await settle();
+      var back = ids["q-text"].textContent;
+      later(300); ids["fail"].fire("click"); await settle();
+      await tick(1500);
+      console.log(JSON.stringify({back: back, at: ids["q-text"].textContent,
+        status: document.getElementById("status").textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""")
+    assert got["back"] == "Question 0?"
+    assert got["sent"] == [["a0", "pass"], ["a0", None], ["a0", "fail"]]
+    assert got["at"] == "Question 1?" and got["status"] == ""

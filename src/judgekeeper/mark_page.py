@@ -11,13 +11,15 @@ __NONCE__.
 So that each mark comes from a real look at the answer: Fail and Pass look the same but for
 their colour; a mark or skip within FRESH_MS (250 ms) of an answer showing does nothing, an
 undo waits LOCK_MS (400 ms) after the one before, and the page ignores a held key and any key
-with Cmd, Ctrl or Alt. Focus goes to the answer, never to a button. The progress bar follows
-how close the result is (Pass and Fail marks, each counted up to ROUGH; a skipped answer
-counts for nothing), never full before the first numbers (status.first), and no number on
-the page is a target. When the result becomes ready while the page is open, a box says so,
-once. In an answer or a question only `**bold**` and "- " lines are formatted, built with
-createElement and createTextNode. Skipped answers come back at the end. On a phone (760px and
-narrower) the card comes first, then the list.
+with Cmd, Ctrl or Alt. A Pass, Fail or Skip, by click or key, made while a mark saves is held
+for the answer on screen when it was made: it counts only if that answer is still showing when
+the save ends, else the page says it was not marked. Focus goes to the answer, never to a
+button. The progress bar follows how close the result is (Pass and Fail marks, each counted up
+to ROUGH; a skipped answer counts for nothing), never full before the first numbers
+(status.first), and no number on the page is a target. When the result becomes ready while
+the page is open, a box says so, once. In an answer or a question only `**bold**` and "- "
+lines are formatted, built with createElement and createTextNode. Skipped answers come back at
+the end. On a phone (760px and narrower) the card comes first, then the list.
 """
 
 from __future__ import annotations
@@ -136,7 +138,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .btn { height: 50px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
   gap: 10px; font-size: 16px; font-weight: 700; color: #fff; transition: filter 100ms ease; }
 .btn:active { filter: brightness(.9); }
-.btn:disabled { cursor: default; }
+.btn.saving { cursor: default; }
 .btn-ico { width: 15px; height: 15px; }
 .btn-ico path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: square; }
 .btn kbd { font-family: var(--sans); font-size: 13px; font-weight: 400; margin-left: 8px; }
@@ -360,7 +362,10 @@ __TOP__
   // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
   // nobody reads an answer that fast, so it was a second press meant for the one before.
   var FRESH_MS = 250, freshUntil = 0;
-  var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
+  // Pressed while a mark is saved, held in order until it ends: an undo ({run}) acts then; a
+  // Pass, Fail or Skip ({run, id}) acts only on the answer that was on screen when it was
+  // pressed (`id`), else the page says it was not marked.
+  var queued = [];
   // The result-ready box waits until no mark came for READY_WAIT_MS (`readyDue`: the server
   // said to show it), so it does not come mid-marking; it covers nothing. It opens only
   // while the result is still ready (an undo meanwhile can take it back); until it opens it
@@ -796,7 +801,7 @@ __TOP__
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));
     $("pass").setAttribute("aria-pressed", String(it.label === "pass"));
     renderQueue(); renderProgress();
-    busy = false; $("pass").disabled = false; $("fail").disabled = false;
+    busy = false; saving(false);
     shownAt = Date.now();
   }
 
@@ -914,21 +919,22 @@ __TOP__
   // The list and counts again (/state), as a reload gives them, when someone else wrote marks
   // since this page last looked: the next answer is then one still to mark.
   function refresh(heard, popup) {
-    queued = [];
     fetch(url("/state"), {referrerPolicy: "same-origin"}).then(function (r) {
       return r.json();
     }).then(function (s) {
       items = s.items; total = s.total || items.length; counts = s.counts; status = s.status;
       version = s.version; history = []; walkingSkipped = false;
       if (nextIndex(0) !== null) { open(s.start); focusCard(); } else { finish(); }
-      hear(heard);
+      var lost = queued.some(function (q) { return q.id !== undefined; });
+      queued = [];
+      if (lost) { notMarked(heard); } else { hear(heard); }
       if (popup) { readyLater(); }
     }).catch(function () { window.location.reload(); });
   }
 
   function send(change, then, heard) {
     if (busy) { return false; }
-    busy = true; $("pass").disabled = true; $("fail").disabled = true;
+    busy = true; saving(true);
     change.id = items[pos].id;
     if (items[pos].again != null) { change.again = items[pos].again; }  // shown again: its slot
     change.seconds = Math.max(0, (Date.now() - shownAt) / 1000);
@@ -952,7 +958,7 @@ __TOP__
       then();
       if (res.body.summary.popup || readyOwed && !readyDue && status && status.ready) {
         readyLater(); }
-      while (queued.length && !busy) { queued.shift()(); }
+      drain(heard);
     }).catch(function () {
       clearTimeout(waited); queued = [];
       render();
@@ -964,8 +970,9 @@ __TOP__
   // An undo click waits LOCK_MS after the one before: a double click undoes one mark. A mark
   // or skip, by click or key, does nothing within FRESH_MS of its answer showing (fresh), so a
   // double click never marks an answer not yet read; any later click marks the answer on
-  // screen. A key pressed while a mark is saved waits for it (act); a key held down does
-  // nothing.
+  // screen. A Pass, Fail or Skip, by click or key, made while a mark is saved waits for it
+  // (press), for the answer on screen when it was made; an undo key waits for it too (act); a
+  // key held down does nothing.
   function locked(key) {
     var t = Date.now();
     if (t < lockUntil && !key) { return true; }
@@ -982,12 +989,55 @@ __TOP__
     hearing = setTimeout(function () { setText("done", text); }, 100);
   }
 
-  function act(f) { if (busy) { queued.push(f); } else { f(); } }
+  function act(f) { if (busy) { queued.push({run: f}); } else { f(); } }
 
   function fresh() { return Date.now() < freshUntil; }
 
-  function mark(value) {
+  // The buttons stay clickable while a mark saves (a click on a disabled one is lost without a
+  // word); the cursor alone shows it.
+  function saving(on) {
+    $("pass").classList.toggle("saving", on); $("fail").classList.toggle("saving", on);
+  }
+
+  // The start of the question on screen, as the line below names the answer to mark.
+  function shownQuestion() {
+    var v = items[pos] ? question(items[pos]) : "";
+    if (Array.isArray(v)) { v = v.map(function (pair) { return pair[1]; }).join(" "); }
+    v = String(v).replace(/[ \\t\\r\\n]+/g, " ").trim();
+    if (!v) { return "the next answer"; }
+    return '"' + (v.length > 40 ? v.slice(0, 40).trim() + "..." : v) + '"';
+  }
+
+  // A held click or key that is not used: said on screen and aloud, never dropped in silence.
+  function notMarked(heard) {
+    var line = WORDS.notMarked.replace("{shown}", function () { return shownQuestion(); });
+    say(line);
+    hear((heard ? heard + " " : "") + line);
+  }
+
+  // After a save: what was held acts, in order, if its answer is the one on screen; else the
+  // page says so once.
+  function drain(heard) {
+    var lost = false;
+    while (queued.length && !busy) {
+      var held = queued.shift();
+      if (held.id === undefined || (!ended && items[pos] && items[pos].id === held.id)) {
+        held.run();
+      } else { lost = true; }
+    }
+    if (lost) { notMarked(heard); }
+  }
+
+  // A Pass, Fail or Skip: nothing within FRESH_MS of an answer showing (a double click, on
+  // purpose without a word); while a mark saves it is held for the answer on screen now.
+  function press(run) {
     if (ended || fresh()) { return; }
+    if (busy) { queued.push({run: run, id: items[pos].id}); } else { run(); }
+  }
+
+  function mark(value) { press(function () { markNow(value); }); }
+
+  function markNow(value) {
     closeReady();  // marking goes on: the box goes
     if (readyDue) { readyLater(); }  // still marking: the box waits
     var it = items[pos];
@@ -999,8 +1049,9 @@ __TOP__
       next(); hear(heard); focusCard(); }, heard);
   }
 
-  function skip() {
-    if (ended || fresh()) { return; }
+  function skip() { press(skipNow); }
+
+  function skipNow() {
     closeReady();
     if (readyDue) { readyLater(); }
     var it = items[pos], was = it.label;
@@ -1044,8 +1095,8 @@ __TOP__
     if (!ended && tag !== "BUTTON" && tag !== "A" && scrollAnswer(e, k)) {
       e.preventDefault(); return; }
     if (e.repeat) { return; }
-    if (KEYS[k]) { act(function () { mark(KEYS[k]); }); }
-    else if (k === "s") { act(function () { skip(); }); }
+    if (KEYS[k]) { mark(KEYS[k]); }
+    else if (k === "s") { skip(); }
     else if (k === "z" || k === "u") { act(function () { undo(true); }); }
     else { return; }
     e.preventDefault();
@@ -1130,6 +1181,10 @@ def _progress() -> str:
 # Gone, or no answer: the footer names the command, as typed where it ran (and NAME's lines)
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
              "the command at the bottom of this page. Your marks are kept.")
+# A click or key made while a mark was saving, for an answer no longer on screen: the page
+# puts in the answer now showing ({shown}: the start of its question)
+NOT_MARKED = ("Not marked: your last click or key came while a mark was saving. Showing now: "
+              "{shown}. Mark it again.")
 
 
 def _words() -> str:
@@ -1141,7 +1196,7 @@ def _words() -> str:
     from judgekeeper.start_label import FIRST_NUMBERS, ONLY_SKIPPED_CARD, only_skipped
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER,
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER, "notMarked": NOT_MARKED,
              "change": CHANGE_MARK,
              # the end card with only skipped answers left; the page puts in their number
              "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
