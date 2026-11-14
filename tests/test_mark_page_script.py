@@ -1349,3 +1349,57 @@ def test_a_pass_click_while_an_undo_saves_marks_the_answer_that_stayed_on_screen
     assert got["back"] == "Question 0?"
     assert got["sent"] == [["a0", "pass"], ["a0", None], ["a0", "fail"]]
     assert got["at"] == "Question 1?" and got["status"] == ""
+
+
+# A click that sends no `click` event ----------------------------------------------------------
+
+# A mouse press that a tool sends with no click count (Chrome's DevTools Protocol, no
+# `clickCount`) gives mousedown and mouseup on the button, and no click event.
+def _press(button: str, up_on: str | None = None, clicks: bool = False) -> str:
+    return (f'ids["{button}"].fire("mousedown", {{button: 0}}); '
+            f'ids["{up_on or button}"].fire("mouseup", {{button: 0}}); '
+            + (f'ids["{up_on or button}"].fire("click"); ' if clicks else ""))
+
+
+@pytest.mark.parametrize("button, sent", [
+    ("pass", [["a0", "pass", False]]), ("fail", [["a0", "fail", False]]),
+    ("skip", [["a0", None, True]])])
+def test_a_press_with_no_click_event_marks_the_answer_on_screen(button, sent):
+    got = _run(f"""
+      {_press(button)} await settle();
+      console.log(JSON.stringify({{at: ids["q-text"].textContent,
+        sent: sent.map(function (s) {{ return [s.body.id, s.body.label || null, !!s.body.deferred]; }})}}));""")
+    assert got == {"at": "Question 1?", "sent": sent}
+
+
+def test_a_press_with_no_click_event_undoes_the_last_mark():
+    got = _run(f"""
+      ids["pass"].fire("click"); await settle(); later(500);
+      {_press("undo")} await settle();
+      console.log(JSON.stringify({{at: ids["q-text"].textContent,
+        sent: sent.map(function (s) {{ return [s.body.id, s.body.label || null]; }})}}));""")
+    assert got == {"at": "Question 0?", "sent": [["a0", "pass"], ["a0", None]]}
+
+
+def test_a_press_with_a_click_event_after_it_counts_once():
+    """A real click gives mousedown, mouseup, then click: one mark, not two."""
+    got = _run(f"""
+      {_press("pass", clicks=True)} await settle(); later(500);
+      {_press("fail", clicks=True)} await settle();
+      console.log(JSON.stringify({{sent: sent.map(function (s) {{ return [s.body.id, s.body.label]; }})}}));""")
+    assert got == {"sent": [["a0", "pass"], ["a1", "fail"]]}
+
+
+def test_a_press_that_starts_on_one_button_and_ends_on_another_marks_nothing():
+    got = _run(f"""
+      {_press("pass", up_on="fail")} await settle();
+      console.log(JSON.stringify({{sent: sent.length}}));""")
+    assert got == {"sent": 0}
+
+
+def test_a_click_with_no_mouse_events_still_marks():
+    """A button activated from the keyboard gives a click and no mouse events."""
+    got = _run("""
+      ids["fail"].fire("click"); await settle();
+      console.log(JSON.stringify({sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""")
+    assert got == {"sent": [["a0", "fail"]]}

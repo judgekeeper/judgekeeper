@@ -1074,14 +1074,26 @@ __TOP__
       "Undone.");
   }
 
-  // Mouse presses never leave focus on a button; focus stays on the answer.
-  ["fail", "pass", "skip", "undo"].forEach(function (id) {
-    $(id).addEventListener("mousedown", function (e) { e.preventDefault(); });
+  // Mouse presses never leave focus on a button; focus stays on the answer. A press counts on
+  // mouseup, after a mousedown on the same button: a tool that sends no click count (Chrome's
+  // DevTools Protocol) gives those two and no click event. The click event that follows a
+  // press is not counted again (`pressed`); a click with no mouse events before it (a button
+  // reached from the keyboard) counts.
+  var DO = {fail: function () { mark("fail"); }, pass: function () { mark("pass"); },
+            skip: function () { skip(); }, undo: function () { undo(); }};
+  var down = null, pressed = false;
+  Object.keys(DO).forEach(function (id) {
+    var button = $(id);
+    button.addEventListener("mousedown", function (e) {
+      e.preventDefault(); if (!e.button) { down = id; } });
+    button.addEventListener("mouseup", function (e) {
+      var from = down; down = null;
+      if (e.button || from !== id) { return; }
+      pressed = true; setTimeout(function () { pressed = false; }, 0);
+      DO[id]();
+    });
+    button.addEventListener("click", function () { if (!pressed) { DO[id](); } });
   });
-  $("fail").addEventListener("click", function () { mark("fail"); });
-  $("pass").addEventListener("click", function () { mark("pass"); });
-  $("skip").addEventListener("click", function () { skip(); });
-  $("undo").addEventListener("click", function () { undo(); });
 
   // The keys: → Pass and ← Fail (shown), 1 Pass and 2 Fail (an old habit, still working),
   // S skip, Z undo (U too). A held key or any key with Cmd, Ctrl or Alt does nothing.
