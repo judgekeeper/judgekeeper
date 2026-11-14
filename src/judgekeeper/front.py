@@ -815,11 +815,16 @@ def _marked_files(talk: FrontTalk, path: Path, saved, found: start.Found) -> sta
 
 def _remembered(talk: FrontTalk, path: Path) -> Path:
     """The results file (or MLflow store) given by path when marking started, for a run
-    with no path; else `path`."""
+    with no path; else `path`. Never past a nearer project (a project file, code or its own
+    .judgekeeper/ on the way), as _project_reads."""
     o = talk.options
     if path.is_file() or find.is_mlflow_folder(path) or o["tool"] or o["tracking_uri"]:
         return path
-    ws = Workspace(project.project_of(path))
+    store = project.project_of(path)
+    if any(find.is_project(f) or find.holds_code(f) for f in (path.resolve(), *path.resolve(
+            ).parents) if f.is_relative_to(store) and f != store):
+        return path
+    ws = Workspace(store)
     try:
         if not ws.start.is_file() or start._saved(ws.root) is not None:
             return path

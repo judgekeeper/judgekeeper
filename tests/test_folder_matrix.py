@@ -1335,3 +1335,19 @@ def test_a_judge_set_up_above_never_pulls_a_folder_with_results_of_its_own(tmp_p
     said = _say(capsys, monkeypatch, data / "a")[1]
     assert reads and reads[-1] == ((data / "a").resolve(), [own.resolve()]), said
     _every_command_works(capsys, monkeypatch, data, _say(capsys, monkeypatch, data)[1])
+
+
+def test_an_empty_folder_never_reads_a_named_file_past_a_nearer_project(tmp_path, capsys,
+                                                                         monkeypatch, reads):
+    """I3: t/ holds a session on answers.csv, named; t/b/ holds code. A run in the empty
+    t/b/runs/ never reads t/'s file past b/."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    _answers_csv(top, 6, "t0")
+    _say(capsys, monkeypatch, top, "answers.csv")
+    assert (top / ".judgekeeper" / "start.json").is_file()
+    _kind(top / "b", "code")
+    (top / "b" / "runs").mkdir()
+    reads.clear()
+    said = _say(capsys, monkeypatch, top / "b" / "runs")[1]
+    assert all(root != top.resolve() for root, _ in reads), said
