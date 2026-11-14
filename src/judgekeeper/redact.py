@@ -86,7 +86,7 @@ _KEY_BEGINS = (r"(?:sk-|AKIA|ASIA|gh[opsu]_|github_pat_|AIza|xox[bp]-|gsk_|hf_|x
                r"|rk_live_|eyJ)")
 _KEY_START = re.compile(_KEY_BEGINS)
 # How a secret with a name before its value starts
-_NAME_BEGINS = r"(?i:bearer\s|basic\s|aws_secret_access_key|passw(?:or)?d|secret)"
+_NAME_BEGINS = r"(?i:bearer\s|basic\s|aws_secret_access_key|passw(?:or)?d|pwd|secret)"
 # An escaped character right before a secret: `\n` or `\t` (JSON kept as a string in JSON),
 # `"`, `\x00` or `\0` (repr of bytes), a URL's `%20`, or cat -A's `^I`. Its last letter or digit
 # would join the secret's word.
@@ -114,10 +114,23 @@ _TERMINAL_CODE = re.compile(
 _AWS_SECRET = re.compile(
     r"((?<![A-Za-z0-9])(?:aws[_-]?secret[_-]?(?:access[_-]?)?key|secret[_-]?access[_-]?key)"
     r"[\"'\\]*(?:\s*(?:=>|[:=])\s*|\s+)[\"'\\]*)[A-Za-z0-9/+=]{40}", re.IGNORECASE)
-# The value after a password's or a secret's name and `:` or `=` (on the same line, up to a
-# space or a quote): `password: hunter2`, `PASSWD=x`, `"client_secret": "x"`
-_PASSWORD = re.compile(r"((?<![A-Za-z0-9])(?:password|passwd|secret)[\"'\\]*[ \t]*[:=][ \t]*"
-                       r"[\"'\\]*)[^\s\"'\\]+", re.IGNORECASE)
+# The word after a password's or a secret's name and `:` or `=`, on the same line, up to a
+# space or a quote (`password: hunter2!x`, `DB_PASSWORD=s3cr3t-val`, `"secret": "Zq9#kLm2"`).
+# Hidden only when it looks like a credential (_looks_set): "The secret: practice daily"
+# and "password: letmein" stay as the person wrote them.
+_PASSWORD = re.compile(r"((?<![A-Za-z0-9])(?:password|passwd|pwd|secret)[\"'\\]*[ \t]*[:=]"
+                       r"[ \t]*[\"'\\]*)([^\s\"'\\]+)", re.IGNORECASE)
+_END_SIGNS = ".,;:!?)]}"  # what ends a sentence or a bracket after a word
+
+
+_JOINED_WORDS = re.compile(r"(?<=[^\W\d_])[-'](?=[^\W\d_])")  # well-being, don't
+
+
+def _looks_set(word: str) -> bool:
+    """A credential, not a word: 8 characters or more, with a digit or a sign in it (not
+    one that only ends a sentence, nor a hyphen or an apostrophe between letters)."""
+    core = _JOINED_WORDS.sub("", word.rstrip(_END_SIGNS))
+    return len(word) >= MIN_SECRET_LENGTH and not core.isalpha()
 # A private key block: from its BEGIN line to its END line, or to the end of its lines of
 # base64 when the text was cut before END. Its body never holds five dashes in a row, so one
 # pass finds where it ends.
@@ -125,7 +138,7 @@ _PEM = re.compile(r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----(?:[A-Za-z0-9+/=\s
                   r"|-(?!----))*(?:-----END [A-Z0-9 ]{0,40}PRIVATE KEY-----)?")
 # Something every pattern in _scrub needs: a text with none of these holds nothing they find
 _SECRET_SIGN = re.compile(rf"{_KEY_BEGINS}|:\\?/|PRIVATE KEY-----"
-                          r"|(?i:bearer|basic|secret|passw(?:or)?d)")
+                          r"|(?i:bearer|basic|secret|passw(?:or)?d|pwd)")
 _AWS_KEY_ID = _KEY_SHAPES[2]
 _AWS_SECRET_SHAPE = re.compile(r"(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])")
 _LINE = re.compile(r"[^\n]+")
@@ -503,7 +516,7 @@ def _scrub(text: str, hide=lambda found: REDACTED) -> str:
     text = _URL_USERINFO.sub(login, text)
     text = _URL_TOKEN.sub(login, text)
     text = _AWS_SECRET.sub(after_name, text)
-    text = _PASSWORD.sub(after_name, text)
+    text = _PASSWORD.sub(lambda m: after_name(m) if _looks_set(m[2]) else m[0], text)
     if _AWS_KEY_ID.search(text):
         text = _LINE.sub(lambda m: _AWS_SECRET_SHAPE.sub(lambda s: hide(s[0]), m[0])
                          if _AWS_KEY_ID.search(m[0]) else m[0], text)

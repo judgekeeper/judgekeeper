@@ -4,7 +4,7 @@
 
 - A damaged or hand-edited file in `.judgekeeper/` (`fix/split-answers.json`, `fix/split.json`, `fix/before.json`, `result.json`) no longer stops every run: judgekeeper says it is damaged and starts it again, or makes the result again from your marks.
 - judgekeeper no longer writes `fix/before.json` when `.judgekeeper/fix/` is a link to another folder.
-- Files judgekeeper writes now also hide Stripe live keys, private key blocks, and the value after `password`, `passwd` or `secret` followed by `:` or `=`.
+- Files judgekeeper writes now also hide Stripe live keys, private key blocks, and a password after `password`, `passwd`, `pwd` or `secret` and `:` or `=` when it looks like one (8 characters or more, with a digit or a sign). Ordinary words after them stay as written.
 
 ## 1.2.0 (2026-11-13)
 

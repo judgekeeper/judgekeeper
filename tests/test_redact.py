@@ -311,11 +311,14 @@ PEM_IN_JSON = _pem().replace("\n", "\\n")  # as JSON keeps it in a string
     (f"{_pem('')}", REDACTED),
     (f"{_pem('OPENSSH ')} and {_pem('EC ')}", f"{REDACTED} and {REDACTED}"),
     (f'{{"key": "{PEM_IN_JSON}"}}', f'{{"key": "{REDACTED}"}}'),
-    ("password: hunter2!", f"password: {REDACTED}"),
-    ("PASSWD=abc123", f"PASSWD={REDACTED}"),
+    ("password: hunter2!x", f"password: {REDACTED}"),
+    ("DB_PASSWORD=s3cr3t-val", f"DB_PASSWORD={REDACTED}"),
+    ("secret=Zq9#kLm2pQ", f"secret={REDACTED}"),
+    ("PASSWD=abc12345", f"PASSWD={REDACTED}"),
+    ("pwd: 9x!LmQ2rT", f"pwd: {REDACTED}"),
     ('Secret = "s3cr3t-value"', f'Secret = "{REDACTED}"'),
-    ('{"password": "hunter2"}', f'{{"password": "{REDACTED}"}}'),
-    ("MY_CLIENT_SECRET:xyz789 next", f"MY_CLIENT_SECRET:{REDACTED} next"),
+    ('{"password": "hunter22"}', f'{{"password": "{REDACTED}"}}'),
+    ("MY_CLIENT_SECRET:xyz789abc next", f"MY_CLIENT_SECRET:{REDACTED} next"),
     ('{\\"db\\": \\"x\\",\\npassword=hunter22\\n}',
      f'{{\\"db\\": \\"x\\",\\npassword={REDACTED}\\n}}'),
 ])
@@ -331,13 +334,20 @@ def test_a_private_key_with_no_end_line_is_hidden_to_its_last_line():
 
 @pytest.mark.parametrize("text", [
     f"key sk_li\u200bve_{STRIPE[8:]} rest", f"key x\u200b{STRIPE} rest",
-    "pass\u200bword: hunter2!", f"\x1b[31m{STRIPE}\x1b[0m"])
+    "pass\u200bword: hunter2!x", f"\x1b[31m{STRIPE}\x1b[0m"])
 def test_a_split_stripe_key_or_password_is_still_hidden(text):
     said = scrub(text)
     assert "FAKEFAKE" not in said and "hunter2" not in said, said
 
 
 @pytest.mark.parametrize("text", [
+    "The secret: practice daily",
+    "secret: kindness",
+    "Password: use a long phrase",
+    "password: letmein",  # a plain word: what a person reads stays as it is
+    "The secret: patience.",
+    "The secret: self-control, and don't-stop-trying.",
+    "Your pwd: changeme now",
     "passwords: 3 were reset today",
     "The secret of good soup is time.",
     "Set a strong password, then save it.",
