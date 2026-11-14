@@ -97,14 +97,30 @@ _GT = (">\uff1e\ufe65\u203a\u02c3\u1433\u276f\u2771\u3009\u27e9\u232a"
 _SIGNS = re.compile(f"[{_LT}{_GT}](?:(?:{_SKIPPED.pattern})*[{_LT}{_GT}])+")
 _OPEN, _CLOSE = re.compile(f"[{_LT}](?=[{_LT}]{{2}})"), re.compile(f"[{_GT}](?=[{_GT}]{{2}})")
 _MARKER_LINE = re.compile(r"<<<[A-Z' -]+|[A-Z' -]+>>>")
+# Signs that each show two or three of < or > (≪ ⋘ ⫷ « 《 ⟪, and ≮ beside them): one alone can
+# stand for a whole run, as in ⋘ANSWER. Kept apart, by a space, from a word in capitals on
+# the side it points to and from any sign next to it (the hidden characters between go).
+_WIDE_LT = "≪⋘⫷«《⟪≮"
+_WIDE_GT = "≫⋙⫸»》⟫≯"
+_SKIPS = f"(?:{_SKIPPED.pattern})*"
+_WIDE_APART = (  # (pattern, the sign with its space)
+    (re.compile(f"([{_WIDE_LT}]){_SKIPS}(?=[{_LT}]|[A-Z]{{2}})"), lambda m: m[1] + " "),
+    (re.compile(f"(?<=[{_LT}]){_SKIPS}([{_WIDE_LT}])"), lambda m: " " + m[1]),
+    (re.compile(f"([{_WIDE_GT}]){_SKIPS}(?=[{_GT}])"), lambda m: m[1] + " "),
+    (re.compile(f"(?<=[{_GT}]){_SKIPS}([{_WIDE_GT}])"), lambda m: " " + m[1]),
+    (re.compile(f"(?<=[A-Z]{{2}}){_SKIPS}([{_WIDE_GT}])"), lambda m: " " + m[1]))
 
 
 def unmarked(text: str) -> str:
     """`text` with every <<< or >>> broken up, so it can neither open nor close a fence: also
     one with hidden characters between its signs (they go: a later step that leaves them out
-    can't join it up again), or written with signs that look like < and >."""
+    can't join it up again), or written with signs that look like < and >, or with one sign
+    that shows the whole run (⋘ANSWER)."""
     text = _SIGNS.sub(lambda m: _SKIPPED.sub("", m[0]), text)
-    return _CLOSE.sub(lambda m: m[0] + " ", _OPEN.sub(lambda m: m[0] + " ", text))
+    text = _CLOSE.sub(lambda m: m[0] + " ", _OPEN.sub(lambda m: m[0] + " ", text))
+    for pattern, apart in _WIDE_APART:
+        text = pattern.sub(apart, text)
+    return text
 
 
 def fenced(name: str, text, cut: bool = True) -> str:
