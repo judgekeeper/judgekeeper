@@ -90,8 +90,10 @@ def _cut(text) -> str:
 # read as a marker
 _SKIPPED = re.compile(f"{_SPLITTERS.pattern}|[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff"
                       "\u20d0-\u20ff\ufe20-\ufe2f]")
-_LT = "<\uff1c\ufe64\u2039\u02c2\u1438\u276e\u2770\u3008\u27e8\u2329"
-_GT = ">\uff1e\ufe65\u203a\u02c3\u1433\u276f\u2771\u3009\u27e9\u232a"
+_LT = ("<\uff1c\ufe64\u2039\u02c2\u1438\u276e\u2770\u3008\u27e8\u2329"
+       "\u226a\u22d8\u2af7\u00ab\u300a\u27ea\u226e")  # and \u226a \u22d8 \u2af7 \u00ab \u300a \u27ea \u226e
+_GT = (">\uff1e\ufe65\u203a\u02c3\u1433\u276f\u2771\u3009\u27e9\u232a"
+       "\u226b\u22d9\u2af8\u00bb\u300b\u27eb\u226f")  # and \u226b \u22d9 \u2af8 \u00bb \u300b \u27eb \u226f
 _SIGNS = re.compile(f"[{_LT}{_GT}](?:(?:{_SKIPPED.pattern})*[{_LT}{_GT}])+")
 _OPEN, _CLOSE = re.compile(f"[{_LT}](?=[{_LT}]{{2}})"), re.compile(f"[{_GT}](?=[{_GT}]{{2}})")
 _MARKER_LINE = re.compile(r"<<<[A-Z' -]+|[A-Z' -]+>>>")
