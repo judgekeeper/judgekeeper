@@ -1524,7 +1524,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
         if kind is None and path.suffix.lower() in find.EXCEL:
             raise StartError(EXCEL.format(file=path.name),
                              f"save {path.name} as CSV UTF-8, then run "
-                             f"`{textio.program()} {quote_arg(path.with_suffix('.csv').name)}`.")
+                             f"`{talk.command_in(quote_arg(path.with_suffix('.csv').name))}`.")
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
@@ -1558,7 +1558,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
         return _locate(talk, above[1], tool)
     if above is not None:  # run from a subfolder (src/, say) of the project
         _note(talk, f"No eval results in {root.name}. Reading the project folder above it "
-                    f"({above[1].name}). " + NEW_HERE.format(command=talk.command_in(".")))
+                    f"({above[1].name}). " + NEW_HERE.format(command=talk.command_in(".", away=True)))
         talk.say()
         return _locate(talk, above[1], tool)
     if tool is not None:
@@ -1754,7 +1754,8 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     first, why = readable[0]
     holder = find.holder_below(Path(root) / first, root)
     holder = holder.relative_to(Path(root).resolve()).as_posix() if holder else None
-    command = talk.command_at(holder or first)
+    command = talk.command_in(path_word(holder), away=True) if holder else \
+        talk.command_at(first)  # a project's own below: as another project's
     again = " again" if holder is None else ""
     if why == find.NOT_UTF8:  # running it as it is would only say to save it as UTF-8
         which = "that file holds" if len(found.skipped) == 1 else f"{first} holds"
@@ -2249,7 +2250,7 @@ def _one_eval(first, older, kind: str) -> bool:
     return project.shares_questions(held, rows) is not False
 
 
-def _same_eval_only(path: Path, results: list) -> list:
+def _same_eval_only(path: Path, results: list, away: str = "") -> list:
     """`results` without another eval beside a file the marks were made on
     (project.other_eval): never read in their place. None left: why, in one line."""
     from judgekeeper import project
@@ -2258,7 +2259,8 @@ def _same_eval_only(path: Path, results: list) -> list:
     kept = [r for r in results if project.other_eval(store, r.path) is None]
     if kept:
         return kept
-    line, step = project.other_eval_stop(results[0].path, project.other_eval(store, results[0].path))
+    line, step = project.other_eval_stop(results[0].path, project.other_eval(
+        store, results[0].path), away)
     raise StartError(line, step.replace("{", "{{").replace("}", "}}"))  # next_step is a format
 
 
@@ -2301,7 +2303,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     if only:
         results = [r for r in results if r.rel in only] or results
     if Path(path).is_dir() and kind not in ("mlflow", "records") and results:
-        results = _same_eval_only(Path(path), results)
+        results = _same_eval_only(Path(path), results, getattr(talk, "away", ""))
     name = None
     if kind == "mlflow":
         with trash_removed_at_end():

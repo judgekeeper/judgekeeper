@@ -5,6 +5,7 @@ same port."""
 
 from __future__ import annotations
 
+import os
 import socket
 import threading
 
@@ -122,6 +123,8 @@ def test_a_taken_port_given_stops_before_anything_is_written(here, capsys, pages
     assert code == 3, out
     assert f"Port {port} is in use" in out
     assert not (here / ".judgekeeper").exists(), out
+    after = " ".join(out.split("Next:")[-1].split())  # this project's command, on any free port
+    assert "`judgekeeper --port 0 --no-browser`" in after and f"--port {port}" not in after, out
 
 
 def _free_port() -> int:
@@ -168,3 +171,80 @@ def test_the_folder_above_is_named_with_no_browser_and_never_the_port(tmp_path, 
     _, out = _run(capsys, "--port", port, "--no-browser")
     said = " ".join(out.split())
     assert "Run `judgekeeper .. --no-browser`" in said, said
+
+
+# One rule for every printed command: one for another project keeps --no-browser and leaves out
+# --port (that port's page may be up); one for this project keeps both (its page there is
+# closed and opened again)
+
+
+def _layout(kind: str, top) -> tuple:
+    """(the folder to run in, its arguments, {a printed command's start: "another" or "this"})."""
+    from tests.test_folder_matrix import _answers_csv, _jsonl
+
+    if kind == "results too":
+        table_project(top / "loose", split(20, 20), tag="l")
+        _answers_csv(top / "rag", 12, "r")
+        (top / "rag" / "rag.py").write_text("", encoding="utf-8")
+        return top / "rag", ("answers.csv",), {}
+    if kind == "go to one":
+        table_project(top / "a", split(3, 3), tag="a")
+        table_project(top / "b", split(3, 3), tag="b")
+        return top, (), {"judgekeeper": "another"}
+    if kind == "belongs":
+        table_project(top / "p", split(3, 3), tag="p")
+        (top / "p" / "pyproject.toml").write_text("", encoding="utf-8")
+        return top, (), {"judgekeeper": "another"}
+    if kind == "left out":
+        (top / "q" / "data").mkdir(parents=True)
+        (top / "q" / "pyproject.toml").write_text("", encoding="utf-8")
+        _jsonl(top / "q" / "data", 6, "q")
+        return top, (".",), {"judgekeeper q": "another"}
+    if kind == "other eval":
+        table_project(top / "logs", split(5, 5), tag="a", name="graded.csv")
+        old = table_project(top, split(3, 3), tag="b", name="top.csv")
+        os.utime(old, (1, 1))
+        return top, (), {"judgekeeper there": "another", "judgekeeper mark": "this"}
+    if kind == "tool below":
+        table_project(top / "p", split(3, 3), tag="p")
+        (top / "p" / "pyproject.toml").write_text("", encoding="utf-8")
+        return top, ("--tool", "deepeval"), {"judgekeeper": "another"}
+    if kind == "new here":
+        table_project(top, split(20, 20), tag="t")
+        (top / "pyproject.toml").write_text("", encoding="utf-8")
+        (top / "sub").mkdir()
+        return top / "sub", (), {"judgekeeper .": "another"}
+    raise AssertionError(kind)
+
+
+@pytest.mark.parametrize("kind", ["go to one", "belongs", "left out", "other eval",
+                                  "tool below", "new here", "results too"])
+def test_every_command_keeps_no_browser_and_the_port_only_for_this_project(
+        tmp_path, capsys, pages, monkeypatch, kind):
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "w"
+    top.mkdir()
+    folder, argv, expect = _layout(kind, top)
+    port = _free_port()
+    if kind == "results too":  # rag/ holds a session of its own; the run is in w/
+        monkeypatch.chdir(folder)
+        _run(capsys, *argv, "--port", 0, "--no-browser")
+        main(["--stop"])
+        capsys.readouterr()
+        folder, argv, expect = top, (), {"judgekeeper rag": "another"}
+    monkeypatch.chdir(folder)
+    main([*argv, "--port", str(port), "--no-browser"])
+    out, err = capsys.readouterr()
+    main(["--stop"])
+    said = " ".join((out + err).split())
+    printed = [c for c in said.split("`")[1::2] if c.startswith("judgekeeper")]
+    for start_, where in expect.items():
+        if start_ == "judgekeeper there":  # "put it in a folder of its own and run ... there"
+            found = [c for c, before in zip(said.split("`")[1::2], said.split("`")[::2])
+                     if c.startswith("judgekeeper") and before.endswith("of its own and run ")]
+        else:
+            found = [c for c in printed if c == start_ or c.startswith(start_ + " ")]
+        assert found, (start_, said)
+        for command in found:
+            assert "--no-browser" in command, (command, said)
+            assert (f"--port {port}" in command) == (where == "this"), (command, said)

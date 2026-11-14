@@ -10,10 +10,10 @@ from tests.test_front import flat, next_lines, run
 
 PAGE = ("--no-browser", "--port", "0")
 LINE = ("Also found a.csv, with other questions. To check it, put it in a folder of its own and "
-        "run `judgekeeper` there.")
+        "run `judgekeeper --no-browser` there.")
 SHARES = ("a.csv shares few questions with the results you marked (b.csv), so it looks like "
           "another eval.")
-NEXT = "Next: put a.csv in a folder of its own, then run `judgekeeper` there."
+NEXT = "Next: put a.csv in a folder of its own, then run `judgekeeper --no-browser` there."
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ def test_several_files_are_said_each_the_way_that_works(here, capsys):
     said = flat(out)
     assert "Also found d.csv. To check it, run `judgekeeper d.csv --port 0 --no-browser`." in said
     assert ("Also found a.csv and c.csv, with other questions. To check one, put it in a folder "
-            "of its own and run `judgekeeper` there.") in said, out
+            "of its own and run `judgekeeper --no-browser` there.") in said, out
 
 
 @pytest.mark.parametrize("command", [[], ["mark"], ["check"], ["fix"]])
@@ -81,9 +81,10 @@ def test_naming_another_eval_stops_with_a_next_line(here, capsys, command):
     _two_evals(here)
     run(capsys, *PAGE)
     run(capsys, "--stop")
-    code, out, err = run(capsys, *command, "a.csv", *(() if command[:1] in (["check"], ["fix"])
-                                                      else PAGE))
+    page = command[:1] not in (["check"], ["fix"])
+    code, out, err = run(capsys, *command, "a.csv", *(PAGE if page else ()))
     run(capsys, "--stop")
     assert code == 3, out + err
     assert SHARES in flat(out + err), out + err
-    assert [" ".join(line.split()) for line in next_lines(out + err)] == [NEXT], out + err
+    next_line = NEXT if page else NEXT.replace(" --no-browser", "")
+    assert [" ".join(line.split()) for line in next_lines(out + err)] == [next_line], out + err

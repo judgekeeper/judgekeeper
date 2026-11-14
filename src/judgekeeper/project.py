@@ -306,19 +306,21 @@ def _answers(path: Path) -> bool:
         return False
 
 
-def other_eval_line(path: Path, marked: Path) -> str:
+def other_eval_line(path: Path, marked: Path, away: str = "") -> str:
     """The line for `path`, another eval beside `marked`: both named as every path line names
-    them (textio.line_path), a typed path too."""
-    return f"{_other_eval_said(path, marked)} {TO_MARK_IT.format(program=program_anywhere())}"
+    them (textio.line_path), a typed path too. `away`: what the command for that folder of
+    its own repeats (front.FrontTalk.away)."""
+    return (f"{_other_eval_said(path, marked)} "
+            f"{TO_MARK_IT.format(program=program_anywhere() + away)}")
 
 
-def other_eval_stop(path: Path, marked: Path) -> tuple[str, str]:
+def other_eval_stop(path: Path, marked: Path, away: str = "") -> tuple[str, str]:
     """(the line, the Next step) for a command that stops at `path`, another eval beside
     `marked`."""
     from judgekeeper import textio
 
     return _other_eval_said(path, marked), OTHER_EVAL_NEXT.format(
-        file=textio.line_path(path), program=program_anywhere())
+        file=textio.line_path(path), program=program_anywhere() + away)
 
 
 def _other_eval_said(path: Path, marked: Path) -> str:

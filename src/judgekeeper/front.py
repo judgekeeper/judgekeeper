@@ -649,12 +649,13 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd(), command))
     store = project.project_of(asked)
     if path.is_file() and (marked := project.other_eval(store, path)) is not None:
-        line, step = project.other_eval_stop(path, marked)  # never read, marked or set apart
+        line, step = project.other_eval_stop(path, marked, talk.away)  # never read, marked
+        # or set apart
         talk.para(line)
         raise talk.stop(EXIT_QUESTION, step)
     if not asked.is_file():  # the marked file is read still: why not the other
         for other, marked in project.other_evals(store):
-            talk.para(project.other_eval_line(other, marked))
+            talk.para(project.other_eval_line(other, marked, talk.away))
             talk.say()
     if (read := _project_reads(path, store)) != path:  # the project above's, as before
         path, only, talk.left_below = read, None, []
@@ -1708,7 +1709,7 @@ def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
     if apart:
         said.append(f"Also found {start._and(apart)}, with other questions. To check "
                     f"{'it' if len(apart) == 1 else 'one'}, put it in a folder of its own and "
-                    f"run `{project.program_anywhere()}` there.")
+                    f"run `{project.program_anywhere()}{talk.away}` there.")
     return " ".join(said) or None
 
 
@@ -2481,7 +2482,7 @@ def _to_save(talk: FrontTalk, found: start.Found,
         talk.para(f"Nothing was saved: judgekeeper reads "
                   f"{textio.shown_in(Path(found.root) / mapped.file, found.root)} only once "
                   "judgekeeper.toml says how.")
-        raise talk.stop(EXIT_OK, f"run `{program()}` again and answer yes.", as_given=True)
+        raise talk.stop(EXIT_OK, f"run `{talk.command()}` again and answer yes.", as_given=True)
     return new
 
 
@@ -2496,7 +2497,7 @@ def _save(talk: FrontTalk, found: start.Found, new: settings.StartSettings,
         for line in settings.render(new).splitlines():
             talk.say(f"  {line}")
         raise talk.stop(EXIT_QUESTION, f"add the lines above to {settings.FILE}, then run "
-                                       f"`{program()}` again.") from None
+                                       f"`{talk.command()}` again.") from None
     talk.say(f"Saved {settings.FILE} (where your LLM-as-a-judge's results are and how to read "
              "them).")
     if made:  # judgekeeper.toml keeps the judge, its model and pass mark now
@@ -2709,7 +2710,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             (read := _newest_path(found)) is not None and project.rewritten(ws.root, read):
         talk.para(project.REWRITTEN.format(file=textio.line_path(read)))  # never one pool
         raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
-            file=textio.line_path(read), program=project.program_anywhere()))
+            file=textio.line_path(read), program=project.program_anywhere() + talk.away))
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
