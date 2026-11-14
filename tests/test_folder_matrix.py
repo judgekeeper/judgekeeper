@@ -686,7 +686,7 @@ LAYOUTS = ["top-and-archive", "top-and-old", "jsonl-and-api", "one-folder"]
 @pytest.mark.parametrize("layout", LAYOUTS)
 def test_an_older_file_of_other_questions_never_joins_the_pool(tmp_path, capsys, monkeypatch,
                                                                 reads, layout):
-    """I2 (H1): the newest file is read alone; an older one of other questions is named, never
+    """I2: the newest file is read alone; an older one of other questions is named, never
     pooled because the LLM-as-a-judge is the same."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     proj = tmp_path / "proj"
@@ -710,7 +710,7 @@ def test_an_older_round_of_the_same_eval_still_joins_the_pool(tmp_path, capsys, 
 @pytest.mark.parametrize("marker", [False, True])
 def test_a_table_in_a_folder_named_logs_never_lets_two_evals_pool(tmp_path, capsys,
                                                                    monkeypatch, reads, marker):
-    """I2 (H1): logs/ is Inspect AI's folder, not a CSV's: logs/ and b/ of other questions
+    """I2: logs/ is Inspect AI's folder, not a CSV's: logs/ and b/ of other questions
     are named as a/ and b/ would be."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     work = tmp_path / "work"
@@ -785,7 +785,7 @@ def test_a_newer_file_below_a_file_marked_from_above_is_another_eval(
 
 def test_the_marked_file_overwritten_by_another_eval_adds_none_of_its_answers(
         tmp_path, capsys, monkeypatch):
-    """I6 (s17): the session's results.csv is written again by another eval (other questions,
+    """I6: the session's results.csv is written again by another eval (other questions,
     the same ids): its answers are never added to the pool; it looks like another eval."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     proj = tmp_path / "proj"
@@ -820,7 +820,7 @@ def _mono(tmp_path: Path, monkeypatch) -> Path:
 @pytest.mark.parametrize("tool", ["inspect", "deepeval"])
 def test_a_results_variable_into_a_project_below_is_never_read(tmp_path, capsys, monkeypatch,
                                                                 reads, tool, argv):
-    """I1 (M1): INSPECT_LOG_DIR or DEEPEVAL_RESULTS_FOLDER naming a folder in svc/ (a project
+    """I1: INSPECT_LOG_DIR or DEEPEVAL_RESULTS_FOLDER naming a folder in svc/ (a project
     below) is never read from mono/: svc/ is named, as with no variable."""
     mono = _mono(tmp_path, monkeypatch)
     if tool == "inspect":
@@ -839,7 +839,7 @@ def test_a_results_variable_into_a_project_below_is_never_read(tmp_path, capsys,
 
 def test_a_tracking_store_in_a_project_below_is_never_read(tmp_path, capsys, monkeypatch,
                                                            reads):
-    """I1 (M1): MLFLOW_TRACKING_URI naming svc/mlruns (svc/ a project below) is never read
+    """I1: MLFLOW_TRACKING_URI naming svc/mlruns (svc/ a project below) is never read
     from mono/ with --tool mlflow."""
     from tests.conftest import build_mlflow_folder_store
 
@@ -853,7 +853,7 @@ def test_a_tracking_store_in_a_project_below_is_never_read(tmp_path, capsys, mon
 
 def test_records_at_the_project_top_never_beat_a_nearer_session(tmp_path, capsys, monkeypatch,
                                                                 reads):
-    """I3 (M3): proj/ (a project file) keeps judgekeeper.record()'s files; proj/exp/ holds a
+    """I3: proj/ (a project file) keeps judgekeeper.record()'s files; proj/exp/ holds a
     session on another eval. A run in proj/exp/empty/ reads exp/, the nearest project."""
     from judgekeeper import start_label
 
@@ -904,7 +904,7 @@ def test_an_empty_folder_never_reads_a_session_past_a_nearer_project(tmp_path, c
 
 def test_an_empty_file_in_a_project_below_never_stops_the_folder_above(tmp_path, capsys,
                                                                        monkeypatch, reads):
-    """L2: work/ holds nothing of its own; a/ (a project file) an empty results.json. The run
+    """work/ holds nothing of its own; a/ (a project file) an empty results.json. The run
     in work/ names a/, never says a/'s file is empty from here."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     work = tmp_path / "work"
@@ -917,7 +917,7 @@ def test_an_empty_file_in_a_project_below_never_stops_the_folder_above(tmp_path,
 
 def test_a_too_big_file_in_a_project_below_is_never_offered_from_above(tmp_path, capsys,
                                                                        monkeypatch, reads):
-    """L2: work/ holds results.csv of its own; a/ (a project file) one over find.MAX_BYTES.
+    """work/ holds results.csv of its own; a/ (a project file) one over find.MAX_BYTES.
     The run reads work/'s file and offers no `--yes` for a/'s."""
     from judgekeeper import find
 
@@ -934,7 +934,7 @@ def test_a_too_big_file_in_a_project_below_is_never_offered_from_above(tmp_path,
 
 
 def test_a_too_big_file_named_in_a_project_below_keeps_its_yes(tmp_path, capsys, monkeypatch):
-    """L2: `judgekeeper a/results.csv --yes` from work/ sends the person to a/ with a command
+    """`judgekeeper a/results.csv --yes` from work/ sends the person to a/ with a command
     that keeps --yes, so it reads the file there."""
     from judgekeeper import find
 
