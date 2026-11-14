@@ -1403,3 +1403,49 @@ def test_a_click_with_no_mouse_events_still_marks():
       ids["fail"].fire("click"); await settle();
       console.log(JSON.stringify({sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""")
     assert got == {"sent": [["a0", "fail"]]}
+
+
+# An Undo while a mark saves -------------------------------------------------------------------
+
+NOT_UNDONE = ("Not undone: the list changed while your last mark was saving. "
+              "Press Undo again.")
+
+
+def test_an_undo_click_during_the_first_save_waits_and_takes_that_mark_back():
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await settle();
+      later(300); ids["undo"].fire("click"); await settle();
+      var waiting = [pending.length, document.getElementById("status").textContent];
+      await tick(2500);
+      console.log(JSON.stringify({waiting: waiting, at: ids["q-text"].textContent,
+        status: document.getElementById("status").textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label || null]; })}));""")
+    assert got["waiting"] == [1, ""]  # one save at a time, and nothing said yet
+    assert got["sent"] == [["a0", "pass"], ["a0", None]]
+    assert got["at"] == "Question 0?" and got["status"] == ""
+
+
+def test_an_undo_click_during_a_later_save_takes_back_the_mark_just_made_not_an_older_one():
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await settle(); await tick(1000);
+      ids["pass"].fire("click"); await settle();
+      later(300); ids["undo"].fire("click"); await settle();
+      var shown = [ids["q-text"].textContent, pending.length];
+      await tick(3000);
+      console.log(JSON.stringify({shown: shown, at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label || null]; })}));""")
+    assert got["shown"] == ["Question 1?", 1]  # the answer being marked stays; one save runs
+    assert got["sent"] == [["a0", "pass"], ["a1", "pass"], ["a1", None]]
+    assert got["at"] == "Question 1?"
+
+
+@pytest.mark.parametrize("how", ['ids["undo"].fire("click");', 'key("z");'])
+def test_an_undo_dropped_when_the_list_is_taken_again_says_so(how):
+    got = _run("var BEFORE = 'v2';" + STALE + f"""
+      key("ArrowRight"); {how}
+      for (var n = 0; n < 6; n++) {{ await settle(); }}
+      console.log(JSON.stringify({{status: document.getElementById("status").textContent,
+        stateAsked: stateAsked, sent: sent.map(function (s) {{ return [s.body.id, s.body.label || null]; }})}}));""",
+               _data(version="v1"))
+    assert got["stateAsked"] == 1 and got["sent"] == [["a0", "pass"]]
+    assert got["status"] == NOT_UNDONE
