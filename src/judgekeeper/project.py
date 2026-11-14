@@ -178,6 +178,8 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
     if not mine:
         return False
     theirs = _theirs(store)
+    if any(t.is_relative_to(here) for t in theirs):  # a folder holding a file it reads is
+        return False  # its own, the folders below too: another eval there is said so
     # a file beside one it reads is its own: new results of it join, another eval is said so
     # (other_eval) and never gets marks of its own
     return not all(any(m == t or m.is_relative_to(t) or not t.is_dir() and m.parent == t.parent
@@ -223,6 +225,22 @@ OTHER_EVAL = ("{file} shares few questions with the results you marked ({marked}
               "like another eval.")
 TO_MARK_IT = "To mark it, put it in a folder of its own and run `{program}` there."
 OTHER_EVAL_NEXT = "put {file} in a folder of its own, then run `{program}` there."
+REWRITTEN = ("{file} now holds other questions than the answers you marked, so it looks like "
+             "another eval. Its answers are not added to the ones you mark.")
+
+
+def rewritten(store: Path, path: Path) -> bool:
+    """Whether the results file `path` the session in `store` reads now holds another eval
+    (written again with other questions: _same_eval says no). Its answers never join the
+    pool: two evals are never one (REWRITTEN says so)."""
+    path = Path(path).resolve()
+    if not Workspace(store).start.is_file() or not path.is_file():
+        return False
+    try:
+        stamps = (path.stat().st_mtime_ns, Workspace(store).pool.stat().st_mtime_ns)
+    except OSError:
+        stamps = (0, 0)
+    return not _same_eval_cached(path, Path(store).resolve(), stamps)
 
 
 def other_eval(store: Path, path: Path) -> Path | None:
@@ -373,14 +391,8 @@ def same_questions(path: Path, tool: str | None, held: list, answers: bool = Fal
     if not rows or len(rows) >= table.MAX_ROWS:  # none or only the first rows read
         return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
-    # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
-    ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
-            if f}
-    questions = set().union(*ours)
-    theirs = {frozenset(f) for f in (_forms(q, a) - {""} for q, a in rows) if f}
-    if questions and theirs:  # an answer a refusal or a stock line gives is no sign; half of
-        # the smaller side: the same eval run on more questions is still this one
-        return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
+    if (shared := shares_questions(held, rows)) is not None:
+        return shared
     ids = {str(a.get("id")) for a in held}
     if answers:  # each answer's id made as the marked ones' were (start._answers_only)
         return any(str(a.get("id")) in ids for a in records.answers)
@@ -388,6 +400,22 @@ def same_questions(path: Path, tool: str | None, held: list, answers: bool = Fal
         return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
     except (TypeError, ValueError):
         return True
+
+
+def shares_questions(held: list, rows: list) -> bool | None:
+    """Whether the answers `rows` ((question, answer) pairs) are of the eval of `held` (dicts
+    with input and output): they share half of the smaller side's distinct questions. None
+    when either side has no question to compare."""
+    # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
+    ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
+            if f}
+    questions = set().union(*ours)
+    theirs = {frozenset(f) for f in (_forms(q, a) - {""} for q, a in rows) if f}
+    if not (questions and theirs):
+        return None
+    # an answer a refusal or a stock line gives is no sign; half of the smaller side: the
+    # same eval run on more questions is still this one
+    return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
 
 
 def one_eval(first: Path, second: Path) -> bool:

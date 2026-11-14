@@ -648,6 +648,8 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
             talk.say()
     if (read := _project_reads(path, store)) != path:  # the project above's, as before
         path, only, talk.left_below = read, None, []
+        # the commands said from here on name its files from here (Talk.read_in)
+        talk.read_in = Path(os.path.relpath(read, Path.cwd())).as_posix()
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved, only)
     found = _marked_files(talk, where, saved, found)
@@ -688,15 +690,33 @@ def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
 def _project_reads(path: Path, store: Path) -> Path:
     """Where a run from `path` reads: the project folder `store` when `path` is a folder below
     it with the results its marks are on, as if run there, so no second session starts. A
-    folder of logs is the project's choice of folder (_log_folder_of), and a folder with no
-    results reads the project above and says so (start._locate)."""
+    folder of logs is the project's choice of folder (_log_folder_of). A folder with no
+    results reads the project above and says so (start._locate); one with nothing in it (no
+    code either) that climbs nowhere reads `store`, the nearest project with a session (one
+    with no project file)."""
     if not path.is_dir() or find.is_mlflow_folder(path) or store == path.resolve():
         return path
     if (tool := project.session_tool(store)) is None:
         return path
-    if tool in ("deepeval", "inspect") or not _reads_own(find.search(path)):
-        return path
-    return store
+    search = find.search(path)
+    if not _reads_own(search):  # nothing here and no climb (start.reads_in): the session's,
+        # unless a project of its own (code, a project file, its .judgekeeper/) is nearer, or
+        # the session's folder holds code or a project file (a run below it names it,
+        # start._locate)
+        between = [f for f in path.resolve().parents if f.is_relative_to(store) and f != store]
+        return store if _holds_nothing(path, search) and start.reads_in(
+            path) == path.resolve() and not any(
+            find.is_project(f) or find.holds_code(f) for f in between) and not (
+            find.has_marker(store) or find.holds_code(store)) else path
+    return path if tool in ("deepeval", "inspect") else store
+
+
+def _holds_nothing(path: Path, search: find.Search) -> bool:
+    """Whether a run in `path` finds nothing at all: no results (in no project below), no
+    answers, no tool's config, no file it left out, and no code (a folder with code is its own
+    project)."""
+    return not (search.answers_only or search.signs or search.unreadable or search.skipped
+                or search.too_big() or search.stopped or find.holds_code(path))
 
 
 def _reads_own(search: find.Search) -> bool:
@@ -1409,7 +1429,8 @@ def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
 
 # A tool's own folder for its results, in the project it runs in: Inspect AI's, DeepEval's,
 # MLflow's and judgekeeper.record()'s
-TOOL_FOLDERS = ("logs", find.HIDDEN_KEPT, "mlruns", FOLDER)
+TOOL_FOLDERS = {"logs": "inspect", find.HIDDEN_KEPT: "deepeval", "mlruns": "mlflow",
+                FOLDER: "records"}
 # Results in several folders: asked which (start._choose_folder)
 FOLDER_ASKED = ("deepeval", "inspect")
 
@@ -1452,8 +1473,9 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
     tops = set()
     for result in results:
         parts = Path(result.rel).parts
-        if result.tool in FOLDER_ASKED or any(part in TOOL_FOLDERS for part in parts[:-1]):
-            return []
+        if result.tool in FOLDER_ASKED or any(TOOL_FOLDERS.get(part) == result.tool
+                                              for part in parts[:-1]):  # only its tool's
+            return []  # results: a table in a folder named logs/ is a plain folder's
         if len(parts) > 1:
             tops.add(parts[0])
     if len(tops) < 2:  # one plain folder (evals/) holds this folder's results, or none
@@ -1576,7 +1598,7 @@ def _file_there(talk: FrontTalk, owner: str, path: Path) -> str:
     there = textio.folder_of(owner, Path.cwd())
     there = Path(there) if there != textio.ANYWHERE else path.resolve().parent
     rel = Path(os.path.relpath(path.resolve(), there.resolve())).as_posix()
-    command = talk.command_in(textio.quote_arg(rel))
+    command = talk.command_in(textio.quote_arg(rel), *(("--yes",) if talk.yes else ()))
     return _program_there([owner], Path.cwd()) + command[len(talk.program):]
 
 
@@ -2523,6 +2545,11 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     return [] if talk.new else None
 
 
+def _newest_path(found: start.Found) -> Path | None:
+    """The newest results file read (found.used[0]), as a path; None for none."""
+    return next((r.path for r in found.results if found.used and r.rel == found.used[0]), None)
+
+
 def _checked_file(ws: Workspace, found: start.Found) -> str | None:
     """The file the last check read (check.last_read_file), named from here; else None."""
     from judgekeeper import check as checking
@@ -2648,6 +2675,11 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(_regraded_line(talk, ws, found, regraded))
     added, took, added_at = 0, None, None
     about = elsewhere  # the file the numbers are about, when not the one read (path_lines)
+    if not (first or changed or back or grades or elsewhere) and found.tool in FILE_TOOLS and \
+            (read := _newest_path(found)) is not None and project.rewritten(ws.root, read):
+        talk.para(project.REWRITTEN.format(file=textio.line_path(read)))  # never one pool
+        raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
+            file=textio.line_path(read), program=project.program_anywhere()))
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)

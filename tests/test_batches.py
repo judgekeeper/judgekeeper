@@ -23,7 +23,7 @@ import pytest
 from judgekeeper import batches, fix, start, start_label, weighted
 from judgekeeper.start_label import StartSession, Workspace
 from tests.conftest import FIXTURES
-from tests.start_projects import promptfoo_project, split, table_project
+from tests.start_projects import answer, promptfoo_project, split, table_project
 from tests.test_front import flat, next_lines, run
 
 BEFORE = json.loads((FIXTURES / "batches" / "one-batch.json").read_text(encoding="utf-8"))
@@ -666,7 +666,8 @@ def test_ran_again_is_said_once_after_a_batch_from_a_new_file(here, capsys, page
     ws = Workspace(here)
     _mark(ws)
     run(capsys, "--no-browser")
-    table_project(here, split(5, 5), tag=" (new)")  # the file now holds only new answers
+    table_project(here, split(5, 5), outputs=[answer(i, " (new)") for i in range(10)])  # the
+    # file now holds only new answers to its questions
     _, out, _ = run(capsys, "--no-browser")
     assert "added for marking" in flat(out), out
     run(capsys, "--stop")

@@ -17,6 +17,7 @@ import pytest
 from judgekeeper import __version__, background, label, marks, page, start, start_label
 from judgekeeper.cli import main
 from tests.start_projects import (
+    answer,
     promptfoo_project,
     records_project,
     save_result,
@@ -242,7 +243,8 @@ def test_a_new_eval_run_goes_on_with_the_marks(here, capsys, pages):
     run(capsys, "mark")
     ws = start_label.Workspace(here)
     _click(ws, 6)
-    promptfoo_project(here, split(18, 18), tag=" new" + TAG)
+    promptfoo_project(here, split(18, 18), tag=TAG,  # the same questions, new answers
+                      outputs=[answer(i, " new" + TAG) for i in range(36)])
     code, out, err = run(capsys, "mark")
     assert code == 0, out
     assert START_OVER not in _flat(out)

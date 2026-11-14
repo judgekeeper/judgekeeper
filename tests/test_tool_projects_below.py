@@ -175,9 +175,9 @@ def test_the_plain_run_in_a_folder_with_only_its_own_results_reads_them(repo, ca
     table_project(folder, split(8, 4), tag="s")
     table_project(folder / "evals", split(7, 3), name="more.csv", tag="t")  # in no project
     code, said = _run(capsys, monkeypatch, folder)
-    assert code == 3, said
-    assert "Files: results.csv and 1 older file (evals/more.csv)" in said or \
-        "Files: evals/more.csv and 1 older file (results.csv)" in said, said
+    assert code == 3, said  # two evals (other questions): the newest alone, the other named
+    assert ("File: evals/more.csv" in said and "Also found results.csv" in said) or \
+        ("File: results.csv" in said and "Also found evals/more.csv" in said), said
     assert "results too" not in said and "hold eval results" not in said, said
 
 

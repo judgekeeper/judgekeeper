@@ -139,7 +139,9 @@ class Search:
         return [r for r in self.results.get(tool, []) if not r.too_big]
 
     def too_big(self) -> list[Result]:
-        return [r for rs in self.results.values() for r in rs if r.too_big]
+        """The results over MAX_BYTES, never one in a project below (owner): only named."""
+        return [r for rs in self.results.values() for r in rs
+                if r.too_big and owner(r.path, self.root) is None]
 
 
 # Reading as little as possible --------------------------------------------------------------
@@ -746,6 +748,19 @@ def _inside(root: Path, value: str | None) -> Path | None:
     return path if path == root or root in path.parents else None
 
 
+def _into_project_below(walk: _Walk, path: Path, var: str) -> bool:
+    """Whether the folder or store `path` the variable `var` names is inside a project of its
+    own below the folder searched (owner, that project too): that project's, never read
+    here, only named."""
+    project = owner(path / "x", walk.search.root)
+    if project is None:
+        return False
+    rel = project.relative_to(walk.search.root).as_posix()
+    walk.search.notes.append(f"{var} points into the project in {rel}/, so it was not read "
+                             "here.")
+    return True
+
+
 def _tracking_store(root: Path, uri: str | None) -> Path | None:
     """The local store MLFLOW_TRACKING_URI names, when it is inside `root`."""
     if not uri:
@@ -760,12 +775,16 @@ def _tracking_store(root: Path, uri: str | None) -> Path | None:
 def records_above(folder: str | Path) -> Path | None:
     """The project root above `folder` whose .judgekeeper/records/ holds files that
     judgekeeper.record() wrote, found by record()'s own rule (recorder.project_root), when that
-    is not `folder` itself; else None. record() saves there from any subfolder."""
+    is not `folder` itself; else None. record() saves there from any subfolder. A folder on
+    the way that holds a session (start.json or labels.csv) is nearer: it is read."""
     from judgekeeper.recorder import project_root
+    from judgekeeper.start_label import Workspace
 
     folder = Path(folder).resolve()
     root = project_root(folder)
-    if root == folder:
+    if root == folder or any(Workspace(f).start.is_file() or Workspace(f).labels.is_file()
+                             for f in (folder, *folder.parents) if f != root
+                             and f.is_relative_to(root)):
         return None
     records = root / RECORDS_DIR
     try:
@@ -820,10 +839,12 @@ def search(root: str | Path) -> Search:
         folder = _inside(root, value)
         if value and folder is None:
             walk.search.notes.append(f"{var} points outside this folder, so it was not read.")
-        elif folder is not None:
+        elif folder is not None and not _into_project_below(walk, folder, var):
             known.insert(0, folder)
             walk.sign(tool, var)
     store = _tracking_store(root, os.environ.get("MLFLOW_TRACKING_URI"))
+    if store is not None and _into_project_below(walk, store, "MLFLOW_TRACKING_URI"):
+        store = None
     records = root / RECORDS_DIR
     try:
         if records.is_dir() and not records.is_symlink():
@@ -854,6 +875,10 @@ def search(root: str | Path) -> Search:
         pass
     for path in session_files(root):  # past the walk's limits: still looked at
         walk.own(path)
+    # a file of a project below it can't read is that project's to say: never said here
+    walk.search.unreadable = [(rel, how) for rel, how in walk.search.unreadable
+                              if owner(root / rel, root) is None]
+    walk.search.bad_tables = [b for b in walk.search.bad_tables if owner(b[2], root) is None]
     bad = walk.search.bad_tables
     if walk.search.answers_only and _answers_alone(walk.search, root):
         for path, size in walk.search.answers_only:

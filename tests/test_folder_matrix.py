@@ -20,6 +20,7 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import re
 import shlex
 import time
 from pathlib import Path
@@ -28,10 +29,13 @@ import pytest
 
 from judgekeeper import front, project
 from tests.start_projects import (
+    answer,
     deepeval_project,
     inspect_project,
     own_format_project,
     promptfoo_project,
+    question,
+    records_project,
     split,
     table_project,
 )
@@ -839,3 +843,328 @@ def test_a_judge_setup_with_no_results_is_never_a_session_to_go_to(tmp_path, cap
     assert f"{kept}/ already holds your judgekeeper session" in said, said
     assert f"`cd {kept}`" in said and f"{empty}/" not in said, said
     assert "No eval results found" not in _say(capsys, monkeypatch, top / kept)[1]
+
+
+# Two evals are never one pool, wherever the files are ---------------------------------------
+
+
+def _older(path: Path) -> Path:
+    """`path` changed a day ago: the newest file is another."""
+    then = time.time() - 86400
+    os.utime(path, (then, then))
+    return path
+
+
+def _jsonl(folder: Path, n: int, tag: str) -> Path:
+    path = folder / "results.jsonl"
+    path.write_text("".join(json.dumps({"input": question(i, tag), "output": answer(i, tag),
+                                        "verdict": "pass" if i % 2 else "fail"}) + "\n"
+                            for i in range(n)), encoding="utf-8")
+    return path
+
+
+def _two_evals(proj: Path, layout: str, same: bool) -> tuple[Path, Path]:
+    """(the newest file, an older one): of one eval when `same`, else of other questions."""
+    other = "a" if same else "b"
+    if layout == "top-and-archive":  # promptfoo at the top, an archived run two folders down
+        _kind(proj, "git")
+        newest = promptfoo_project(proj, split(6, 6), tag="a")
+        older = promptfoo_project(proj / "archive" / "2025", split(6, 6), tag=other,
+                                  config=False)
+    elif layout == "top-and-old":  # a CSV at the top and one in old/
+        _kind(proj, "file")
+        newest = table_project(proj, split(5, 5), tag="a")
+        older = table_project(proj / "old", split(5, 5), tag=other)
+    elif layout == "jsonl-and-api":  # JSONL at the top, a CSV in api/
+        _kind(proj, "git")
+        newest = _jsonl(proj, 12, "a")
+        older = table_project(proj / "api", split(6, 6), tag=other)
+    else:  # one folder: results.csv and an older old_results.csv
+        _kind(proj, "file")
+        newest = table_project(proj, split(5, 5), tag="a")
+        older = table_project(proj, split(5, 5), tag=other, name="old_results.csv")
+    return newest, _older(older)
+
+
+LAYOUTS = ["top-and-archive", "top-and-old", "jsonl-and-api", "one-folder"]
+
+
+@pytest.mark.parametrize("layout", LAYOUTS)
+def test_an_older_file_of_other_questions_never_joins_the_pool(tmp_path, capsys, monkeypatch,
+                                                                reads, layout):
+    """I2: the newest file is read alone; an older one of other questions is named, never
+    pooled because the LLM-as-a-judge is the same."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    newest, older = _two_evals(proj, layout, same=False)
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert reads and reads[-1][1] == [newest.resolve()], said
+    assert older.relative_to(proj).as_posix() in said, said
+
+
+@pytest.mark.parametrize("layout", LAYOUTS)
+def test_an_older_round_of_the_same_eval_still_joins_the_pool(tmp_path, capsys, monkeypatch,
+                                                               reads, layout):
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    newest, older = _two_evals(proj, layout, same=True)
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert reads and reads[-1][1] == [newest.resolve(), older.resolve()], said
+    assert "1 older file" in said, said
+
+
+@pytest.mark.parametrize("marker", [False, True])
+def test_a_table_in_a_folder_named_logs_never_lets_two_evals_pool(tmp_path, capsys,
+                                                                   monkeypatch, reads, marker):
+    """I2: logs/ is Inspect AI's folder, not a CSV's: logs/ and b/ of other questions
+    are named as a/ and b/ would be."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    work = tmp_path / "work"
+    _kind(work, "file" if marker else "plain")
+    table_project(work / "logs", split(5, 5), tag="a")
+    _older(table_project(work / "b", split(5, 5), tag="b"))
+    code, said = _say(capsys, monkeypatch, work)
+    assert code == 3, said
+    assert "b/ and logs/ hold eval results" in said, said
+    assert not reads, said
+
+
+def _answers_csv(folder: Path, n: int, tag: str) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "answers.csv"
+    path.write_text("input,output\n" + "".join(f"{question(i, tag)},{answer(i, tag)}\n"
+                                                for i in range(n)), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("above", [False, True])
+@pytest.mark.parametrize("where", ["beside", "more"])
+def test_a_newer_file_of_other_questions_never_replaces_a_sessions_answers(
+        tmp_path, capsys, monkeypatch, reads, above, where):
+    """I6: runs/ holds a session on answers.csv (6 answers with no grade), and t/ above it
+    one of its own or not; a newer other.jsonl of other questions beside it or in more/ is
+    named as another eval, never read in its place."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    runs = top / "runs"
+    marked = _answers_csv(runs, 6, "t2")
+    if above:  # its session started while runs/ had none
+        _answers_csv(top, 6, "t0")
+        assert _say(capsys, monkeypatch, top)[0] == 0
+    assert _say(capsys, monkeypatch, runs)[0] == 0
+    other = runs / ("more" if where == "more" else "") / "other.jsonl"
+    other.parent.mkdir(exist_ok=True)
+    other.write_text("".join(json.dumps({"input": f"Unrelated {i}?", "output": f"Other {i}."})
+                             + "\n" for i in range(15)), encoding="utf-8")
+    later = time.time() + 60
+    os.utime(other, (later, later))
+    reads.clear()
+    said = _say(capsys, monkeypatch, runs)[1]
+    assert all(files == [marked.resolve()] for _, files in reads), said
+    assert "looks like another eval" in said, said
+
+
+@pytest.mark.parametrize("where", ["beside", "more"])
+def test_a_newer_file_below_a_file_marked_from_above_is_another_eval(
+        tmp_path, capsys, monkeypatch, reads, where):
+    """I6 (seed 35831): t/'s session marks runs/answers.csv (runs/ holds code, no session of
+    its own); a newer other.jsonl of other questions beside it or in runs/more/ never starts
+    a session of its own in runs/: it looks like another eval."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    _older(_answers_csv(top, 40, "t0"))
+    _kind(top / "runs", "code")
+    marked = _answers_csv(top / "runs", 12, "t2")
+    assert _say(capsys, monkeypatch, top)[0] == 0  # t/'s session, on the newest: runs/'s
+    other = top / "runs" / ("more" if where == "more" else "") / "other.jsonl"
+    other.parent.mkdir(exist_ok=True)
+    other.write_text("".join(json.dumps({"input": f"Unrelated {i}?", "output": f"Other {i}."})
+                             + "\n" for i in range(15)), encoding="utf-8")
+    later = time.time() + 60
+    os.utime(other, (later, later))
+    reads.clear()
+    said = _say(capsys, monkeypatch, top / "runs")[1]
+    assert all(files == [marked.resolve()] for _, files in reads), said
+    assert "looks like another eval" in said, said
+    assert not (top / "runs" / ".judgekeeper").exists(), said
+
+
+def test_the_marked_file_overwritten_by_another_eval_adds_none_of_its_answers(
+        tmp_path, capsys, monkeypatch):
+    """I6: the session's results.csv is written again by another eval (other questions,
+    the same ids): its answers are never added to the pool; it looks like another eval."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    ids = {"id": [f"r{i}" for i in range(40)]}
+    path = table_project(proj, split(20, 20), tag="a", extra=ids)
+    assert _say(capsys, monkeypatch, proj)[0] == 0  # its session (a page, 0 marks)
+    pool = (proj / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8")
+    table_project(proj, split(20, 20), tag="b", extra=ids)
+    later = time.time() + 60
+    os.utime(path, (later, later))
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert "added for marking" not in said, said
+    assert "looks like another eval" in said, said
+    assert (proj / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8") == pool
+
+
+# A tool's folder named by its variable, inside a project below, is that project's -----------
+
+
+def _mono(tmp_path: Path, monkeypatch) -> Path:
+    """mono/ (a git top) with results.csv of its own; svc/ a project of its own below."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    mono = tmp_path / "mono"
+    _kind(mono, "git")
+    table_project(mono, split(6, 6), tag="m")
+    _kind(mono / "svc", "file")
+    return mono
+
+
+@pytest.mark.parametrize("argv", [(), ("--tool", "TOOL")])
+@pytest.mark.parametrize("tool", ["inspect", "deepeval"])
+def test_a_results_variable_into_a_project_below_is_never_read(tmp_path, capsys, monkeypatch,
+                                                                reads, tool, argv):
+    """I1: INSPECT_LOG_DIR or DEEPEVAL_RESULTS_FOLDER naming a folder in svc/ (a project
+    below) is never read from mono/: svc/ is named, as with no variable."""
+    mono = _mono(tmp_path, monkeypatch)
+    if tool == "inspect":
+        pytest.importorskip("inspect_ai")
+        inspect_project(mono / "svc", split(6, 6), tag="s")
+        monkeypatch.setenv("INSPECT_LOG_DIR", "svc/logs")
+    else:
+        deepeval_project(mono / "svc", split(6, 6), tag="s",
+                         name="results/test_run_20261002_101010.json")
+        monkeypatch.setenv("DEEPEVAL_RESULTS_FOLDER", "svc/results")
+    said = _say(capsys, monkeypatch, mono, *(a.replace("TOOL", tool) for a in argv))[1]
+    assert not _read_below(reads, mono, "svc"), said
+    assert "Saved results from more than one eval tool" not in said, said
+    assert "svc" in said, said
+
+
+def test_a_tracking_store_in_a_project_below_is_never_read(tmp_path, capsys, monkeypatch,
+                                                           reads):
+    """I1: MLFLOW_TRACKING_URI naming svc/mlruns (svc/ a project below) is never read
+    from mono/ with --tool mlflow."""
+    from tests.conftest import build_mlflow_folder_store
+
+    mono = _mono(tmp_path, monkeypatch)
+    build_mlflow_folder_store(mono / "svc" / "mlruns")
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", "svc/mlruns")
+    said = _say(capsys, monkeypatch, mono, "--tool", "mlflow")[1]
+    assert not _read_below(reads, mono, "svc"), said
+    assert "svc" in said, said
+
+
+def test_records_at_the_project_top_never_beat_a_nearer_session(tmp_path, capsys, monkeypatch,
+                                                                reads):
+    """I3: proj/ (a project file) keeps judgekeeper.record()'s files; proj/exp/ holds a
+    session on another eval. A run in proj/exp/empty/ reads exp/, the nearest project."""
+    from judgekeeper import start_label
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    records_project(proj, split(6, 6), tag="r")
+    exp = proj / "exp"
+    results = table_project(exp, split(20, 20), tag="e")
+    (exp / ".judgekeeper").mkdir()
+    assert _say(capsys, monkeypatch, exp)[0] == 0  # its session (a page)
+    session = start_label.StartSession(start_label.Workspace(exp))
+    for item in session.items[:4]:
+        session.update({"id": item["id"], "label": "pass", "seconds": 3})
+    (exp / "empty").mkdir()
+    reads.clear()
+    said = _say(capsys, monkeypatch, exp / "empty")[1]
+    assert reads and reads[-1] == (exp.resolve(), [results.resolve()]), said
+    assert "record()" not in said, said
+    monkeypatch.chdir(exp / "empty")  # --stop there closes the page that run opened
+    _, out, err = run(capsys, "--stop")
+    assert "No marking page is open" not in out + err, out + err
+
+
+@pytest.mark.parametrize("between", ["code", "records"])
+def test_an_empty_folder_never_reads_a_session_past_a_nearer_project(tmp_path, capsys,
+                                                                      monkeypatch, reads,
+                                                                      between):
+    """I3 (seeds 52010, 54496): t/ holds a session; t/mid/ is a project of its own (code, or
+    judgekeeper.record()'s files). A run in the empty t/mid/empty/ never reads t/."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    table_project(top, split(3, 3), tag="t0")
+    assert _say(capsys, monkeypatch, top)[0] == 3  # its session (judge.json)
+    mid = top / "mid"
+    if between == "code":
+        _kind(mid, "code")
+    else:
+        records_project(mid, split(3, 3), tag="r")
+    (mid / "empty").mkdir()
+    reads.clear()
+    said = _say(capsys, monkeypatch, mid / "empty")[1]
+    assert all(root != top.resolve() for root, _ in reads), said
+
+
+# A project below's file it can't read never decides the folder above ------------------------
+
+
+def test_an_empty_file_in_a_project_below_never_stops_the_folder_above(tmp_path, capsys,
+                                                                       monkeypatch, reads):
+    """work/ holds nothing of its own; a/ (a project file) an empty results.json. The run
+    in work/ names a/, never says a/'s file is empty from here."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    work = tmp_path / "work"
+    _kind(work / "a", "file")
+    (work / "a" / "results.json").write_text("", encoding="utf-8")
+    said = _say(capsys, monkeypatch, work)[1]
+    assert "is empty" not in said and "a/results.json" not in said, said
+    assert not reads, said
+
+
+def test_a_too_big_file_in_a_project_below_is_never_offered_from_above(tmp_path, capsys,
+                                                                       monkeypatch, reads):
+    """work/ holds results.csv of its own; a/ (a project file) one over find.MAX_BYTES.
+    The run reads work/'s file and offers no `--yes` for a/'s."""
+    from judgekeeper import find
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    work = tmp_path / "work"
+    _kind(work, "plain")
+    own = table_project(work, split(6, 6), tag="w")
+    _kind(work / "a", "file")
+    big = table_project(work / "a", split(20, 20), tag="a")
+    monkeypatch.setattr(find, "MAX_BYTES", big.stat().st_size - 1)
+    said = _say(capsys, monkeypatch, work)[1]
+    assert "--yes" not in said and "to read it anyway" not in said, said
+    assert reads and reads[-1][1] == [own.resolve()], said
+
+
+def test_a_too_big_file_named_in_a_project_below_keeps_its_yes(tmp_path, capsys, monkeypatch):
+    """`judgekeeper a/results.csv --yes` from work/ sends the person to a/ with a command
+    that keeps --yes, so it reads the file there."""
+    from judgekeeper import find
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    work = tmp_path / "work"
+    _kind(work / "a", "file")
+    big = table_project(work / "a", split(20, 20), tag="a")
+    monkeypatch.setattr(find, "MAX_BYTES", big.stat().st_size - 1)
+    said = _say(capsys, monkeypatch, work, "a/results.csv", "--yes")[1]
+    assert "belong to the project in a/" in said, said
+    assert re.search(r"`judgekeeper results\.csv[^`]*--yes[^`]*` in a/", said), said
+
+
+@pytest.mark.parametrize("given", [False, True])
+def test_a_file_named_after_reading_the_session_above_is_named_from_here(tmp_path, capsys,
+                                                                         monkeypatch, given):
+    """I8 (seed 50210): evals/ holds a session; a run in evals/b/ reads evals/ and names the
+    file it did not read by its path from b/, so the printed command finds it."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    evals = tmp_path / "t" / "runs" / "evals"
+    _older(table_project(evals, split(3, 3), tag="t2"))
+    (evals / "b").mkdir()
+    _jsonl(evals / "b", 6, "t1")
+    assert _say(capsys, monkeypatch, evals)[0] == 3  # its judge.json
+    run_in, args = (evals.parent, ("evals/b",)) if given else (evals / "b", ())
+    said = _say(capsys, monkeypatch, run_in, *args)[1]
+    _every_command_reads(capsys, monkeypatch, run_in, said)
