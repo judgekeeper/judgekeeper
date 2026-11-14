@@ -1640,7 +1640,10 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
     cmd = commands(r)
     mark = f"<code>{look.command(_e(cmd['mark']))}</code>"
     file = fixing.get("file")
-    more = (no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
+    more = (r["check"] == "result" and no_grades.used_up_next(  # one step: new questions
+        fixing.get("since") or r.get("since"), _PATH if file else "your results file",
+        _PAGE_FLAGS.sub("", cmd["run"]))) or (
+        no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
         file=_PATH if file else "your results file", n=no_grades.MIN_MARKS,
         command=_PAGE_FLAGS.sub("", cmd["run"]))
     cnts = _own_counts(k, n - k)
@@ -1696,9 +1699,10 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
         if started_else:
             act += ('<p class="small">' + _e(STARTED_ELSE).replace(
                 "`judgekeeper`", "<code>judgekeeper</code>") + "</p>")
-        from judgekeeper.start_label import link_lines, quick_lines
+        from judgekeeper.start_label import link_lines, quick_lines, repeat_lines
 
-        notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))]
+        notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))
+                 + repeat_lines((r.get("made") or {}).get("repeats"))]
         body = (f'<section class="verdict" aria-labelledby="verdict-h"><h1 id="verdict-h" '
                 f'class="plain">{head}</h1></section>{_since(fixing)}'
                 '<section class="sec score" aria-labelledby="nums-h"><div class="sh">'

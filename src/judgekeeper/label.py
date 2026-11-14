@@ -491,6 +491,9 @@ class LabelServer:
         self.settings: dict | None = None  # what the page shows (page.page_key), in the lock
         self.asked: int | None = None  # the port its run asked for (make_server), in the lock
         self.no_browser: bool | None = None  # its run was given --no-browser, in the lock
+        # (session) -> None, after a mark is taken back (undo or skip): a result saved
+        # before is made again from the marks that stand (page.page_server)
+        self.taken_back = None
 
     def hold(self, folder: Path, settings: dict | None = None) -> None:
         """Write the project's lock and its copy (owner-only): this process, port, stop
@@ -856,6 +859,12 @@ def _handler(server: LabelServer):
                 self._json(500, {"error": describe_os_error(e)
                                  or f"could not write {server.session.out}: {e}"})
                 return
+            if server.taken_back is not None and (
+                    ("label" in body and body["label"] is None) or body.get("deferred")):
+                try:  # before the answer: a result page asked for next shows the same
+                    server.taken_back(server.session)
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass  # the mark is saved; the result is made again when next asked for
             summary = server.session.summary()
             pop_up = getattr(server.session, "pop_up", None)
             if pop_up is not None and pop_up(summary["status"]):

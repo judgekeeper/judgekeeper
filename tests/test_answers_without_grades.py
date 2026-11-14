@@ -338,7 +338,10 @@ def test_check_and_fix_say_there_is_no_llm_as_a_judge(here, capsys, pages, comma
     assert code == 3, said
     assert "Your answers have no grades, so there is no LLM-as-a-judge to" in said
     assert "Traceback" not in said and "error:" not in said
-    assert "Your marks are kept." in said
+    if command == "fix":  # no LLM-as-a-judge: the result's step, never a verdict column
+        assert "verdict column" not in said and "Next: add more answers" in said, said
+    else:
+        assert "Your marks are kept." in said
 
 
 def test_labels_brought_with_labels_count_as_marks(here, capsys, pages):
