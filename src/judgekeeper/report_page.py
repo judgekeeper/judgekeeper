@@ -1640,7 +1640,10 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
     cmd = commands(r)
     mark = f"<code>{look.command(_e(cmd['mark']))}</code>"
     file = fixing.get("file")
-    more = (no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
+    more = (r["check"] == "result" and no_grades.used_up_next(  # one step: new questions
+        fixing.get("since") or r.get("since"), _PATH if file else "your results file",
+        _PAGE_FLAGS.sub("", cmd["run"]))) or (
+        no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
         file=_PATH if file else "your results file", n=no_grades.MIN_MARKS,
         command=_PAGE_FLAGS.sub("", cmd["run"]))
     cnts = _own_counts(k, n - k)

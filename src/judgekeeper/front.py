@@ -3543,9 +3543,8 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
         talk.say()
     elif closed:
         talk.para(PAGE_CLOSED.format(command=_command_of(talk, False, "mark")))
-    talk.para("Next: " + (NEXT_MARK_MORE.format(command=_command_of(talk, False, "mark"))
-                          if r["left"] else
-                          no_grades.more_answers(ws, _command_of(talk, False), surer=True)))
+    talk.para("Next: " + no_grades.next_step(ws, r, _command_of(talk, False, "mark"),
+                                             _command_of(talk, False)))
     if opened is not None:
         page.serve(opened.server)
     return EXIT_OK

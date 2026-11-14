@@ -491,6 +491,50 @@ def fix_next(path) -> str:
                            command=program())
 
 
+# the questions kept aside used up (NEW_SET): the one next step, as NEW_SET asks it
+USED_UP_NEXT = "{add} to {file}, then run `{command}` to mark their answers."
+
+
+def used_up_next(c: dict | None, file: str, command: str) -> str | None:
+    """USED_UP_NEXT once the questions kept aside are used up (compare's `c` after the last
+    change they test, or asking for a new set): the new questions new_set_line asks for,
+    never more answers to the same questions. None otherwise."""
+    if not c or not (c.get("last") or c.get("new_set")) or c.get("waiting"):
+        return None
+    n = new_questions(c)
+    add = NEW_SET_HARDER if n is None or n > MOST_ASKED else NEW_SET_ADD.format(n=n)
+    return USED_UP_NEXT.format(add=add[0].lower() + add[1:], file=file, command=command)
+
+
+def next_step(ws, r: dict, mark: str, run: str | None = None) -> str:
+    """The Next step of the result `r` with no grade, as the terminal, `fix` and the page say
+    it: mark the answers left (`mark`: the command), the new questions once the questions
+    kept aside are used up, else more answers for a surer number (MORE_ANSWERS before a
+    result)."""
+    from judgekeeper.front import NEXT_MARK_MORE
+    from judgekeeper.start_label import _PAGE_FLAGS
+    from judgekeeper.textio import program
+
+    if r.get("left"):
+        return NEXT_MARK_MORE.format(command=mark)
+    command = _PAGE_FLAGS.sub("", run or program())
+    if r.get("check") == "result" and (
+            used := used_up_next(r.get("since"), results_file(ws), command)):
+        return used
+    return more_answers(ws, run, surer=r.get("check") == "result")
+
+
+def fix_step(path) -> str:
+    """The Next step `fix` gives with no grade and no answer failed to fix: the result's
+    (next_step), from the marks now."""
+    from judgekeeper.project import project_of
+    from judgekeeper.start_label import StartSession, Workspace
+    from judgekeeper.textio import program
+
+    ws = Workspace(project_of(Path(path)))
+    return next_step(ws, compute(ws, StartSession(ws)), program("mark"))
+
+
 def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
     """MORE_ANSWERS (`surer`: SURER, with a result) for the run that opened the page or made
     the marks (`run`), without the page's own flags (start_label.mark_command's)."""
