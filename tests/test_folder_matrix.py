@@ -329,6 +329,27 @@ def test_the_chosen_inspect_logs_folder_keeps_the_session_in_the_project(
     assert "cd logs" not in flat(out + err), out + err
 
 
+def test_a_logs_folder_named_from_beside_keeps_the_session_in_the_project(
+        tmp_path, capsys, monkeypatch):
+    """From proj/data/, the choice of folders prints `judgekeeper ../runs/logs` (runs/ holds
+    code, no project file): pasted, it marks in proj/, never in proj/runs/logs/."""
+    from tests.start_projects import inspect_project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "git")
+    inspect_project(proj, split(6, 6), tag="a")
+    _kind(proj / "runs", "code")
+    inspect_project(proj / "runs", split(6, 6), tag="b")
+    (proj / "data").mkdir()
+    said = _say(capsys, monkeypatch, proj / "data", "..")[1]
+    assert "`judgekeeper ../runs/logs " in said, said
+    code, said = _say(capsys, monkeypatch, proj / "data", "../runs/logs", "--yes")
+    assert code in (0, 3) and "Answers:" in said, said
+    assert not (proj / "runs" / "logs" / ".judgekeeper").exists(), said
+    assert (proj / ".judgekeeper" / "judge.json").is_file(), said
+
+
 def test_a_named_deepeval_results_folder_keeps_the_session_in_the_project(
         tmp_path, capsys, monkeypatch):
     """DeepEval: a results folder named as PATH is no project of its own."""
@@ -1370,3 +1391,4 @@ def test_a_folder_the_tracking_uri_names_is_mlflow_only_with_mlflow_in_it(tmp_pa
     said = _say(capsys, monkeypatch, proj)[1]
     assert "more than one eval tool" not in said and "--tool mlflow" not in said, said
     assert reads and reads[-1] == (proj.resolve(), [results.resolve()]), said
+
