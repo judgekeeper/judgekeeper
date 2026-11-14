@@ -616,9 +616,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
             here, talk.options["tool"])):  # nor one
         # session for several projects, at a git top too
         raise _checked_there(talk, _from_here(here, folders))
-    if path.is_dir() and not held and (folders := _beside_a_session(path)):
-        raise _go_to_one(talk, _from_here(path, folders))  # a session below never joins
-        # other results here
+    if here.is_dir() and not held and (folders := _beside_a_session(here)):
+        raise _go_to_one(talk, _from_here(here, folders))  # a session below never joins
+        # other results here, nor in the project above an empty folder
     only, talk.left_below = None, []  # the files in no project below, never a project's
     if path.is_dir() and not project.is_project(path) and not held and (
             tools := _tools_read(talk, path)):  # a session here keeps to its files

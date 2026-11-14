@@ -1187,3 +1187,28 @@ def test_a_table_in_a_folder_named_like_a_tools_is_found(tmp_path, capsys, monke
     graded = table_project(ml / sub, split(6, 6), tag="g", name="graded.csv")
     said = _say(capsys, monkeypatch, ml)[1]
     assert reads and reads[-1][1] == [graded.resolve()], said
+
+
+@pytest.mark.parametrize("argv", [(), ("..",)])
+def test_a_run_from_an_empty_folder_stops_as_the_folder_above_does(tmp_path, capsys,
+                                                                   monkeypatch, reads, argv):
+    """repo/ (a git top) holds a/ (a project with a session), b/ and c/ on the same
+    questions, and an empty folder. From the empty folder, the plain run does what
+    `judgekeeper ..` does: it stops and names a/, b/ and c/, reading and writing nothing."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    repo = tmp_path / "repo"
+    _kind(repo, "git")
+    a = repo / "a"
+    table_project(a, split(20, 20), tag="a")
+    (a / ".judgekeeper").mkdir()
+    assert _say(capsys, monkeypatch, a)[0] == 0  # its session (a page)
+    _older(table_project(repo / "b", split(5, 5), tag="s"))
+    table_project(repo / "c", split(5, 5), tag="s")
+    (repo / "empty").mkdir()
+    reads.clear()
+    code, said = _say(capsys, monkeypatch, repo / "empty", *argv)
+    assert code == 3, said
+    assert not reads, said
+    assert all(f"{name}/" in said for name in "abc"), said
+    assert not (repo / ".judgekeeper").exists(), said
+    assert not (repo / "empty" / ".judgekeeper").exists(), said
