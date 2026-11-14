@@ -1078,10 +1078,17 @@ __TOP__
   // ordinary mark line in marks.jsonl, so every step stays there).
   // The result opening: nothing more is taken back behind it (it is made from the marks
   // that stand when it opens), and the page says so.
-  var leaving = false;
-  function leave() { leaving = true; window.location.href = url("/result"); }
+  // It opens OPEN_MS after the last mark, so a Z in that moment still takes the mark back (the
+  // end card says "Opening your result"); after that the page has left.
+  var leaving = false, leaveTimer = null, OPEN_MS = 1000;
+  function leave() {
+    leaving = true;
+    leaveTimer = setTimeout(function () {
+      leaveTimer = null; window.location.href = url("/result"); }, OPEN_MS);
+  }
 
   function undo(key) {
+    if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null; leaving = false; }
     if (leaving) { say(WORDS.opening, true); return; }
     if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked(key)) { return; }

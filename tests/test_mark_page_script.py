@@ -122,6 +122,8 @@ function settle() { return new Promise(function (r) { setImmediate(r); }); }
 function later(ms) { NOW += ms; }
 // The result-ready box opens after a pause with no mark (READY_WAIT_MS, real time)
 function pause() { return new Promise(function (r) { setTimeout(r, 1300); }); }
+// The result opens OPEN_MS (1000, real time) after the last mark, if no Z takes it back
+function opened() { return new Promise(function (r) { setTimeout(r, 1100); }); }
 // The page's elements, placed as the page has them.
 var card = document.getElementById("answer-card");
 main.appendChild(section); section.appendChild(card);
@@ -374,6 +376,7 @@ def test_end_card_focus_and_enter():
 def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
     got = _run("""
       for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      await opened();
       console.log(JSON.stringify({end: ids["end"].hidden, card: ids["answer-card"].hidden,
         title: ids["end-title"].textContent, note: ids["end-note"].hidden,
         again: ids["again"].hidden, href: window.location.href}));""", data=_data(3))
@@ -1380,6 +1383,7 @@ def test_a_second_pass_pressed_while_the_last_mark_saves_still_opens_the_result(
         return new Promise(function (ok) { answer.push(function () { ok(r); }); }); };
       key("ArrowRight"); key("ArrowRight"); await settle();
       while (answer.length) { answer.shift()(); for (var n = 0; n < 4; n++) { await settle(); } }
+      await opened();
       console.log(JSON.stringify({href: window.location.href,
         sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
                data=_data(3))
@@ -1387,15 +1391,35 @@ def test_a_second_pass_pressed_while_the_last_mark_saves_still_opens_the_result(
     assert got["href"] == "/result?token=t0k"
 
 
-def test_an_undo_after_the_result_started_opening_says_so_and_sends_nothing():
-    """Every answer marked: the result is opening. Z then takes nothing back behind it; the
-    page says the result is opening."""
+def test_a_z_soon_after_the_last_mark_saved_takes_it_back_and_no_result_opens():
+    """The save is done and the end card says the result is opening: for a moment a Z still
+    takes the last mark back, and the result opens only on marks that stand."""
     got = _run("""
       for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      var end = [ids["end"].hidden, ids["end-note"].textContent, window.location.href];
+      later(400); key("z"); await settle();
+      var back = [ids["q-text"].textContent, ids["answer-card"].hidden, ids["end"].hidden];
+      await opened();
+      console.log(JSON.stringify({end: end, back: back, href: window.location.href,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""", data=_data(3))
+    assert got["end"] == [False, "Opening your result\u2026", ""]
+    assert got["sent"][-2:] == [["a2", "pass"], ["a2", None]]
+    assert got["back"] == ["Question 2?", False, True]
+    assert got["href"] == ""
+
+
+def test_the_result_opens_when_no_z_comes_and_a_z_after_that_says_so():
+    """Every answer marked and a moment gone: the result is opening. Z then takes nothing back
+    behind it; the page says the result is opening."""
+    got = _run("""
+      for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      var soon = window.location.href;
+      await opened();
       var before = sent.length;
       key("z"); await settle();
-      console.log(JSON.stringify({href: window.location.href, more: sent.length - before,
+      console.log(JSON.stringify({soon: soon, href: window.location.href, more: sent.length - before,
         said: ids["status"].textContent}));""", data=_data(3))
+    assert got["soon"] == ""
     assert got["href"] == "/result?token=t0k"
     assert got["more"] == 0
     assert got["said"] == mark_page.OPENING
