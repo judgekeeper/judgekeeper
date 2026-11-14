@@ -43,6 +43,7 @@
 - An Inspect logs folder named from a folder beside it (`judgekeeper ../runs/logs`) keeps its marks in the project that holds it, as one named from above does.
 - On Windows, a results file dated at or near 1970 (as the Nix store dates every file) no longer stops the run with an unexpected error: its date is shown in UTC.
 - A folder that `MLFLOW_TRACKING_URI` names counts as MLflow only when it holds an MLflow experiment, so results beside it are read without a choice of tool that would read nothing.
+- After your last mark, the result opens a second later, so an Undo (Z) pressed at once takes that mark back instead of being lost when the result page opens.
 
 ## 1.1.2 (2026-11-08)
 
