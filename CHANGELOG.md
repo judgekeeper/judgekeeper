@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1 (unreleased)
+
+- A damaged or hand-edited file in `.judgekeeper/` (`fix/split-answers.json`, `fix/split.json`, `fix/before.json`, `result.json`) no longer stops every run: judgekeeper says it is damaged and starts it again, or makes the result again from your marks.
+- judgekeeper no longer writes `fix/before.json` when `.judgekeeper/fix/` is a link to another folder.
+- Files judgekeeper writes now also hide Stripe live keys, private key blocks, and the value after `password`, `passwd` or `secret` followed by `:` or `=`.
+
 ## 1.2.0 (2026-11-13)
 
 - No LLM-as-a-judge? judgekeeper now reads a CSV, TSV or JSONL file with `input` and `output` columns and no grades, and you mark your AI's answers Pass or Fail. From 10 marks it shows how many passed, with a range.
