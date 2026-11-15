@@ -42,6 +42,7 @@
 - After a result with no LLM-as-a-judge, the Next line keeps the run's `--port` and `--no-browser`.
 - `judgekeeper check --port N` says the version first, then that `check` takes no page flags; a first run's line about a project below now has a blank line after it.
 - A CSV saved in `mlruns/` is found, as one in `logs/` is. From an empty folder, the plain run stops where `judgekeeper ..` stops instead of reading the folder above, and a folder holding only a link to a results file says the file is a link instead of reading the folder above.
+- A folder with results of its own, below a folder whose first run stopped before marking, keeps its own run, as in 1.1.2: the results above are no longer called another eval. Files found beside the ones read ("Also found") are named from the folder you run in.
 - After `--stop`, the command it prints to carry on repeats the file you named. After "No saved ... results found", the Next line says what to run instead of repeating the same command.
 - After 3 changes, the result no longer asks for more of the questions kept aside: it says to add new questions.
 - With answers and no grades, `judgekeeper fix` names your results file in its Next line, as the result page does.
@@ -49,6 +50,7 @@
 - A damaged `.judgekeeper/fix/split-answers.json` is said and started again: the questions kept aside before no longer count as a fair test, and your failed answers stay listed.
 - A CSV, TSV or JSONL file of answers under other column names, such as `question` and `answer`, with no grades: judgekeeper names its columns and says to rename them `input` and `output`, instead of asking for grades or printing the prompt that writes answers. With grades, the line on how to switch names the file's own grade column.
 - `--tool table` with no results now says "your CSV, TSV or JSONL results file".
+- `--tool table` reads a file of answers with no grades beside another tool's results, instead of saying it found no CSV, TSV or JSONL results file. `judgekeeper mark` on a port in use says to run `judgekeeper mark --port 0`, not `judgekeeper --port 0`.
 - A tool's output folder (Inspect logs, DeepEval results) is never a project of its own: `judgekeeper logs` keeps your marks in the project that holds it, so clearing old logs no longer deletes them. Your session's results file is always read, however many other files the project has, and judgekeeper says when it stopped looking. From a code folder in a project with marks, every command points to the project above. A run inside `.judgekeeper/` never reads its files. `Logs/` is found once on a disk that ignores case.
 - On the marking page, an Undo after your last mark makes your result again from the marks that stand. A different mark on an answer shown again now says "Noted. Your first mark (Pass) still counts.", since only the first mark counts. With answers and no grades, the result says when you marked a repeated answer differently, `fix` gives the result's next step instead of asking for grades, and once the questions kept aside are used up the result gives one next step: new questions.
 - After your last mark, the result opens a second later, so an Undo (Z) pressed at once takes that mark back instead of being lost when the result page opens.
@@ -62,6 +64,7 @@
 - A folder that `MLFLOW_TRACKING_URI` names counts as MLflow only when it holds an MLflow experiment, so results beside it are read without a choice of tool that would read nothing.
 - On the marking page, a line under the buttons (such as "Noted. Your first mark (Pass) still counts.") no longer moves Pass and Fail up, so a click at the buttons' lower edge still lands.
 - When `.judgekeeper/fix/before.json` is damaged and new answers come, the run says it can't compare with your last answers, and the result after you mark them says so too, instead of comparing on less without a word.
+- A table beside the results file it reads, newer than it and under other column names (such as `prompt`, `completion` and `label`), is now named, with the command that reads it, and no longer passed over without a word.
 - A results file that is a link to a file that is not there is now named as such, with a step you can do. Before, the run said nothing about it and read another file of the project in its place.
 
 ## 1.1.2 (2026-11-08)

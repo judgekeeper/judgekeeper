@@ -39,6 +39,7 @@ EXTRAS = {"inspect": "inspect", "mlflow": "mlflow"}
 MAX_FILES = 5000
 MAX_SECONDS = 2
 MAX_DEPTH = 4
+MAX_BESIDE = 200  # files looked at beside the results file (other_names_beside)
 MAX_JSON = 200
 # Folders named like results: walked before the others in each folder, so the limits above
 # are spent on them first (a data/ folder of JSON documents never hides evals/results.json)
@@ -280,6 +281,55 @@ def answers_only(path: Path) -> bool:
     except mapper.MapError as e:
         return str(e) == mapper.NO_VERDICTS
     return False
+
+
+def other_names_beside(read: Path, limit: int = 3) -> list[tuple[str, list[str], bool]]:
+    """The tables in the folder of the results file `read`, newer than it, that hold answers
+    under other column names (a question column and an answer column, own_format's words): at
+    most `limit`, newest first, as (name, columns, whether they have grades). judgekeeper
+    reads none of them as results; a grade is as mapper.guess finds one. A table it does
+    read, a file in a folder below and a table with no question or no answer are left out."""
+    from judgekeeper import mapper, own_format
+
+    read = Path(read)
+    try:
+        since = read.stat().st_mtime
+        entries = sorted(os.scandir(read.parent), key=lambda e: e.name)[:MAX_BESIDE]
+    except OSError:
+        return []
+    newer = []
+    for entry in entries:
+        path = Path(entry.path)
+        if entry.name.startswith(".") or path == read or kind(entry) != FILE \
+                or path.suffix.lower() not in TABLE_SUFFIXES:
+            continue
+        try:
+            changed = entry.stat(follow_symlinks=False).st_mtime
+        except OSError:
+            continue
+        if changed > since:
+            newer.append((changed, path))
+    out = []
+    for _, path in sorted(newer, key=lambda x: x[0], reverse=True):
+        try:
+            columns = table_columns(path)
+            if is_table(columns) or is_answers_table(columns) or is_records(columns) or \
+                    not all(any(mapper._is(c, words) for c in columns)
+                            for words in (own_format.INPUT_WORDS, own_format.OUTPUT_WORDS)):
+                continue
+            try:
+                mapper.guess(_first_units(path, mapper.SAMPLE_UNITS))
+                graded = True
+            except mapper.MapError as e:
+                if str(e) != mapper.NO_VERDICTS:
+                    continue
+                graded = False
+        except (OSError, ValueError, RecursionError):
+            continue
+        out.append((path.name, columns, graded))
+        if len(out) == limit:
+            break
+    return out
 
 
 def other_answers(path: Path) -> bool:
@@ -936,6 +986,18 @@ def search(root: str | Path) -> Search:
         _look_deeper(walk)
         _look_above(walk)
     return walk.search
+
+
+def answers_as_table(found: Search, root: Path) -> None:
+    """--tool table asks for a table: the answers with no grade (answers_only) are read as
+    one, also beside another tool's results (where _answers_alone leaves them out), never
+    those of a project below (owner)."""
+    root = Path(root).resolve()
+    kept = [(path, size) for path, size in found.answers_only if owner(path, root) is None]
+    if kept and not found.results.get("table"):
+        found.results["table"] = [Result("table", path, path.relative_to(root).as_posix(), size)
+                                  for path, size in kept]
+        found.answers_read = True
 
 
 def _answers_alone(found: Search, root: Path) -> bool:

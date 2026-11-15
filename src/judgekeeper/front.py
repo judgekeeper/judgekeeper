@@ -271,6 +271,7 @@ class FrontTalk(start.Talk):
         self.labels_from: str | None = None
         self.few_fails = False  # Find said how few answers the LLM-as-a-judge failed
         self.before_damaged = False  # fix/before.json was damaged and this run replaced it
+        self.marking = False  # the run is `mark` (_run)
         self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
         self.left_below: list[str] = []  # projects below whose files were left out (_tool_below)
         self.refresh()
@@ -511,6 +512,7 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
         where = Path(os.path.relpath(holder, Path.cwd())).as_posix()
         talk.para(KEPT_HERE.format(folder=f"{textio.WORKSPACE}/"))
         raise talk.stop(EXIT_QUESTION, f"run `{talk.command_in('' if where == '.' else where)}`.")
+    talk.marking = marking  # `mark`: the commands that open its page run `mark`
     if (busy := _port_taken(talk, path)) is not None:  # a run that can't show its page
         raise busy  # writes nothing
     talk.held = [] if given is not None else None  # never above a stop about the labels
@@ -1748,17 +1750,46 @@ def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
     if found.tool not in FILE_TOOLS or found.given:
         return None
     others = [r for r in found.results if r.rel not in found.used][:OTHERS]
-    apart = [r.rel for r in others if _another_eval(r, found)]
-    here = [r.rel for r in others if r.rel not in apart]
+    apart = [r for r in others if _another_eval(r, found)]
+    here = [r for r in others if r not in apart]
+
+    def named(results: list[find.Result]) -> str:  # from here, as File: names the one read
+        return start._and([textio.shown_in(r.path, found.root) for r in results])
+
     said = []
     if here:
-        commands = start._or([f"`{talk.command_at(r)}`" for r in here])
-        said.append(f"Also found {start._and(here)}. To check "
+        commands = start._or([f"`{talk.command_at(r.rel)}`" for r in here])
+        said.append(f"Also found {named(here)}. To check "
                     f"{'it' if len(here) == 1 else 'one'}, run {commands}.")
     if apart:
-        said.append(f"Also found {start._and(apart)}, with other questions. To check "
+        said.append(f"Also found {named(apart)}, with other questions. To check "
                     f"{'it' if len(apart) == 1 else 'one'}, put it in a folder of its own and "
                     f"run `{project.program_anywhere()}{talk.away}` there.")
+    return " ".join(said) or None
+
+
+def _other_names(found: start.Found, talk: FrontTalk) -> str | None:
+    """Tables beside the results file read, newer than it, under other column names
+    (find.other_names_beside): named, never read in its place, with the command that reads
+    one that has grades, or what to rename in one that has none."""
+    from judgekeeper import own_map
+
+    if found.tool != "table" or found.given or not found.results:
+        return None
+    pool = [r for r in found.results if r.rel in found.used] or found.results[:1]
+    read = max(pool, key=lambda r: r.date())
+    said = []
+    for name, columns, graded in find.other_names_beside(read.path, OTHERS):
+        rel = (Path(read.rel).parent / name).as_posix()
+        command = f"`{talk.command_at(rel)}`"
+        words = own_map.columns_said(columns)
+        if graded:
+            said.append(f"{rel} is newer than {read.rel} but has other column names ({words}), "
+                        f"so it was not read. To read it, run {command}.")
+        else:
+            said.append(f"{rel} is newer than {read.rel} but has answers under other column "
+                        f"names ({words}), so it was not read. To check the answers in it, "
+                        f"{own_map.rename_step(columns, name)}, then run {command}.")
     return " ".join(said) or None
 
 
@@ -2394,7 +2425,8 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     for note in _notes(found, None if talk.labels is not None else talk.command("--labels")):
         talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
-    for others in (_other_files(found, talk), _other_projects(found, talk.away), _below_here(talk, found),
+    for others in (_other_files(found, talk), _other_names(found, talk),
+                   _other_projects(found, talk.away), _below_here(talk, found),
                    _outer_marks(found), _kept_apart(found)):
         if others:
             talk.para(others)
@@ -2952,7 +2984,8 @@ def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | 
 def _port_stop(talk: FrontTalk, port: int, path: str, options: dict) -> Stop:
     """The page can't start: `port` is taken (by another project's page, or not). The
     command that opens it on any free port."""
-    command = " ".join((program(), *start.repeated_flags(path, **{**options, "port": 0})))
+    command = " ".join((program("mark" if talk.marking else ""),
+                        *start.repeated_flags(path, **{**options, "port": 0})))
     if is_page(port):  # another project's page (its name needs its token): close it
         talk.para(PORT_PAGE.format(port=port))
         with textio.run_from(textio.ANYWHERE):  # its folder can't be named
