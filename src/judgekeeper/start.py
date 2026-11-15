@@ -1321,12 +1321,12 @@ def by_use(names: list[str], counts) -> list[str]:
     return names if len(names) <= LIST_LIMIT else sorted(names, key=lambda n: -counts[n])
 
 
-def some(items: list[str], last: str = "or") -> str:
-    """At most LIST_LIMIT of `items`, then how many more: a results file can name thousands
+def some(items: list[str], last: str = "or", limit: int = LIST_LIMIT) -> str:
+    """At most `limit` of `items`, then how many more: a results file can name thousands
     of judges, and a list must not push the Next: line off the screen."""
-    if len(items) <= LIST_LIMIT:
+    if len(items) <= limit:
         return _or(items) if last == "or" else ", ".join(items)
-    return f"{', '.join(items[:LIST_LIMIT])} {more(len(items) - LIST_LIMIT)}"
+    return f"{', '.join(items[:limit])} {more(len(items) - limit)}"
 
 
 def _and(items: list[str]) -> str:

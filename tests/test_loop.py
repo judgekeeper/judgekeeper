@@ -160,7 +160,7 @@ def test_a_question_is_asked_as_today(here, capsys, pages):
     assert code == 3
     assert _check(out, err) == (
         "Next: choose which eval tool's results to check (records, promptfoo), then run "
-        "`judgekeeper --tool NAME`.")
+        "`judgekeeper --tool records` or `judgekeeper --tool promptfoo`.")
     assert pages[0] == [] and not (here / ".judgekeeper" / "start.json").exists()
 
 

@@ -231,6 +231,16 @@ FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (f
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
+CHOICE_COMMANDS = 5  # commands a choice of names prints; the rest are "and N more"
+
+
+def _named(flag: str, value) -> tuple[str, ...]:
+    """The words of `flag value` as a printed command says them (start.flag_word): one word
+    `--metric=-x` for a name that starts with "-", which argparse would read as a flag."""
+    quoted = quote_arg(str(value))
+    return (f"{flag}={quoted}",) if str(value).startswith("-") else (flag, quoted)
+
+
 class FrontTalk(start.Talk):
     """start.Talk for `judgekeeper`: printed commands start `judgekeeper`. Without a
     terminal a choice ends in a `Next:` line (stop), and a yes/no question is noted."""
@@ -333,10 +343,15 @@ class FrontTalk(start.Talk):
         if flag == "PATH":
             commands = [f"`{self.command_at(v)}`" for v in values]
             then = start.some(commands)
-        elif any(str(v).startswith("-") for v in values):  # argparse reads `--metric --yes`
-            then = f"`{self.command(f'{flag}=NAME')}`"  # as two flags
-        else:
-            then = f"`{self.command(flag, 'NAME')}`"
+        else:  # one command per name, as it runs when pasted
+            cmds = [f"`{self.command(*_named(flag, v))}`" for v in values]
+            if len(cmds) <= CHOICE_COMMANDS:
+                then = start.some(cmds, limit=CHOICE_COMMANDS)
+            else:  # the last `keep` options (All) are always shown: they are not names
+                names_left = len(cmds) - keep
+                shown = cmds[:CHOICE_COMMANDS - keep]
+                then = (f"{', '.join(shown)} {start.more(names_left - len(shown))}"
+                        + (f", or {start.some(cmds[names_left:])}" if keep else ""))
         raise self.stop(EXIT_QUESTION, f"choose {what} ({names}), then run {then}.")
 
     def confirm(self, question, default, hint, with_yes) -> bool:

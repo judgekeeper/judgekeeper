@@ -74,7 +74,8 @@ def test_a_file_with_several_metrics_asks_which(here, capsys):
                                                               encoding="utf-8")
     code, out, _ = run(capsys)
     assert "These results hold more than one LLM-as-a-judge:" in out
-    assert "--metric NAME" in assert_one_next_at_the_end(out)
+    line = assert_one_next_at_the_end(out)
+    assert "`judgekeeper --metric 'Correctness [GEval]'`" in line and "NAME" not in line
     assert code == 3
 
 
