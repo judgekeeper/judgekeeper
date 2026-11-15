@@ -177,16 +177,31 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
         mine = {r.path.resolve() for results in found.results.values() for r in results}
     if not mine:
         return False
+    theirs = _theirs(store)
     ws = Workspace(store)
     if given is None and here != store and not ws.start.is_file() and not ws.labels.is_file():
-        return True  # only a first run's judge.json above: results here keep their own run
-    theirs = _theirs(store)
+        # only a first run's judge.json above: the files nearest it are the ones it was made
+        # on; results here of that eval, or those files, use it, another eval keeps its own run
+        # (answers with no grade have no judge: their own run, as before)
+        made_on = _nearest(theirs, store)
+        if any(t.is_relative_to(here) for t in made_on):
+            return False
+        graded = mine - {Path(path).resolve() for path, _ in found.answers_only}
+        return not any(t.is_file() and one_eval(t, m) for t in made_on for m in graded)
     if any(t.is_relative_to(here) for t in theirs):  # a folder holding a file it reads is
         return False  # its own, the folders below too: another eval there is said so
     # a file beside one it reads is its own: new results of it join, another eval is said so
     # (other_eval) and never gets marks of its own
     return not all(any(m == t or m.is_relative_to(t) or not t.is_dir() and m.parent == t.parent
                        for t in theirs) for m in mine)
+
+
+def _nearest(paths: list[Path], store: Path) -> list[Path]:
+    """The `paths` (inside `store`) fewest folders down from it."""
+    depth = {p: len(p.relative_to(Path(store).resolve()).parts) for p in paths
+             if p.is_relative_to(Path(store).resolve())}
+    least = min(depth.values(), default=0)
+    return [p for p, d in depth.items() if d == least]
 
 
 def _theirs(store: Path) -> list[Path]:

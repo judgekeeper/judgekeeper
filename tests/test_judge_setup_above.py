@@ -1,7 +1,7 @@
 """A first run that stopped before marking leaves only judge.json in its .judgekeeper/. A
-folder below it with results of its own keeps its own run, as before 1.2.0; an empty folder
-below it still reads the folder above. Files found beside the ones read are named from the
-folder the command runs in. No page opens: the page is served in a thread (conftest's
+folder below it with results of another eval keeps its own run, as before 1.2.0; one with
+more of the same eval, or none of its own, uses that judge.json. Files found beside the ones
+read are named from the folder the command runs in. No page opens: the page is served in a thread (conftest's
 pages)."""
 
 from __future__ import annotations
@@ -41,6 +41,18 @@ def test_a_folder_with_results_of_its_own_keeps_its_run_from_a_judge_setup_above
     assert "Also found" not in said, said
     assert (sub / ".judgekeeper" / "start.json").is_file(), said
     assert _kept(a) == JUDGE_ONLY, said
+
+
+def test_a_folder_with_more_of_the_same_eval_uses_the_judge_setup_above(
+        tmp_path, capsys, monkeypatch):
+    """a/run2/ holds 32 answers to a/'s questions and more: a run there uses a/'s judge.json
+    and starts no second session."""
+    a = _stopped(tmp_path, capsys, monkeypatch)
+    table_project(a / "run2", split(16, 16), tag="a")
+    code, said = _run(capsys, monkeypatch, a / "run2")
+    assert code == 0, said
+    assert not (a / "run2" / ".judgekeeper").exists(), said
+    assert (a / ".judgekeeper" / "start.json").is_file(), said
 
 
 def test_the_folder_above_still_marks_its_own_answers_after_one_below_ran(
