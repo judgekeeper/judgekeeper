@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from tests.start_projects import split, table_project
+from tests.start_projects import inspect_project, split, table_project
 from tests.test_services_in_one_repo import _run
 
 JUDGE_ONLY = [".gitignore", "judge.json"]
@@ -95,3 +95,28 @@ def test_files_found_beside_the_ones_read_are_named_from_the_folder_run_in(
     assert code == 0 and "File: ../results.csv" in said, said
     assert "Also found ../older.csv. To check it, run `judgekeeper ../older.csv" in said, said
     assert "Also found ../other.csv, with other questions." in said, said
+
+
+def test_judgekeeper_record_files_are_no_other_eval_than_their_own_tool(tmp_path):
+    """A record() file has no reader to compare questions with: another file of the same tool
+    is its eval, a table is another."""
+    from judgekeeper import project
+    from tests.start_projects import records_project
+
+    first = records_project(tmp_path / "a", [True] * 6)
+    second = records_project(tmp_path / "b", [True] * 6)
+    other = table_project(tmp_path / "c", split(3, 3), tag="c")
+    assert project.one_eval(first, second) is True
+    assert project.one_eval(first, other) is False
+
+
+def test_results_of_another_tool_with_the_same_questions_keep_their_own_run(
+        tmp_path, capsys, monkeypatch):
+    """The judge.json above is of a table; Inspect AI logs below are read by their own tool,
+    so they keep their own run, and the command that reads them finds them."""
+    a = _stopped(tmp_path, capsys, monkeypatch)
+    sub = a / "sub"
+    inspect_project(sub, split(16, 16), tag="a")
+    code, said = _run(capsys, monkeypatch, sub)
+    assert code == 0, said
+    assert "Eval tool: Inspect AI" in said and "Answers: 32 answers" in said, said
