@@ -1724,6 +1724,8 @@ def table_output(rel: str) -> Damaged:
 def _unreadable(found: find.Search) -> Damaged:
     """The results-like file judgekeeper found but could not read, when it found no other."""
     rel, how = found.unreadable[0]
+    path = Path(found.root) / rel
+    rel = textio.shown_in(path, found.root)  # from here, as File: names it
     if how == find.TABLE_OUTPUT:
         return table_output(rel)
     if how == find.TITLE_ROW:
@@ -1735,15 +1737,18 @@ def _unreadable(found: find.Search) -> Damaged:
     if how != "is empty":
         return Damaged(f"{rel} {how}.", f"give your user permission to read {rel}, then run "
                                         "`{command}` again.")
-    return empty_file(rel, "promptfoo" in found.signs)
+    return empty_file(rel, "promptfoo" in found.signs, path)
 
 
-def empty_file(rel: str, promptfoo: bool = False) -> Damaged:
+def empty_file(rel: str, promptfoo: bool = False, path: Path | None = None) -> Damaged:
     """`rel`, a results file with nothing in it, in the words of the website's free check
-    ("This file is empty."), the file named."""
+    ("This file is empty."), the file named. `path`: where it is, for the command that saves
+    to it (a command never holds %USERPROFILE%, which PowerShell doesn't read)."""
     if promptfoo and rel.endswith(".json"):
+        at = textio.runnable(str(path), labels=False) if path is not None else rel
+        at = rel if at in textio.ANOTHER_DRIVE else at  # no way to say it from here: as named
         return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
-                       f"save your promptfoo results to it with `promptfoo eval -o {rel}`, "
+                       f"save your promptfoo results to it with `promptfoo eval -o {at}`, "
                        "then run `{command}` again.")
     return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
                    f"save your results to {rel}, then run `{{command}}` again.")

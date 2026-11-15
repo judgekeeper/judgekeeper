@@ -905,7 +905,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     if path.is_file() and start.is_empty_file(path):  # as a file Find found empty
         root = project.project_of(path)
         raise start.empty_file(textio.shown_in(path, Path.cwd()), any(
-            (root / name).is_file() for name in find.PROMPTFOO_CONFIGS))
+            (root / name).is_file() for name in find.PROMPTFOO_CONFIGS), path)
     if path.is_file():
         if o["tool"] is not None or find.classify_file(path) is not None or \
                 path.suffix.lower() not in own_format.SUFFIXES or find.is_promptfoo_table(path) \
@@ -1569,9 +1569,12 @@ def _named_below(found: find.Search, names: list[str] | tuple[()] = ()) -> list[
     """The folders below `found.root` a run there names, never reads, by their path from it:
     `names`, the projects below holding results or answers with no grade
     (find.nested_results), and each project below that holds a session of its own
-    (found.nested), its results file a link the walk passes over, say."""
+    (find.projects_below), its results file a link the walk passes over, say; one whose first
+    run stopped before marking (judge.json only) counts while it has results to mark."""
     names = [*names, *find.nested_results(found, answers=True)]
-    held = [sub.relative_to(found.root).as_posix() for sub in found.nested if _session_in(sub)]
+    root = Path(found.root).resolve()  # every project below, the walk passing them or not
+    held = [sub.relative_to(root).as_posix() for sub in find.projects_below(root)
+            if _session_in(sub) or _judged(sub) and _own_results(sub)]
     return sorted({*names, *(rel for rel in held
                              if not any(rel == n or rel.startswith(f"{n}/") for n in names))})
 
