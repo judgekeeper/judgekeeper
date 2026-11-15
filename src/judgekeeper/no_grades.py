@@ -742,9 +742,10 @@ def update_split(ws, session) -> AnswersSplit | None:
     Answers split before keep their side. A new answer to a question split before takes its
     side; new questions are split the same way (fix._top_up). A question with answers on
     both sides (an older split's "both") is shown whole (_one_side). Answers no longer in the
-    file are left out; their questions keep their side. Once the set is retired (retire), the
-    new questions wait (`pending`) until the set's `fresh` want of them are marked, then are
-    split as the first ones were, a new set. SplitUnknown as read_split."""
+    file are left out; their questions keep their side. Once fix.MAX_RULES changes are tested
+    on the set, or it is retired (retire), the new questions wait (`pending`) until the set's
+    `fresh` want of them (fix.FRESH) are marked, then the set is retired and they are split as
+    the first ones were, a new set. SplitUnknown as read_split."""
     marked = session.marked()
     try:
         split = read_split(ws)
@@ -754,7 +755,7 @@ def update_split(ws, session) -> AnswersSplit | None:
         split = _started_again(marked, str(e))
     if split is None and len(marked) < MIN_MARKS:
         return None
-    from judgekeeper.fix import _cells, _top_up
+    from judgekeeper.fix import FRESH, MAX_RULES, _cells, _top_up
 
     m = _Marks(marked)
     key = {i: question_key((session.raw.get(i) or {}).get("input")) for i in session.by_id}
@@ -777,8 +778,12 @@ def update_split(ws, session) -> AnswersSplit | None:
                 split.seen.append(i)
             else:
                 rest.append(i)
-        if split.fresh:  # retired: a new set from enough new questions
+        used = len(split.tests) >= MAX_RULES  # used up, not retired yet (_record)
+        if used and not split.fresh and len(_whole(rest, key, marked)[0]) >= FRESH:
+            retire(split)
+        if used or split.fresh:  # new questions never join a used-up set
             split.pending = rest
+        if split.fresh:  # retired: a new set from enough new questions
             if len(_whole(rest, key, marked)[0]) >= split.fresh["want"]:
                 rng = random.Random(f"{split.seed}/{split.set + 1}")
                 seen, hidden = _split_whole(lambda ids: _cells(m, ids, rng), rest, key,
@@ -786,7 +791,7 @@ def update_split(ws, session) -> AnswersSplit | None:
                 split.seen += seen
                 split.hidden += hidden
                 split.set, split.tests, split.fresh, split.pending = split.set + 1, [], None, []
-        elif rest:
+        elif rest and not used:
             rng = random.Random(f"{split.seed}/{len(known)}")
             seen, hidden = _split_whole(
                 lambda ids: _top_up(m, ids, known & set(marked), split.hidden, rng), rest, key,
@@ -815,12 +820,12 @@ def _started_again(marked: dict[str, str], why: str) -> AnswersSplit:
 
 def retire(split: AnswersSplit) -> None:
     """After fix.MAX_RULES changes tested on the set: every question is shown from now on
-    (fix.retire), and the next new questions make a new set (update_split)."""
+    (fix.retire), and the next new questions make a new set (update_split), those already
+    waiting (`pending`) with them."""
     from judgekeeper.fix import retire as retire_set
 
     retire_set(split)
     split.questions = dict.fromkeys(split.questions, SHOWN)
-    split.pending = []
 
 
 def kept_aside(ws) -> set[str] | None:
