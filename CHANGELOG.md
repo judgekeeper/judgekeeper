@@ -54,6 +54,7 @@
 - After your last mark, the result opens a second later, so an Undo (Z) pressed at once takes that mark back instead of being lost when the result page opens.
 - In that second the card keeps the Undo button where it was, and a click on it takes the last mark back as Z does, instead of landing on nothing.
 - Every command judgekeeper prints for another folder now works when you paste it there. `judgekeeper rag` reads rag/'s file after you named it there. A file of other questions a folder away is named as another eval. A file left out inside a project below names that project. The project named is the nearest one that holds the results. `--tool` with results only in a project below names that project. A folder with results of its own reads them, even when the folder above has only a judge set up (`.judgekeeper/judge.json`).
+- Once you have marks, DeepEval's older run with other questions than the newest is named with a folder of its own to check it in, not a command that stops because it looks like another eval.
 - Commands printed for another project keep `--no-browser` and leave out `--port`, so they never ask for the port of a page that is open. A run whose `--port` is taken now stops before it writes `.judgekeeper/`.
 - An Inspect logs folder named from a folder beside it (`judgekeeper ../runs/logs`) keeps its marks in the project that holds it, as one named from above does.
 - On Windows, a results file dated at or near 1970 (as the Nix store dates every file) no longer stops the run with an unexpected error: its date is shown in UTC.
