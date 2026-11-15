@@ -163,6 +163,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .end h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   max-width: 32ch; }
 .end .note { margin: 0; color: var(--muted); font-size: 15px; }
+/* Undo on the end card is where it was on the answer: the same row at the card's foot, with
+   Skip's room kept (unseen), so a click aimed at Undo lands. */
+.end .sub { align-self: stretch; margin: auto -28px -56px; }
+.ghost { visibility: hidden; }
 .go { font-weight: 700; border-radius: 4px; color: #fff; background: var(--green-fill);
   height: 50px; padding: 0 28px; font-size: 16px; text-decoration: none; display: inline-flex;
   align-items: center; justify-content: center; transition: filter 100ms ease; }
@@ -329,6 +333,7 @@ __TOP__
   </section>
   <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
+    <div class="sub" id="end-sub" hidden><button type="button" class="quiet ghost" tabindex="-1" aria-hidden="true" disabled><span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" id="end-undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>
     <button type="button" class="go" id="again" hidden>Go back to them</button></section>
   <p class="foot">To come back: <code>__COMMAND__</code>__HELD__</p>
 </main>
@@ -842,13 +847,14 @@ __TOP__
   function finish(stay) {
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false; $("end").classList.remove("only");
+    $("end-sub").hidden = true;  // only while the result is about to open
     fitEnd();
     renderQueue(); renderProgress();
     var skipped = items.filter(function (it) { return it.skipped && it.again == null; }).length;
     if (!skipped) {
       setText("end-title", "You marked every answer.");
       $("again").hidden = true; $("end-note").hidden = false;
-      setText("end-note", "Opening your result\u2026");
+      setText("end-note", "Opening your result\u2026 Press Z to undo.");
       if (status.done) {
         setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
         focusCard(); return;
@@ -861,6 +867,7 @@ __TOP__
         setText("end-note", WORDS.change);
         focusCard(); return;
       }
+      $("end-sub").hidden = false;  // a click on its Undo is a Z
       if (queued.length) {  // a key pressed while the last mark saved (Z, say) comes first;
         // the result opens after it only when every answer is still marked
         queued.push({run: function () { if (ended && !changing) { leave(); } }});
@@ -1091,6 +1098,7 @@ __TOP__
   }
 
   function undo(key) {
+    $("end-sub").hidden = true;  // the end card goes with the undo
     if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null; leaving = false; }
     if (leaving) { say(WORDS.opening, true); return; }
     if (!history.length) { say("Nothing to undo.", true); return; }
@@ -1105,13 +1113,14 @@ __TOP__
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.
-  ["fail", "pass", "skip", "undo"].forEach(function (id) {
+  ["fail", "pass", "skip", "undo", "end-undo"].forEach(function (id) {
     $(id).addEventListener("mousedown", function (e) { e.preventDefault(); });
   });
   $("fail").addEventListener("click", function () { mark("fail"); });
   $("pass").addEventListener("click", function () { mark("pass"); });
   $("skip").addEventListener("click", function () { skip(); });
   $("undo").addEventListener("click", function () { undo(); });
+  $("end-undo").addEventListener("click", function () { act(function () { undo(true); }); });
 
   // The keys: → Pass and ← Fail (shown), 1 Pass and 2 Fail (an old habit, still working),
   // S skip, Z undo (U too). A held key or any key with Cmd, Ctrl or Alt does nothing.
