@@ -127,12 +127,13 @@ _JOINED_WORDS = re.compile(r"(?<=[^\W\d_])[-'](?=[^\W\d_])")  # well-being, don'
 
 
 # Words with signs that a person writes, never a credential: a link, a domain or a path, an
-# email, a word in brackets, a menu path (Settings>Account) and a digits-hyphen word in lower
-# case (2-factor; 2026-Summer looks set)
+# email, a word in brackets, a menu path (Settings>Account), a version (Python3.12, node18.x)
+# and digits, a sign, then words in lower case (2-factor, 8+characters; 2026-Summer looks set)
 _PROSE_SIGNS = re.compile(
     r"(?i:[a-z][a-z0-9+.-]*://|www\.|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/:]|$)"
-    r"|[^@\s]+@(?:[a-z0-9-]+\.)+[a-z]{2,}$|[(\[{<]|[a-z]+(?:>[a-z]+)+$)"
-    r"|[0-9]+(?:-[a-z]+)+$")
+    r"|[^@\s]+@(?:[a-z0-9-]+\.)+[a-z]{2,}$|[(\[{<]|[a-z]+(?:>[a-z]+)+$"
+    r"|[a-z]*[0-9]+(?:\.(?:[0-9]+|x))+$)"
+    r"|[0-9]+[+-][a-z]+(?:-[a-z]+)*$")
 
 
 def _looks_set(word: str) -> bool:

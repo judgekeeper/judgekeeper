@@ -363,6 +363,12 @@ def test_a_split_stripe_key_or_password_is_still_hidden(text):
     "Set password: Settings>Account>Security.",
     "Password: 2-factor login is on by default.",
     "Secret: 30-day trials convert best.",
+    # a version, and digits then a sign then letters
+    "Secret: Python3.12 is the version we use.",
+    "Password: v1.2.0 of the app asks for one.",
+    "Secret: node18.x runs it.",
+    "Password: 8+characters with a number.",
+    "Secret: 12-month plans renew.",
 ])
 def test_words_like_password_in_prose_stay(text):
     assert scrub(text) == text
