@@ -1551,6 +1551,8 @@ def _locate(talk: Talk, path: Path, tool: str | None,
     root = path.resolve()
     talk.looking(root)
     found = find.search(root)
+    if tool == "table":  # a file of answers with no grade counts, beside other results too
+        find.answers_as_table(found, root)
     for note in found.notes:
         _note(talk, note)
     keys.said(found.notes)

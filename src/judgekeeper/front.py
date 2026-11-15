@@ -260,6 +260,7 @@ class FrontTalk(start.Talk):
         self.labels_read: list | None = None
         self.labels_from: str | None = None
         self.few_fails = False  # Find said how few answers the LLM-as-a-judge failed
+        self.marking = False  # the run is `mark` (_run)
         self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
         self.left_below: list[str] = []  # projects below whose files were left out (_tool_below)
         self.refresh()
@@ -492,6 +493,7 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
         where = Path(os.path.relpath(holder, Path.cwd())).as_posix()
         talk.para(KEPT_HERE.format(folder=f"{textio.WORKSPACE}/"))
         raise talk.stop(EXIT_QUESTION, f"run `{talk.command_in('' if where == '.' else where)}`.")
+    talk.marking = marking  # `mark`: the commands that open its page run `mark`
     if (busy := _port_taken(talk, path)) is not None:  # a run that can't show its page
         raise busy  # writes nothing
     talk.held = [] if given is not None else None  # never above a stop about the labels
@@ -2930,7 +2932,8 @@ def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | 
 def _port_stop(talk: FrontTalk, port: int, path: str, options: dict) -> Stop:
     """The page can't start: `port` is taken (by another project's page, or not). The
     command that opens it on any free port."""
-    command = " ".join((program(), *start.repeated_flags(path, **{**options, "port": 0})))
+    command = " ".join((program("mark" if talk.marking else ""),
+                        *start.repeated_flags(path, **{**options, "port": 0})))
     if is_page(port):  # another project's page (its name needs its token): close it
         talk.para(PORT_PAGE.format(port=port))
         with textio.run_from(textio.ANYWHERE):  # its folder can't be named
