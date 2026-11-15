@@ -71,7 +71,6 @@ REFUSES = ("belong to the project", "looks like another eval", "shares few quest
 STARTS_OVER = ("Starting a new project here? Run",  # each finds nothing until the step its
                "coding agent, then run",  # line asks for first is done
                "put it in a folder of its own and run")
-TOOLS_ = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 
 
 @dataclasses.dataclass
@@ -547,12 +546,6 @@ def commands(said: str) -> list[tuple[str, list[str]]]:
         elif i >= 2 and parts[i - 2].startswith("cd ") and parts[i - 1].strip() in (
                 "), then run", "), then"):
             where = shlex.split(parts[i - 2])[1]
-        if "--tool" in args and args[args.index("--tool") + 1:][:1] == ["NAME"]:
-            offered = before[before.rfind("(") + 1:]  # "(deepeval, table for a CSV ...)"
-            at = args.index("--tool") + 1
-            found += [(where, [*args[:at], t, *args[at + 1:]]) for t in TOOLS_
-                      if t in offered.replace(",", " ").split()]
-            continue
         found.append((where, args))
     return found
 

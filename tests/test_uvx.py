@@ -134,7 +134,7 @@ def test_a_question_names_uvx_with_the_flag(here, capsys, by_uvx):
     records_project(here, split(16, 16), name="safety", pid=4102)
     code, out, _ = run(capsys)
     assert code == 3
-    assert f"`{UVX} --metric NAME`" in out and not _bare_commands(out), out
+    assert f"`{UVX} --metric helpfulness`" in out and not _bare_commands(out), out
 
 
 def test_mark_names_no_bare_command(here, capsys, by_uvx):
