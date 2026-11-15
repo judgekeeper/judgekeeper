@@ -1768,6 +1768,31 @@ def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
     return " ".join(said) or None
 
 
+def _other_names(found: start.Found, talk: FrontTalk) -> str | None:
+    """Tables beside the results file read, newer than it, under other column names
+    (find.other_names_beside): named, never read in its place, with the command that reads
+    one that has grades, or what to rename in one that has none."""
+    from judgekeeper import own_map
+
+    if found.tool != "table" or found.given or not found.results:
+        return None
+    pool = [r for r in found.results if r.rel in found.used] or found.results[:1]
+    read = max(pool, key=lambda r: r.date())
+    said = []
+    for name, columns, graded in find.other_names_beside(read.path, OTHERS):
+        rel = (Path(read.rel).parent / name).as_posix()
+        command = f"`{talk.command_at(rel)}`"
+        words = own_map.columns_said(columns)
+        if graded:
+            said.append(f"{rel} is newer than {read.rel} but has other column names ({words}), "
+                        f"so it was not read. To read it, run {command}.")
+        else:
+            said.append(f"{rel} is newer than {read.rel} but has answers under other column "
+                        f"names ({words}), so it was not read. To check the answers in it, "
+                        f"{own_map.rename_step(columns, name)}, then run {command}.")
+    return " ".join(said) or None
+
+
 def _another_eval(result: find.Result, found: start.Found) -> bool:
     """Whether `result`, not read, is in the project read (beside a file read or a folder
     away: project.other_eval stops at either) and is another eval than `found`."""
@@ -2400,7 +2425,8 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     for note in _notes(found, None if talk.labels is not None else talk.command("--labels")):
         talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
-    for others in (_other_files(found, talk), _other_projects(found, talk.away), _below_here(talk, found),
+    for others in (_other_files(found, talk), _other_names(found, talk),
+                   _other_projects(found, talk.away), _below_here(talk, found),
                    _outer_marks(found), _kept_apart(found)):
         if others:
             talk.para(others)
