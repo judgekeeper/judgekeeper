@@ -153,8 +153,9 @@ def test_on_windows_the_save_command_for_an_empty_file_never_holds_the_home_fold
     monkeypatch.setattr(textio, "is_windows", lambda: True)
     code, out = run(capsys, proj)
     assert code == 2, out
-    assert out.count("%USERPROFILE%") == 1 and "error: %USERPROFILE%" in out, out  # the line only
-    assert "`promptfoo eval -o " in out and "results.json`" in out
+    save = out.split("`promptfoo eval -o ")[1].split("`")[0]  # a line may say it from the home
+    assert save.strip('"').replace("\\", "/").endswith("results.json"), out  # folder, a command
+    assert "%USERPROFILE%" not in save, out  # shorter from here, or in full, never the home form
 
 
 @pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0,
