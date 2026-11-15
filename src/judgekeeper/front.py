@@ -881,7 +881,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     if path.is_file() and start.is_empty_file(path):  # as a file Find found empty
         root = project.project_of(path)
         raise start.empty_file(textio.shown_in(path, Path.cwd()), any(
-            (root / name).is_file() for name in find.PROMPTFOO_CONFIGS))
+            (root / name).is_file() for name in find.PROMPTFOO_CONFIGS), path)
     if path.is_file():
         if o["tool"] is not None or find.classify_file(path) is not None or \
                 path.suffix.lower() not in own_format.SUFFIXES or find.is_promptfoo_table(path) \
