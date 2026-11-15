@@ -59,3 +59,27 @@ def test_every_session_below_is_named(tmp_path, capsys, monkeypatch, where):
     assert code == 3, said
     assert "Find l/, l2/, m/, o/, s/ and x/ hold eval results" in said, said
     assert not (mid / ".judgekeeper").exists(), said
+
+
+def test_a_project_below_that_stopped_before_marking_is_named_too(tmp_path, capsys,
+                                                                  monkeypatch):
+    """a/ (code, evals/results.csv two folders down, a first run that stopped before marking:
+    judge.json only) is named with b/ and c/, and the command that goes there is given."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "repo"
+    (top / ".git").mkdir(parents=True)
+    mid = top / "services"
+    table_project(mid / "b", split(5, 5), tag="b")
+    table_project(mid / "c", split(5, 5), tag="c")
+    a = mid / "a"
+    table_project(a / "evals", split(5, 5), tag="a")  # too few answers to mark
+    (a / "code.py").write_text("", encoding="utf-8")
+    code, said = _run(capsys, monkeypatch, a)
+    assert code == 3 and (a / ".judgekeeper" / "judge.json").is_file(), said
+    assert not (a / ".judgekeeper" / "start.json").exists()
+    for argv in ((), (".",)):
+        code, said = _run(capsys, monkeypatch, mid, *argv)
+        assert code == 3, said
+        assert "Find a/, b/ and c/ hold eval results" in said, said
+        assert "`cd a`" in said, said
+        assert not (mid / ".judgekeeper").exists(), said

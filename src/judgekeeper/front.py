@@ -1545,11 +1545,12 @@ def _named_below(found: find.Search, names: list[str] | tuple[()] = ()) -> list[
     """The folders below `found.root` a run there names, never reads, by their path from it:
     `names`, the projects below holding results or answers with no grade
     (find.nested_results), and each project below that holds a session of its own
-    (find.projects_below), its results file a link the walk passes over, say."""
+    (find.projects_below), its results file a link the walk passes over, say; one whose first
+    run stopped before marking (judge.json only) counts while it has results to mark."""
     names = [*names, *find.nested_results(found, answers=True)]
     root = Path(found.root).resolve()  # every project below, the walk passing them or not
     held = [sub.relative_to(root).as_posix() for sub in find.projects_below(root)
-            if _session_in(sub)]
+            if _session_in(sub) or _judged(sub) and _own_results(sub)]
     return sorted({*names, *(rel for rel in held
                              if not any(rel == n or rel.startswith(f"{n}/") for n in names))})
 
