@@ -1402,7 +1402,7 @@ def test_a_z_soon_after_the_last_mark_saved_takes_it_back_and_no_result_opens():
       await opened();
       console.log(JSON.stringify({end: end, back: back, href: window.location.href,
         sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""", data=_data(3))
-    assert got["end"] == [False, "Opening your result\u2026", ""]
+    assert got["end"] == [False, UNDO_NOTE, ""]
     assert got["sent"][-2:] == [["a2", "pass"], ["a2", None]]
     assert got["back"] == ["Question 2?", False, True]
     assert got["href"] == ""
@@ -1423,3 +1423,53 @@ def test_the_result_opens_when_no_z_comes_and_a_z_after_that_says_so():
     assert got["href"] == "/result?token=t0k"
     assert got["more"] == 0
     assert got["said"] == mark_page.OPENING
+
+
+UNDO_NOTE = "Opening your result… Press Z to undo."
+
+
+def test_the_end_card_keeps_an_undo_button_while_the_result_is_about_to_open():
+    """In the moment after the last mark the card says the result is opening, and Undo is on it
+    (a click was lost there before); once the page has left, or on any other end card, it is not."""
+    got = _run("""
+      var shown = function () { var b = ids["end-sub"]; return b ? !b.hidden : null; };
+      for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      var window_ = [shown(), ids["end-note"].textContent];
+      await opened();
+      console.log(JSON.stringify({window: window_, href: window.location.href}));""", data=_data(3))
+    assert got["window"] == [True, UNDO_NOTE]
+    assert got["href"] == "/result?token=t0k"
+
+
+def test_a_click_on_the_end_cards_undo_does_what_z_does():
+    """The same mark goes back, the same lines are saved, no result opens, and the button goes.
+    It works at once after the last mark, inside the clicks' short lock, as Z does."""
+    def after(how):
+        return _run(f"""
+          for (var i = 0; i < 3; i++) {{ key("ArrowRight"); await settle(); later(500); }}
+          later(10); {how}; await settle();
+          var b = ids["end-sub"];
+          var back = [ids["q-text"].textContent, ids["answer-card"].hidden, ids["end"].hidden,
+                      b ? b.hidden : null, ids["count"].textContent];
+          await opened();
+          console.log(JSON.stringify({{back: back, href: window.location.href,
+            sent: sent.map(function (s) {{ return [s.body.id, s.body.label]; }})}}));""",
+                    data=_data(3))
+    by_click = after('ids["end-undo"] && ids["end-undo"].fire("click")')
+    by_key = after('key("z")')
+    assert by_click == by_key
+    assert by_click["sent"][-2:] == [["a2", "pass"], ["a2", None]]
+    assert by_click["back"][:3] == ["Question 2?", False, True]
+    assert by_click["back"][3] is True  # the button is gone with the end card
+    assert by_click["href"] == ""
+
+
+def test_the_end_cards_undo_is_only_on_the_card_that_is_opening_the_result():
+    got = _run("""
+      var shown = function () { var b = ids["end-sub"]; return b ? !b.hidden : null; };
+      key("ArrowRight"); await settle(); later(500);
+      key("s"); await settle(); later(500);
+      key("ArrowRight"); await settle(); later(500);
+      console.log(JSON.stringify({skipped: [ids["end"].hidden, shown()],
+        note: ids["end-note"].hidden}));""", data=_data(3))
+    assert got["skipped"] == [False, False]  # some skipped: the look-again card, no Undo on it
