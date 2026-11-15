@@ -260,6 +260,7 @@ class FrontTalk(start.Talk):
         self.labels_read: list | None = None
         self.labels_from: str | None = None
         self.few_fails = False  # Find said how few answers the LLM-as-a-judge failed
+        self.before_damaged = False  # fix/before.json was damaged and this run replaced it
         self.marking = False  # the run is `mark` (_run)
         self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
         self.left_below: list[str] = []  # projects below whose files were left out (_tool_below)
@@ -707,7 +708,8 @@ def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
     Inspect AI logs folder, a DeepEval results folder, with the logs read right in it): never
     a project of its own, so its marks stay when its logs are cleared. Named from the folder
     run in (or from one beside it), the nearest project on the way up to it (to the folder
-    both are in), else the folder that holds it; run in it, the project above."""
+    both are in), else the folder that holds it; run in it, the project above, else the
+    folder that holds it too (never the home folder)."""
     if found.tool not in ("deepeval", "inspect") or not path.is_dir() or not found.results:
         return None
     folder, here = path.resolve(), Path.cwd().resolve()
@@ -721,7 +723,9 @@ def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
             if up == top:
                 return folder.parent
     holder = project.project_of(folder.parent)
-    return holder if find.is_project(holder) else None
+    if find.is_project(holder):
+        return holder
+    return folder.parent if folder.parent != Path.home().resolve() else None
 
 
 def _project_reads(path: Path, store: Path) -> Path:
@@ -1628,7 +1632,7 @@ def _beside_a_session(folder: Path) -> list[str]:
         if len(parts) < 2 or parts[0] in TOOL_FOLDERS:
             return []
         tops.add(parts[0])
-    return sorted({*nested, *tops}) if tops else []
+    return _named_below(found, sorted(tops)) if tops else []  # as _projects_below names
 
 
 def _session_owning(path: Path) -> str | None:
@@ -3430,6 +3434,7 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
     talk.find_shown = first and not marking  # the folder above is named with Find alone
     before = [q["id"] for q in ws.data().get("queue") or []] if not first else None
     was = no_grades.round_of(ws) if not first else None
+    talk.before_damaged = not first and no_grades.before_damaged(ws)  # said with the new answers
     talk.switched = None if first else _switched_line(ws, found)  # said with the new answers
     talk.nested = None if first else _below_here(talk, found)  # Find's block names them
     # first
@@ -3521,6 +3526,9 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     if new:
         talk.para(no_grades.found_line(ws, new))
         talk.say()
+    if new and talk.before_damaged:  # new answers came while it was damaged: a result that
+        talk.para(no_grades.damaged_line())  # would say so comes only after they are marked
+        talk.say()
     _say_nested(talk)
     if every and not enough:  # nothing left to mark, and no result yet
         done = no_grades.status(session, _command_of(talk, False))["done"]
@@ -3536,7 +3544,13 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
         talk.say()
-        talk.para("Next: " + no_grades.more_answers(ws, _command_of(talk, False), surer=True))
+        step = no_grades.next_step(ws, no_grades.compute(ws, session),
+                                   _command_of(talk, False, "mark"), _command_of(talk, False))
+        if step.startswith(no_grades.FIX_NEXT.split(".", 1)[0]):  # the prompt it names
+            for line in no_grades.agent_lines(ws):
+                talk.say(line)
+            talk.say()
+        talk.para("Next: " + step)
         if opened.server is not None:
             page.serve(opened.server)
         return EXIT_OK

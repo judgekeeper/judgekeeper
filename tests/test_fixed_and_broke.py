@@ -435,6 +435,78 @@ def test_after_three_changes_the_set_is_retired_and_new_questions_make_a_new_one
     assert NEW_SET not in said
 
 
+def _three_changes(project) -> None:
+    """40 questions, 24 of them Fails, and 3 changes tested on the ones kept aside."""
+    project.first(fails=set(range(24)), n=40)
+    kept = project.kept("fail")
+    for m in ("pass", "fail", "pass"):
+        project.again({i: m for i in kept})
+    assert len(no_grades.read_split(_ws(project.here)).tests) == fix.MAX_RULES
+
+
+def _answered_again_with(project, new: dict[int, str]) -> None:
+    """A new results file: the old questions answered again, the `new` questions added, and
+    every answer marked on the page (the old ones as before), before the next result."""
+    project.round += 1
+    for i in project.outs:
+        project.outs[i] = f"Answer {i}, take {project.round + 1}."
+    for i in new:
+        project.outs[i] = f"First answer {i}."
+    _write(project.here, project.outs)
+    project.run()
+    project.marks |= new
+    _mark(project.here, project.marks)
+
+
+def _questions(project, ids) -> set[int]:
+    page = _session(project.here)
+    return {_index(page.raw[i]["input"]) for i in ids}
+
+
+def test_new_questions_marked_before_the_fourth_result_make_a_new_set(project):
+    _three_changes(project)
+    _answered_again_with(project, {i: "fail" if i < 46 else "pass" for i in range(40, 50)})
+    said = project.run()
+    split = no_grades.read_split(_ws(project.here))
+    assert (split.set, split.fresh, split.tests, split.pending) == (2, None, [], [])
+    hidden = _questions(project, split.hidden)
+    assert hidden <= set(range(40, 50))
+    assert len(hidden & set(range(40, 46))) == 3 and len(hidden - set(range(40, 46))) == 2
+    assert NEW_SET not in said and no_grades.ALL_SHOWN not in said
+    assert no_grades.ALL_SHOWN not in _report(project.here)
+    said = project.again({i: "pass" for i in hidden})  # the next change is tested on them
+    assert _counts_line(5, 3, 0, 2) in said
+
+
+def test_fewer_new_questions_wait_and_never_join_the_used_up_set(project):
+    _three_changes(project)
+    kept = set(project.kept())
+    _answered_again_with(project, {i: "fail" for i in range(40, 45)})
+    split = no_grades.read_split(_ws(project.here))
+    assert _questions(project, split.pending) == set(range(40, 45))
+    assert _questions(project, split.seen + split.hidden) == set(range(40))
+    said = project.run()  # the fourth change retires the set; the 5 still wait
+    split = no_grades.read_split(_ws(project.here))
+    assert split.hidden == [] and split.fresh == {"want": fix.FRESH}
+    assert _questions(project, split.pending) == set(range(40, 45))
+    assert NEW_SET in said and kept <= _questions(project, split.seen)
+    text = (_ws(project.here).dir / "fix" / "failed-answers.md").read_text(encoding="utf-8")
+    assert all(f"First answer {i}." not in text for i in range(40, 45))
+    for i in range(45, 50):  # 5 more new questions: 10, a new set
+        project.outs[i] = f"First answer {i}."
+    _write(project.here, project.outs)
+    project.run()
+    project.marks |= dict.fromkeys(range(45, 50), "pass")
+    _mark(project.here, project.marks)
+    said = project.run()
+    split = no_grades.read_split(_ws(project.here))
+    assert (split.set, split.fresh, split.pending) == (2, None, [])
+    hidden = _questions(project, split.hidden)
+    assert hidden <= set(range(40, 50))
+    assert len(hidden & set(range(40, 45))) == 3 and len(hidden - set(range(40, 45))) == 3
+    assert NEW_SET not in said
+
+
 # The page ---------------------------------------------------------------------------------
 
 def test_the_page_shows_the_three_cells_and_the_answers_that_broke(project):
@@ -623,5 +695,6 @@ def test_a_damaged_before_json_is_said_once_and_new_answers_still_wait(project):
     assert "3 new answers are waiting to be marked." in flat(out), out + err
     _mark(project.here, {0: "pass", 1: "pass", 7: "pass"})
     said += [project.run(), project.run()]
-    assert [DAMAGED in x for x in said] == [False, False, True, False], said  # on the result
+    # said in the run that replaced it (with the new answers), then once on the result
+    assert [DAMAGED in x for x in said] == [True, False, True, False], said
     # that would compare, once

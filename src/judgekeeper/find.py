@@ -155,6 +155,8 @@ class Search:
     json_left: int = 0  # JSON files past MAX_JSON, never looked into
     # (rel, columns): answers under other column names, no grade (other_answers): named only
     other_columns: list[tuple[str, list[str]]] = field(default_factory=list)
+    # NEWEST_RUN note -> (the older run it names, the words it was made of)
+    older_runs: dict[str, tuple[Path, dict[str, str]]] = field(default_factory=dict)
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -1270,6 +1272,10 @@ def _run_of(path: Path):
 
 NEWEST_RUN = ("Read DeepEval's newest run, {read} ({read_day}). {other} holds an older run "
               "({other_day}). To check it, run `{command}`.")
+# the older run is another eval than the one marked (project.other_eval): that command stops
+NEWEST_RUN_APART = ("Read DeepEval's newest run, {read} ({read_day}). {other} holds an older "
+                    "run ({other_day}), with other questions. To check it, put it in a folder "
+                    "of its own and run `{program}` there.")
 
 
 def _day(result: Result) -> str:
@@ -1301,9 +1307,12 @@ def _prefer_saved_runs(found: Search) -> None:
             if theirs is None or ours is None or theirs == ours:
                 continue
             read, other = (copy, newest) if copy.date() > newest.date() else (newest, copy)
-            found.notes.append(NEWEST_RUN.format(
-                read=read.rel, read_day=_day(read), other=other.rel, other_day=_day(other),
-                command=f"{textio.program()} {textio.quote_arg(other.rel)}"))
+            words = {"read": read.rel, "read_day": _day(read), "other": other.rel,
+                     "other_day": _day(other)}
+            note = NEWEST_RUN.format(
+                **words, command=f"{textio.program()} {textio.quote_arg(other.rel)}")
+            found.notes.append(note)
+            found.older_runs[note] = (other.path, words)
             if read is copy:  # the results folder's runs are older: the copy is read alone
                 runs = [r for r in runs if r not in saved]
                 break

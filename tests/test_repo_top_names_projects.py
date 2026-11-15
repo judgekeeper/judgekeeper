@@ -5,6 +5,9 @@ how to read the results in the folder above."""
 
 from __future__ import annotations
 
+import pytest
+
+from tests.start_projects import split, table_project
 from tests.test_answers_without_grades import write_answers
 from tests.test_services_in_one_repo import ABOVE, _run, rag, repo, support_bot  # noqa: F401
 
@@ -83,3 +86,87 @@ def test_a_code_folder_with_answers_names_the_results_above_once(repo, capsys,  
     assert said.count(ABOVE) == 1, said
     code, said = _run(capsys, monkeypatch, bot / "src")
     assert ABOVE not in said, said  # said with Find only
+
+
+# Every project below named, the same way each time -------------------------------------------
+
+def _session(capsys, monkeypatch, folder, *argv):
+    """A run in `folder` starts its session (a page, 0 marks)."""
+    code, said = _run(capsys, monkeypatch, folder, *argv)
+    assert code == 0, said
+
+
+def _linked(capsys, monkeypatch, top, name):
+    """name/: pyproject.toml, results.csv a link to a graded file away from the repo, and a
+    session from `judgekeeper results.csv` (the walk passes over the link)."""
+    away = top.parent / f"{name}-data"
+    table_project(away, split(20, 20), tag=name)
+    folder = top / name
+    folder.mkdir()
+    _own_project(folder)
+    try:
+        (folder / "results.csv").symlink_to(away / "results.csv")
+    except (OSError, NotImplementedError):
+        pytest.skip("symbolic links not allowed here")
+    _session(capsys, monkeypatch, folder, "results.csv")
+
+
+def _answers_over_a_project(capsys, monkeypatch, folder, tag):
+    """folder/: answers with no grade and a session, over proj/ (a project with its own)."""
+    proj = folder / "proj"
+    proj.mkdir(parents=True)
+    _own_project(proj)
+    table_project(proj, split(20, 20), tag=tag)
+    _session(capsys, monkeypatch, proj)
+    write_answers(folder, 40, name="answers")
+    _session(capsys, monkeypatch, folder)
+
+
+def _listed(said):
+    return said.split("Step 1 of 5: Find ")[1].split(" hold eval results")[0]
+
+
+@pytest.mark.parametrize("loose", [False, True], ids=["alone", "beside-a-loose-folder"])
+@pytest.mark.parametrize("rounds", [False, True], ids=["other-questions", "same-questions"])
+def test_the_top_names_every_project_below_whatever_the_plain_folders_hold(
+        tmp_path, capsys, monkeypatch, rounds, loose):
+    """b/, c/ and jj/ (plain, graded) hold other questions or rounds of one eval; a/ and h/
+    hold a session on graded results, n/ and n2/ one on answers with no grade over a project
+    of their own, sl/ and sl2/ one on a linked file. The top names each the same way, with
+    or without a loose folder of other questions (_data/)."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "repo"
+    (top / ".git").mkdir(parents=True)
+    (top / "a").mkdir()
+    _own_project(top / "a")
+    table_project(top / "a", split(20, 20), tag="a")
+    _session(capsys, monkeypatch, top / "a")
+    table_project(top / "h", split(20, 20), tag="h", name="own.csv")
+    _session(capsys, monkeypatch, top / "h")
+    for name in ("b", "c", "jj"):
+        table_project(top / name, split(5, 5), tag="r" if rounds else name)
+    for name in ("n", "n2"):
+        _answers_over_a_project(capsys, monkeypatch, top / name, name)
+    for name in ("sl", "sl2"):
+        _linked(capsys, monkeypatch, top, name)
+    if loose:
+        table_project(top / "_data", split(5, 5), tag="d", name="in-repo.csv")
+    code, said = _run(capsys, monkeypatch, top)
+    assert code == 3, said
+    names = "a/, b/, c/, h/, jj/, n/, n2/, sl/ and sl2/"
+    assert _listed(said) == ("_data/, " if loose else "") + names, said
+
+
+def test_the_top_with_one_plain_folder_names_a_linked_session_and_an_answers_session(
+        tmp_path, capsys, monkeypatch):
+    """sl/ (a session on a linked file), b/results.csv and n/ (answers with no grade and a
+    session, over proj/): the top names b/, n/ and sl/."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "repo"
+    (top / ".git").mkdir(parents=True)
+    _linked(capsys, monkeypatch, top, "sl")
+    table_project(top / "b", split(5, 5), tag="b")
+    _answers_over_a_project(capsys, monkeypatch, top / "n", "n")
+    code, said = _run(capsys, monkeypatch, top)
+    assert code == 3, said
+    assert _listed(said) == "b/, n/ and sl/", said

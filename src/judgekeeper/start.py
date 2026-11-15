@@ -1453,7 +1453,7 @@ def _read_above(root: Path, found: find.Search, tool: str | None,
                  if any(find.owner(r.path, root) is None for r in found.readable(t))]
     if "records" not in available and (tool == "records" or tool is None and not available):
         above = find.records_above(root)
-        if above is not None:
+        if above is not None and kept_tool(above) in (None, "records"):  # else its session's
             return "records", above
     if stay:
         return None
@@ -1464,6 +1464,19 @@ def _read_above(root: Path, found: find.Search, tool: str | None,
         if above is not None:
             return "results", above
     return None
+
+
+def kept_tool(folder: Path) -> str | None:
+    """The eval tool of the session in `folder` (start.json's), when its results are still
+    there and no judgekeeper.toml says how to read them: a run there reads with it."""
+    try:
+        tool = json.loads((folder / textio.WORKSPACE / "start.json").read_text(
+            encoding="utf-8")).get("tool")
+    except (OSError, ValueError, AttributeError):
+        return None
+    if tool not in find.TOOLS or _saved(folder) is not None:
+        return None
+    return tool if find.search(folder).readable(tool) else None
 
 
 def results_above_past(root: Path) -> Path | None:
@@ -1551,6 +1564,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
     root = path.resolve()
     talk.looking(root)
     found = find.search(root)
+    _older_runs_apart(found, root, getattr(talk, "away", ""))
     if tool == "table":  # a file of answers with no grade counts, beside other results too
         find.answers_as_table(found, root)
     for note in found.notes:
@@ -1578,7 +1592,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
         _note(talk, f"No eval results in {root.name}. Reading the project folder above it "
                     f"({above[1].name}). " + NEW_HERE.format(command=talk.command_in(".", away=True)))
         talk.say()
-        return _locate(talk, above[1], tool)
+        return _locate(talk, above[1], tool or kept_tool(above[1]))  # as a run there reads
     if tool is not None:
         if tool not in available:
             if any(r.tool == tool for r in found.too_big()):
@@ -2076,6 +2090,22 @@ def _stop_with(talk: Talk, text: str, next_step: str, code: int = EXIT_USAGE) ->
     if not getattr(talk, "screens", False):
         talk.say(f"Next: {next_step}")
     return talk.stop(code, next_step)
+
+
+def _older_runs_apart(found: find.Search, root: Path, away: str = "") -> None:
+    """DeepEval's older run named by a note (find.NEWEST_RUN) that is another eval than the
+    one marked in this project (project.other_eval): typing it stops, so the note gives the
+    step that works, a folder of its own (find.NEWEST_RUN_APART)."""
+    if not found.older_runs:
+        return
+    from judgekeeper import project
+
+    store = project.project_of(root)
+    for i, note in enumerate(found.notes):
+        older = found.older_runs.get(note)
+        if older is not None and project.other_eval(store, older[0]) is not None:
+            found.notes[i] = find.NEWEST_RUN_APART.format(
+                **older[1], program=project.program_anywhere() + away)
 
 
 def _note(talk: Talk, text: str) -> None:
