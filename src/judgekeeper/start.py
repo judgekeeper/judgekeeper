@@ -1551,6 +1551,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
     root = path.resolve()
     talk.looking(root)
     found = find.search(root)
+    _older_runs_apart(found, root, getattr(talk, "away", ""))
     for note in found.notes:
         _note(talk, note)
     keys.said(found.notes)
@@ -2074,6 +2075,22 @@ def _stop_with(talk: Talk, text: str, next_step: str, code: int = EXIT_USAGE) ->
     if not getattr(talk, "screens", False):
         talk.say(f"Next: {next_step}")
     return talk.stop(code, next_step)
+
+
+def _older_runs_apart(found: find.Search, root: Path, away: str = "") -> None:
+    """DeepEval's older run named by a note (find.NEWEST_RUN) that is another eval than the
+    one marked in this project (project.other_eval): typing it stops, so the note gives the
+    step that works, a folder of its own (find.NEWEST_RUN_APART)."""
+    if not found.older_runs:
+        return
+    from judgekeeper import project
+
+    store = project.project_of(root)
+    for i, note in enumerate(found.notes):
+        older = found.older_runs.get(note)
+        if older is not None and project.other_eval(store, older[0]) is not None:
+            found.notes[i] = find.NEWEST_RUN_APART.format(
+                **older[1], program=project.program_anywhere() + away)
 
 
 def _note(talk: Talk, text: str) -> None:
