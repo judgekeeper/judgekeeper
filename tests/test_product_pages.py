@@ -324,8 +324,8 @@ def test_marking_page_layout():
         "border-left-color: var(--text); }" in style
     assert ".item:hover { background: var(--hover);" in style
     assert ".legend" not in style  # the list's tick and cross are the buttons' own
-    assert ".actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; " \
-        "padding: 20px 40px 16px; border-top: 1px solid var(--line); }" in style
+    assert ".actions { position: relative; display: grid; grid-template-columns: 1fr 1fr; " \
+        "gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }" in style
     assert ".foot { margin: 0; padding: 12px 40px; border-top: 1px solid var(--line); " \
         "font-size: 13px; color: var(--muted); text-align: center; }" in style
     assert ".foot code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }" in style
