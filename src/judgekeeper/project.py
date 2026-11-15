@@ -178,12 +178,32 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
     if not mine:
         return False
     theirs = _theirs(store)
+    ws = Workspace(store)
+    if given is None and here != store and not ws.start.is_file() and not ws.labels.is_file():
+        # only a first run's judge.json above: the files nearest it are the ones it was made
+        # on; results here of that eval, or those files, use it, another eval keeps its own run
+        # (answers with no grade have no judge: their own run, as before; nor does another
+        # eval tool's, which the judge.json above is not of and the command here reads alone)
+        made_on = _nearest(theirs, store)
+        if any(t.is_relative_to(here) for t in made_on):
+            return False
+        graded = {r.path.resolve() for r in found.results.get(session_tool(store), [])} - {
+            Path(path).resolve() for path, _ in found.answers_only}
+        return not any(t.is_file() and one_eval(t, m) for t in made_on for m in graded)
     if any(t.is_relative_to(here) for t in theirs):  # a folder holding a file it reads is
         return False  # its own, the folders below too: another eval there is said so
     # a file beside one it reads is its own: new results of it join, another eval is said so
     # (other_eval) and never gets marks of its own
     return not all(any(m == t or m.is_relative_to(t) or not t.is_dir() and m.parent == t.parent
                        for t in theirs) for m in mine)
+
+
+def _nearest(paths: list[Path], store: Path) -> list[Path]:
+    """The `paths` (inside `store`) fewest folders down from it."""
+    depth = {p: len(p.relative_to(Path(store).resolve()).parts) for p in paths
+             if p.is_relative_to(Path(store).resolve())}
+    least = min(depth.values(), default=0)
+    return [p for p, d in depth.items() if d == least]
 
 
 def _theirs(store: Path) -> list[Path]:
@@ -430,6 +450,8 @@ def one_eval(first: Path, second: Path) -> bool:
     kind = find.classify_file(first)
     if kind is None:
         return True
+    if kind not in ("table", "inspect", *start.FILE_READERS):  # no reader to take questions with
+        return same_questions(second, kind, [])  # (judgekeeper.record() files, MLflow): by tool
     try:
         records = start._read(find.Result(kind, first, first.name, first.stat().st_size),
                               _answers(first)).records

@@ -1344,8 +1344,8 @@ def test_a_judge_set_up_by_a_named_file_never_sends_runs_back_and_forth(tmp_path
                                                                        monkeypatch, reads):
     """data/ holds results.csv, named once (too few answers: only its judge.json is written),
     and a/ and data/ below it results of other questions. A run in data/ reads its own
-    folder, as a run in a/ does (it uses the judge.json above), and every command either
-    prints works."""
+    folder, as a run in a/ reads a/ (a judge.json alone above never claims a folder with
+    results of its own), and every command either prints works."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     data = tmp_path / "t" / "data"
     table_project(data, split(3, 3), tag="t0")
@@ -1357,7 +1357,7 @@ def test_a_judge_set_up_by_a_named_file_never_sends_runs_back_and_forth(tmp_path
     for folder in (data, data / "a"):
         reads.clear()
         said = _say(capsys, monkeypatch, folder)[1]
-        assert reads and reads[-1][0] == data.resolve(), said
+        assert reads and reads[-1][0] == folder.resolve(), said
         if "`judgekeeper" in said.replace("`judgekeeper mark", ""):
             _every_command_works(capsys, monkeypatch, folder, said)
 

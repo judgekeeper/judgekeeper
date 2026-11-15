@@ -42,6 +42,7 @@
 - After a result with no LLM-as-a-judge, the Next line keeps the run's `--port` and `--no-browser`.
 - `judgekeeper check --port N` says the version first, then that `check` takes no page flags; a first run's line about a project below now has a blank line after it.
 - A CSV saved in `mlruns/` is found, as one in `logs/` is. From an empty folder, the plain run stops where `judgekeeper ..` stops instead of reading the folder above, and a folder holding only a link to a results file says the file is a link instead of reading the folder above.
+- A folder with results of its own, below a folder whose first run stopped before marking, keeps its own run, as in 1.1.2: the results above are no longer called another eval. Files found beside the ones read ("Also found") are named from the folder you run in.
 - After `--stop`, the command it prints to carry on repeats the file you named. After "No saved ... results found", the Next line says what to run instead of repeating the same command.
 - After 3 changes, the result no longer asks for more of the questions kept aside: it says to add new questions.
 - With answers and no grades, `judgekeeper fix` names your results file in its Next line, as the result page does.
