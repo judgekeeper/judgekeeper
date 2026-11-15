@@ -366,13 +366,13 @@ def test_every_answer_marked_under_ten_asks_for_more_answers(here, capsys, pages
     done = page.summary()["status"]["done"]
     line = ("Next: add more answers to results.csv (at least 10 in all), then run "
             "`judgekeeper` again.")
-    assert done[1] == line
+    assert done[1] == line  # the page's: as it was started
     code, out, _ = run(capsys, "--no-browser")
     said = flat(out)
     assert code == 3
     assert ("You've marked every answer: 6 Pass, 3 Fail. Mark a few more answers to "
             "see your result.") in said
-    assert line in said
+    assert line.replace("`judgekeeper`", "`judgekeeper --no-browser`") in said  # the run's
     assert "your eval" not in said
 
 
@@ -385,7 +385,7 @@ def test_every_answer_marked_with_a_result_asks_for_more_for_a_surer_number(here
     _, out, _ = run(capsys, *argv, "--no-browser")
     said = flat(out)
     assert ("Next: add more answers to results.csv for a surer number, then run "
-            "`judgekeeper` again.") in said
+            "`judgekeeper --no-browser` again.") in said  # the run's flags, for this project
     assert "your eval" not in said
 
 

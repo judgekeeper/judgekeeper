@@ -506,18 +506,20 @@ def used_up_next(c: dict | None, file: str, command: str) -> str | None:
     return USED_UP_NEXT.format(add=add[0].lower() + add[1:], file=file, command=command)
 
 
+_ONCE_FLAGS = re.compile(r" --(?:wait|yes)(?= |$)")  # for that run alone, never again
+
+
 def next_step(ws, r: dict, mark: str, run: str | None = None) -> str:
     """The Next step of the result `r` with no grade, as the terminal, `fix` and the page say
     it: mark the answers left (`mark`: the command), the new questions once the questions
     kept aside are used up, else more answers for a surer number (MORE_ANSWERS before a
     result)."""
     from judgekeeper.front import NEXT_MARK_MORE
-    from judgekeeper.start_label import _PAGE_FLAGS
     from judgekeeper.textio import program
 
     if r.get("left"):
         return NEXT_MARK_MORE.format(command=mark)
-    command = _PAGE_FLAGS.sub("", run or program())
+    command = _ONCE_FLAGS.sub("", run or program())
     if r.get("check") == "result" and (
             used := used_up_next(r.get("since"), results_file(ws), command)):
         return used
@@ -537,11 +539,11 @@ def fix_step(path) -> str:
 
 def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
     """MORE_ANSWERS (`surer`: SURER, with a result) for the run that opened the page or made
-    the marks (`run`), without the page's own flags (start_label.mark_command's)."""
-    from judgekeeper.start_label import _PAGE_FLAGS
+    the marks (`run`): its --port and --no-browser kept (the run is for this project), never
+    what it said once (_ONCE_FLAGS)."""
     from judgekeeper.textio import program
 
-    command = _PAGE_FLAGS.sub("", run or program())
+    command = _ONCE_FLAGS.sub("", run or program())
     return (SURER if surer else MORE_ANSWERS).format(file=results_file(ws), n=MIN_MARKS,
                                                      command=command)
 

@@ -388,6 +388,23 @@ class FrontTalk(start.Talk):
             super().say()
             self.find_said = self.find_said or step == STEP.format(n=1, name="Find")
 
+    def run_there(self, rel: str, *extra: str) -> str | None:
+        """"run `<command>` in <folder>/" for the file `rel` in the folder given, when that
+        file is a project's of its own below the folder run in (_session_owning): the command
+        that names it from here stops there. None for any other file."""
+        if not self.given or not Path(self.path).is_dir():
+            return None
+        path = Path(self.path) / rel
+        if not path.is_file() or (owner := _session_owning(path)) is None:
+            return None
+        there = textio.folder_of(owner, Path.cwd())
+        if there == textio.ANYWHERE:
+            return None
+        inner = Path(os.path.relpath(path.resolve(), Path(there).resolve())).as_posix()
+        command = self.command_in(textio.quote_arg(inner), *extra, away=True)
+        return f"run `{_program_there([owner], Path.cwd())}{command[len(self.program):]}` in " \
+               f"{owner}/"
+
     def para(self, text: str = "", indent: str = "") -> None:
         """Say `text` wrapped (textio.wrap)."""
         for line in wrap(text, indent=indent):
@@ -644,6 +661,12 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
             talk.left_below = _from_here(path, sorted({*owners, *below}))
     if asked.is_file() and (owner := _session_owning(path)) is not None:
         # its own project's answers, never a batch here (a folder named reads its own file)
+        there = textio.folder_of(owner, Path.cwd())
+        if there != textio.ANYWHERE and (
+                marked := project.other_eval(Path(there), path)) is not None:
+            line, step = project.other_eval_stop(path, marked, talk.away)  # as it says there
+            talk.para(line)
+            raise talk.stop(EXIT_QUESTION, step)
         command = _file_there(talk, owner, path)
         talk.para(_nested_line([owner], Path.cwd(), command))
         raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd(), command))
@@ -882,7 +905,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         raise _nothing_found(talk, root, search.signs, nested)  # a link left out here
         # never hides the projects below that hold results
     if own is None and (search.skipped or not talk.given
-                        and find.results_above(root) is not None):
+                        and start.results_above_past(root) is not None):
         return path, None  # results-like files too far up or down: find_judge names them
     if own is None and tables:  # promptfoo's table output, found past the walk's limits
         raise start.table_output(tables[0])
@@ -1376,7 +1399,8 @@ def reads_above(root: Path, tool: str | None = None) -> Path | None:
     """The nearest folder above `root`, up to its project folder (find.project_folder), that
     holds a session (_session_in) or where a run reads results of its own (_own_results, not
     those in `root`); None when there is none. With --tool `tool`, where a run reads that
-    tool's results."""
+    tool's results. Never past a folder that holds other projects' sessions: a run there
+    reads none of them, and the folders above are no project of `root`."""
     root = Path(root).resolve()
     top = find.project_folder(root)
     if top is None:
@@ -1384,7 +1408,8 @@ def reads_above(root: Path, tool: str | None = None) -> Path | None:
     for folder in root.parents:
         if tool is None and _session_in(folder) or _own_results(folder, root, tool):
             return folder
-        if folder == top:
+        if folder == top or any(not root.is_relative_to(folder / name)
+                                for name, _ in _sessions_below(folder)):
             return None
     return None
 
@@ -3396,6 +3421,7 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
         _say_path(talk, found)
         if nested := _below_here(talk, found):  # never read with these: named
             talk.para(nested)
+            talk.say()  # a blank line before the next step's header
     talk.found = found
     talk.ask_noted()
     talk.find_shown = first and not marking  # the folder above is named with Find alone
