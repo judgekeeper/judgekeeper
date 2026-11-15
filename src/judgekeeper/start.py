@@ -1708,6 +1708,7 @@ def table_output(rel: str) -> Damaged:
 def _unreadable(found: find.Search) -> Damaged:
     """The results-like file judgekeeper found but could not read, when it found no other."""
     rel, how = found.unreadable[0]
+    rel = textio.shown_in(Path(found.root) / rel, found.root)  # from here, as File: names it
     if how == find.TABLE_OUTPUT:
         return table_output(rel)
     if how == find.TITLE_ROW:
