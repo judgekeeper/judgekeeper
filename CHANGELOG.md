@@ -41,6 +41,7 @@
 - After `--stop`, the command it prints to carry on repeats the file you named. After "No saved ... results found", the Next line says what to run instead of repeating the same command.
 - After 3 changes, the result no longer asks for more of the questions kept aside: it says to add new questions.
 - With answers and no grades, `judgekeeper fix` names your results file in its Next line, as the result page does.
+- With answers and no grades, a result gives one next step everywhere, `fix` and the result page too: when too few kept-aside questions failed for a clear answer, the questions that "Can't tell yet" asks for, also with failed answers left to fix; with no answer failed, harder questions, instead of more answers to the same questions; and when no question kept aside has a new answer, the change to test.
 - A damaged `.judgekeeper/fix/split-answers.json` is said and started again: the questions kept aside before no longer count as a fair test, and your failed answers stay listed.
 - A CSV, TSV or JSONL file of answers under other column names, such as `question` and `answer`, with no grades: judgekeeper names its columns and says to rename them `input` and `output`, instead of asking for grades or printing the prompt that writes answers. With grades, the line on how to switch names the file's own grade column.
 - `--tool table` with no results now says "your CSV, TSV or JSONL results file".
