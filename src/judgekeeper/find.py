@@ -935,6 +935,18 @@ def search(root: str | Path) -> Search:
     return walk.search
 
 
+def answers_as_table(found: Search, root: Path) -> None:
+    """--tool table asks for a table: the answers with no grade (answers_only) are read as
+    one, also beside another tool's results (where _answers_alone leaves them out), never
+    those of a project below (owner)."""
+    root = Path(root).resolve()
+    kept = [(path, size) for path, size in found.answers_only if owner(path, root) is None]
+    if kept and not found.results.get("table"):
+        found.results["table"] = [Result("table", path, path.relative_to(root).as_posix(), size)
+                                  for path, size in kept]
+        found.answers_read = True
+
+
 def _answers_alone(found: Search, root: Path) -> bool:
     """Whether answers with no grade are all `root` has: no results or table that can't be
     read, no sign of any eval tool, nothing in a format of its own (own_format.search), no

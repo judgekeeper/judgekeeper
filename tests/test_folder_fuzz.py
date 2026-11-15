@@ -376,6 +376,7 @@ class World:
         after = self.files()
         changed = sorted(p for p in set(before) | set(after) if before.get(p) != after.get(p))
         named = any(Path(a).suffix for a in argv if not a.startswith("-"))
+        chosen = named or "table" in argv  # `--tool table` asks for a table as naming one does
         if not self.reads:
             if changed:
                 broken.append(f"I4: read nothing, wrote {[self.rel(Path(p)) for p in changed]}")
@@ -405,7 +406,7 @@ class World:
             if not Path(p).is_relative_to(jk) and Path(p) != jk.parent / "judgekeeper.toml":
                 broken.append(f"I4: wrote {self.rel(Path(p))}, read {self.rel(root)}")
                 break
-        if root in self.sessions and not named and root == folder:  # I6
+        if root in self.sessions and not chosen and root == folder:  # I6
             kept = {self.tags.get(f) for f in self.sessions[root]}
             if tags - kept:
                 broken.append(f"I6: read {sorted(self.rel(f) for f in files)} beside the "
