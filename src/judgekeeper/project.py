@@ -177,6 +177,9 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
         mine = {r.path.resolve() for results in found.results.values() for r in results}
     if not mine:
         return False
+    ws = Workspace(store)
+    if given is None and here != store and not ws.start.is_file() and not ws.labels.is_file():
+        return True  # only a first run's judge.json above: results here keep their own run
     theirs = _theirs(store)
     if any(t.is_relative_to(here) for t in theirs):  # a folder holding a file it reads is
         return False  # its own, the folders below too: another eval there is said so

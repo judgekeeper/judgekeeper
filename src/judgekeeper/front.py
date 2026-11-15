@@ -1726,15 +1726,19 @@ def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
     if found.tool not in FILE_TOOLS or found.given:
         return None
     others = [r for r in found.results if r.rel not in found.used][:OTHERS]
-    apart = [r.rel for r in others if _another_eval(r, found)]
-    here = [r.rel for r in others if r.rel not in apart]
+    apart = [r for r in others if _another_eval(r, found)]
+    here = [r for r in others if r not in apart]
+
+    def named(results: list[find.Result]) -> str:  # from here, as File: names the one read
+        return start._and([textio.shown_in(r.path, found.root) for r in results])
+
     said = []
     if here:
-        commands = start._or([f"`{talk.command_at(r)}`" for r in here])
-        said.append(f"Also found {start._and(here)}. To check "
+        commands = start._or([f"`{talk.command_at(r.rel)}`" for r in here])
+        said.append(f"Also found {named(here)}. To check "
                     f"{'it' if len(here) == 1 else 'one'}, run {commands}.")
     if apart:
-        said.append(f"Also found {start._and(apart)}, with other questions. To check "
+        said.append(f"Also found {named(apart)}, with other questions. To check "
                     f"{'it' if len(apart) == 1 else 'one'}, put it in a folder of its own and "
                     f"run `{project.program_anywhere()}{talk.away}` there.")
     return " ".join(said) or None
