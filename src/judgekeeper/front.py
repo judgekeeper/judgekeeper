@@ -1555,7 +1555,9 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
             tops.add(parts[0])
     if len(tops) < 2:  # one plain folder (evals/) holds this folder's results, or none
         return []
-    if own or find.is_project(folder):  # rounds of one eval in its folders are read as before
+    if (own or find.is_project(folder)) and not find.nested_results(found, answers=True):
+        # rounds of one eval in its folders are read as before, unless a project below has
+        # results of its own: they are named with it
         files = [r.path for r in results]
         if all(project.one_eval(files[0], f) for f in files[1:]):
             return []

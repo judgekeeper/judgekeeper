@@ -565,6 +565,37 @@ def test_a_projects_own_results_never_pool_folders_of_other_questions(tmp_path, 
     assert not (top / ".judgekeeper").exists() and not (top / "sub" / ".judgekeeper").exists()
 
 
+@pytest.mark.parametrize("a_kind", ["file", "session"])
+@pytest.mark.parametrize("run_in, argv", [(".", ()), (".", (".",)), ("empty", ()),
+                                          ("empty", ("..",))])
+def test_rounds_of_one_eval_beside_a_project_below_are_named_not_pooled(
+        tmp_path, capsys, monkeypatch, reads, run_in, argv, a_kind):
+    """I2: a git top with b/ and c/, rounds of one eval (24 and 26 answers, the same
+    questions), a/ a project of its own with results (a project file, or a session) and
+    empty/. From the top, or from empty/ (plain or with `..`), a/, b/ and c/ are named and
+    none is read: a project below keeps its own results, so b/ and c/ are not one pool.
+    Nothing is written."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "repo"
+    _kind(top, "git")
+    table_project(top / "a", split(20, 20) if a_kind == "session" else split(10, 10), tag="a")
+    if a_kind == "file":
+        _kind(top / "a", "file")
+    else:
+        assert _say(capsys, monkeypatch, top / "a")[0] == 0  # a session: a page, 0 marks
+    table_project(top / "b", split(12, 12), tag="q")
+    table_project(top / "c", split(13, 13), tag="q")
+    (top / "empty").mkdir()
+    reads.clear()
+    code, said = _say(capsys, monkeypatch, top / run_in, *argv)
+    assert code == 3, said
+    assert not any(_read_below(reads, top, n) for n in "abc"), said
+    up = "../" if run_in == "empty" else ""
+    assert f"{up}a/, {up}b/ and {up}c/ hold eval results" in said, said
+    assert not (top / ".judgekeeper").exists(), said
+    assert not (top / "empty" / ".judgekeeper").exists(), said
+
+
 def test_a_tool_run_names_the_folder_above_only_when_that_tool_has_results_there(
         tmp_path, capsys, monkeypatch):
     """I5: c/ (judgekeeper.toml) holds DeepEval results in runs/; c/c/ answers.csv. `--tool
