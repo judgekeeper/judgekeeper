@@ -86,7 +86,7 @@ def _chrome() -> str | None:
     return None
 
 
-def _boxes(width: int, height: int, long: bool = False) -> dict:
+def _boxes(width: int, height: int, long: bool = False, measure: str | None = None) -> dict:
     chrome = _chrome()
     if chrome is None:
         pytest.skip("needs Chrome to lay the page out")
@@ -99,7 +99,8 @@ def _boxes(width: int, height: int, long: bool = False) -> dict:
     page = (mark_page.label_page(None, model="gpt-4.1-mini", tool="promptfoo")
             .replace("__NONCE__", "n").replace("__TOKEN__", "t0k")
             .replace("__DATA__", json.dumps(data).replace("<", "\\u003c")))
-    page = page.replace("</body>", MEASURE % (json.dumps(LINES), json.dumps(STATES)) + "</body>")
+    script = measure or MEASURE % (json.dumps(LINES), json.dumps(STATES))
+    page = page.replace("</body>", script + "</body>")
     with tempfile.TemporaryDirectory() as folder:
         file = Path(folder) / "page.html"
         file.write_text(page, encoding="utf-8")
@@ -126,3 +127,35 @@ def test_nothing_that_shows_moves_a_button(width, height, long):
 def test_the_line_under_the_buttons_is_out_of_the_layout():
     """It sits over the foot of the answer, so a line showing or going cannot move a button."""
     assert re.search(r"\.status \{ position: absolute;", mark_page.STYLE)
+
+
+UNDO_MEASURE = """
+<script nonce="n">
+window.addEventListener("load", function () {
+  setTimeout(function () {
+    function box(id) {
+      var r = document.getElementById(id).getBoundingClientRect();
+      return [r.left, r.top, r.width, r.height].map(Math.round);
+    }
+    var out = {answer: box("undo")};
+    document.getElementById("answer-card").hidden = true;
+    document.getElementById("end").hidden = false;
+    document.getElementById("end-title").textContent = "You marked every answer.";
+    document.getElementById("end-note").hidden = false;
+    document.getElementById("end-sub").hidden = false;
+    out.end = box("end-undo");
+    var pre = document.createElement("pre"); pre.id = "measured";
+    pre.textContent = JSON.stringify(out); document.body.appendChild(pre);
+  }, 600);
+});
+</script>
+"""
+
+
+@pytest.mark.parametrize("long", [False, True], ids=["short", "long text"])
+@pytest.mark.parametrize("width,height", [(1470, 978), (1280, 860)])
+def test_the_end_cards_undo_is_where_the_answers_undo_was(width, height, long):
+    """The result is about to open and Undo is on the end card: a click aimed where Undo was
+    lands on it."""
+    boxes = _boxes(width, height, long, measure=UNDO_MEASURE % ())
+    assert boxes["end"] == boxes["answer"]
