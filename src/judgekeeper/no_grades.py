@@ -1273,9 +1273,13 @@ def new_round(ws, stamp: str, old: set[str], ids: list[str]) -> None:
     gone = sorted(old - set(ids))  # a repeated question's answer removed: it changed too
     before["round"] = {"stamp": stamp, "new": sorted(i for i in ids if i not in old),
                        **({"gone": gone} if gone else {})}
-    if before["round"]["new"]:  # new answers: compared with the ones before them
-        before.pop("repaired", None)
-    _write_before(ws, before)
+    _write_before(ws, before)  # a "repaired" one stays so until a result says it (_damage_said)
+
+
+def before_damaged(ws) -> bool:
+    """Whether before.json is there but can't be used (a run replaces it: _before_or_new)."""
+    path = _before_path(ws)
+    return path.is_file() and not path.is_symlink() and read_before(ws) is None
 
 
 def round_of(ws) -> dict | None:
