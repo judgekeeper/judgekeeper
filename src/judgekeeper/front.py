@@ -1629,7 +1629,7 @@ def _beside_a_session(folder: Path) -> list[str]:
         if len(parts) < 2 or parts[0] in TOOL_FOLDERS:
             return []
         tops.add(parts[0])
-    return sorted({*nested, *tops}) if tops else []
+    return _named_below(found, sorted(tops)) if tops else []  # as _projects_below names
 
 
 def _session_owning(path: Path) -> str | None:
