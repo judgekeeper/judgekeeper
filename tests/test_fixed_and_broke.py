@@ -623,5 +623,6 @@ def test_a_damaged_before_json_is_said_once_and_new_answers_still_wait(project):
     assert "3 new answers are waiting to be marked." in flat(out), out + err
     _mark(project.here, {0: "pass", 1: "pass", 7: "pass"})
     said += [project.run(), project.run()]
-    assert [DAMAGED in x for x in said] == [False, False, True, False], said  # on the result
+    # said in the run that replaced it (with the new answers), then once on the result
+    assert [DAMAGED in x for x in said] == [True, False, True, False], said
     # that would compare, once

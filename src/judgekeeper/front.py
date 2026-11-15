@@ -260,6 +260,7 @@ class FrontTalk(start.Talk):
         self.labels_read: list | None = None
         self.labels_from: str | None = None
         self.few_fails = False  # Find said how few answers the LLM-as-a-judge failed
+        self.before_damaged = False  # fix/before.json was damaged and this run replaced it
         self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
         self.left_below: list[str] = []  # projects below whose files were left out (_tool_below)
         self.refresh()
@@ -3427,6 +3428,7 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
     talk.find_shown = first and not marking  # the folder above is named with Find alone
     before = [q["id"] for q in ws.data().get("queue") or []] if not first else None
     was = no_grades.round_of(ws) if not first else None
+    talk.before_damaged = not first and no_grades.before_damaged(ws)  # said with the new answers
     talk.switched = None if first else _switched_line(ws, found)  # said with the new answers
     talk.nested = None if first else _below_here(talk, found)  # Find's block names them
     # first
@@ -3517,6 +3519,9 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     _say_switched(talk, new)
     if new:
         talk.para(no_grades.found_line(ws, new))
+        talk.say()
+    if new and talk.before_damaged:  # new answers came while it was damaged: a result that
+        talk.para(no_grades.damaged_line())  # would say so comes only after they are marked
         talk.say()
     _say_nested(talk)
     if every and not enough:  # nothing left to mark, and no result yet
