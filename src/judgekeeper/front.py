@@ -344,14 +344,17 @@ class FrontTalk(start.Talk):
             commands = [f"`{self.command_at(v)}`" for v in values]
             then = start.some(commands)
         else:  # one command per name, as it runs when pasted
-            cmds = [f"`{self.command(*_named(flag, v))}`" for v in values]
-            if len(cmds) <= CHOICE_COMMANDS:
-                then = start.some(cmds, limit=CHOICE_COMMANDS)
+            def cmd(v):  # only those said: a results file can name thousands of judges
+                return f"`{self.command(*_named(flag, v))}`"
+
+            names_left = len(values) - keep
+            if len(values) <= CHOICE_COMMANDS:
+                then = start.some([cmd(v) for v in values], limit=CHOICE_COMMANDS)
             else:  # the last `keep` options (All) are always shown: they are not names
-                names_left = len(cmds) - keep
-                shown = cmds[:CHOICE_COMMANDS - keep]
+                shown = [cmd(v) for v in values[:CHOICE_COMMANDS - keep]]
                 then = (f"{', '.join(shown)} {start.more(names_left - len(shown))}"
-                        + (f", or {start.some(cmds[names_left:])}" if keep else ""))
+                        + (f", or {start.some([cmd(v) for v in values[names_left:]])}"
+                           if keep else ""))
         raise self.stop(EXIT_QUESTION, f"choose {what} ({names}), then run {then}.")
 
     def confirm(self, question, default, hint, with_yes) -> bool:
