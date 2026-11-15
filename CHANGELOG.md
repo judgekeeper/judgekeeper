@@ -4,6 +4,7 @@
 
 - No LLM-as-a-judge? judgekeeper now reads a CSV, TSV or JSONL file with `input` and `output` columns and no grades, and you mark your AI's answers Pass or Fail. From 10 marks it shows how many passed, with a range.
 - The answers you fail that are not kept aside are saved in `.judgekeeper/fix/failed-answers.md` with your reasons, and judgekeeper prints a prompt for your coding agent to improve your AI's prompt. Half of the questions you marked Pass and half of those you marked Fail are kept aside, at random, to test the change.
+- With answers and no grades, after 3 changes, new questions you mark before the next result now make a new set of questions kept aside, instead of joining the used-up set.
 - After you change your AI and mark its new answers, judgekeeper counts how many were fixed, how many broke and how many stayed the same on the questions kept aside. It says whether the change helped, made it worse, or can't tell yet, and when it can't tell, how many more questions a clear answer needs.
 - With answers and no grades, a question asked more than once that loses its failed answer, with the rest Pass, now counts as fixed, and as failed before your change, as the first result counted it.
 - No answers yet? judgekeeper prints a prompt for your coding agent to write about 40 test questions and save your AI's answers.
