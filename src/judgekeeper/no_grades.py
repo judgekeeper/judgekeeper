@@ -523,32 +523,53 @@ _ONCE_FLAGS = re.compile(r" --(?:wait|yes)(?= |$)")  # for that run alone, never
 
 def next_step(ws, r: dict, mark: str, run: str | None = None) -> str:
     """The Next step of the result `r` with no grade, as the terminal, `fix` and the page say
-    it: mark the answers left (`mark`: the command), the new questions once the questions
-    kept aside are used up or too few failed, or none failed (questions_next), else more
-    answers for a surer number (MORE_ANSWERS before a
-    result)."""
+    it: mark the answers left (`mark`: the command), the step the result's own line asks for
+    (verdict_step), else more answers for a surer number (MORE_ANSWERS before a result)."""
     from judgekeeper.front import NEXT_MARK_MORE
-    from judgekeeper.textio import program
 
     if r.get("left"):
         return NEXT_MARK_MORE.format(command=mark)
-    command = _ONCE_FLAGS.sub("", run or program())
-    if r.get("check") == "result" and (
-            used := questions_next(r.get("since"), results_file(ws), command,
-                                   none_failed=not r["labels"]["wrong"])):
-        return used
+    if asked := verdict_step(ws, r, run):
+        return asked
     return more_answers(ws, run, surer=r.get("check") == "result")
 
 
-def fix_step(path) -> str:
-    """The Next step `fix` gives with no grade and no answer failed to fix: the result's
-    (next_step), from the marks now."""
+def untested(c: dict | None) -> bool:
+    """compare's `c` says NO_KEPT: no question kept aside has a new answer."""
+    return bool(c) and not any(c.get(k) for k in ("waiting", "damaged", "new_set", "kept"))
+
+
+def verdict_step(ws, r: dict, run: str | None = None) -> str | None:
+    """The step the result `r`'s own line asks for, as next_step says it for the run `run`:
+    the questions it asks for (questions_next), or, when no question kept aside has a new
+    answer (untested) and answers failed to fix, the change to test (FIX_NEXT). None when
+    its line asks for neither."""
+    from judgekeeper.textio import program
+
+    if r.get("check") != "result":
+        return None
+    command = _ONCE_FLAGS.sub("", run or program())
+    if asked := questions_next(r.get("since"), results_file(ws), command,
+                               none_failed=not r["labels"]["wrong"]):
+        return asked
+    if untested(r.get("since")) and has_failed(ws):
+        return FIX_NEXT.format(file=results_file(ws), command=command)
+    return None
+
+
+def fix_step(path, failed: bool = False) -> str:
+    """The Next step `fix` gives with no grade, from the marks now: with answers failed to fix
+    (`failed`), the step the result's own line asks for (verdict_step: the questions a change
+    can't be measured without), else FIX_NEXT; with none, the result's (next_step)."""
     from judgekeeper.project import project_of
     from judgekeeper.start_label import StartSession, Workspace
     from judgekeeper.textio import program
 
     ws = Workspace(project_of(Path(path)))
-    return next_step(ws, compute(ws, StartSession(ws)), program("mark"))
+    r = compute(ws, StartSession(ws))
+    if failed:
+        return (not r.get("left") and verdict_step(ws, r)) or fix_next(path)
+    return next_step(ws, r, program("mark"))
 
 
 def more_answers(ws, run: str | None = None, surer: bool = False) -> str:

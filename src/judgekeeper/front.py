@@ -3533,9 +3533,13 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
         talk.say()
-        talk.para("Next: " + no_grades.next_step(ws, no_grades.compute(ws, session),
-                                                 _command_of(talk, False, "mark"),
-                                                 _command_of(talk, False)))
+        step = no_grades.next_step(ws, no_grades.compute(ws, session),
+                                   _command_of(talk, False, "mark"), _command_of(talk, False))
+        if step.startswith(no_grades.FIX_NEXT.split(".", 1)[0]):  # the prompt it names
+            for line in no_grades.agent_lines(ws):
+                talk.say(line)
+            talk.say()
+        talk.para("Next: " + step)
         if opened.server is not None:
             page.serve(opened.server)
         return EXIT_OK
