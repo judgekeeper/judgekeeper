@@ -491,18 +491,30 @@ def fix_next(path) -> str:
                            command=program())
 
 
-# the questions kept aside used up (NEW_SET): the one next step, as NEW_SET asks it
+# the questions kept aside used up (NEW_SET), or too few of them failed for a clear answer
+# (clear_line): the one next step, the questions that line asks for
 USED_UP_NEXT = "{add} to {file}, then run `{command}` to mark their answers."
+CLEAR_ADD_NEXT = "Add about {extra} more questions"
 
 
-def used_up_next(c: dict | None, file: str, command: str) -> str | None:
+def questions_next(c: dict | None, file: str, command: str,
+                   none_failed: bool = False) -> str | None:
     """USED_UP_NEXT once the questions kept aside are used up (compare's `c` after the last
-    change they test, or asking for a new set): the new questions new_set_line asks for,
-    never more answers to the same questions. None otherwise."""
-    if not c or not (c.get("last") or c.get("new_set")) or c.get("waiting"):
+    change they test, or asking for a new set): the new questions new_set_line asks for; with
+    "Can't tell yet" and too few kept-aside Fails, the questions clear_line asks for; with no
+    answer failed (`none_failed`), none to keep aside: harder questions. Never more answers to
+    the same questions. None otherwise."""
+    if c and c.get("waiting"):
         return None
-    n = new_questions(c)
-    add = NEW_SET_HARDER if n is None or n > MOST_ASKED else NEW_SET_ADD.format(n=n)
+    if c and (c.get("last") or c.get("new_set")):
+        n = new_questions(c)
+        add = NEW_SET_HARDER if n is None or n > MOST_ASKED else NEW_SET_ADD.format(n=n)
+    elif c and c.get("kept") and not c.get("clear") and (more := _clear_more(c)) != 0:
+        add = NEW_SET_HARDER if more is None else CLEAR_ADD_NEXT.format(extra=more)
+    elif none_failed:
+        add = NEW_SET_HARDER
+    else:
+        return None
     return USED_UP_NEXT.format(add=add[0].lower() + add[1:], file=file, command=command)
 
 
@@ -511,30 +523,53 @@ _ONCE_FLAGS = re.compile(r" --(?:wait|yes)(?= |$)")  # for that run alone, never
 
 def next_step(ws, r: dict, mark: str, run: str | None = None) -> str:
     """The Next step of the result `r` with no grade, as the terminal, `fix` and the page say
-    it: mark the answers left (`mark`: the command), the new questions once the questions
-    kept aside are used up, else more answers for a surer number (MORE_ANSWERS before a
-    result)."""
+    it: mark the answers left (`mark`: the command), the step the result's own line asks for
+    (verdict_step), else more answers for a surer number (MORE_ANSWERS before a result)."""
     from judgekeeper.front import NEXT_MARK_MORE
-    from judgekeeper.textio import program
 
     if r.get("left"):
         return NEXT_MARK_MORE.format(command=mark)
-    command = _ONCE_FLAGS.sub("", run or program())
-    if r.get("check") == "result" and (
-            used := used_up_next(r.get("since"), results_file(ws), command)):
-        return used
+    if asked := verdict_step(ws, r, run):
+        return asked
     return more_answers(ws, run, surer=r.get("check") == "result")
 
 
-def fix_step(path) -> str:
-    """The Next step `fix` gives with no grade and no answer failed to fix: the result's
-    (next_step), from the marks now."""
+def untested(c: dict | None) -> bool:
+    """compare's `c` says NO_KEPT: no question kept aside has a new answer."""
+    return bool(c) and not any(c.get(k) for k in ("waiting", "damaged", "new_set", "kept"))
+
+
+def verdict_step(ws, r: dict, run: str | None = None) -> str | None:
+    """The step the result `r`'s own line asks for, as next_step says it for the run `run`:
+    the questions it asks for (questions_next), or, when no question kept aside has a new
+    answer (untested) and answers failed to fix, the change to test (FIX_NEXT). None when
+    its line asks for neither."""
+    from judgekeeper.textio import program
+
+    if r.get("check") != "result":
+        return None
+    command = _ONCE_FLAGS.sub("", run or program())
+    if asked := questions_next(r.get("since"), results_file(ws), command,
+                               none_failed=not r["labels"]["wrong"]):
+        return asked
+    if untested(r.get("since")) and has_failed(ws):
+        return FIX_NEXT.format(file=results_file(ws), command=command)
+    return None
+
+
+def fix_step(path, failed: bool = False) -> str:
+    """The Next step `fix` gives with no grade, from the marks now: with answers failed to fix
+    (`failed`), the step the result's own line asks for (verdict_step: the questions a change
+    can't be measured without), else FIX_NEXT; with none, the result's (next_step)."""
     from judgekeeper.project import project_of
     from judgekeeper.start_label import StartSession, Workspace
     from judgekeeper.textio import program
 
     ws = Workspace(project_of(Path(path)))
-    return next_step(ws, compute(ws, StartSession(ws)), program("mark"))
+    r = compute(ws, StartSession(ws))
+    if failed:
+        return (not r.get("left") and verdict_step(ws, r)) or fix_next(path)
+    return next_step(ws, r, program("mark"))
 
 
 def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
@@ -1039,7 +1074,7 @@ CLEAR_NEED = ("A clear answer needs at least {need} kept-aside questions to go f
               "Pass, with none breaking. If your change fixes about 2 in 3 of them, that needs "
               "about {target} kept-aside questions that failed before your change; you had "
               "{kept_fails}.")  # 2 in 3: clear_target's planning share, never measured
-CLEAR_ADD = CLEAR_NEED + " Add about {extra} more questions."
+CLEAR_ADD = CLEAR_NEED + f" {CLEAR_ADD_NEXT}."
 CLEAR_HARDER = CLEAR_NEED + " Add harder questions, ones your AI may get wrong, and mark their answers."
 CLEAR_ENOUGH = ("A clear answer needs at least {need} of the {kept_fails} kept-aside questions "
                 "that failed before your change to pass, with none breaking.")
@@ -1526,18 +1561,28 @@ def clear_line(c: dict) -> str | None:
     (new_set_line says what to add instead)."""
     if c.get("last"):
         return None
+    need = clear_need(c.get("test") or 1)
+    target, kept_fails = clear_target(need), c.get("kept_fails") or 0
+    more = _clear_more(c)
+    if more == 0:
+        return CLEAR_ENOUGH.format(need=need, kept_fails=kept_fails)
+    if more is None:
+        return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
+    return CLEAR_ADD.format(need=need, target=target, kept_fails=kept_fails, extra=more)
+
+
+def _clear_more(c: dict) -> int | None:
+    """clear_line's questions to add: 0 with kept-aside Fails enough, None for harder
+    questions."""
     fails, marked = c.get("fails") or 0, c.get("marked") or 0
     kept_fails = c.get("kept_fails") or 0
-    need = clear_need(c.get("test") or 1)
-    target = clear_target(need)
+    target = clear_target(clear_need(c.get("test") or 1))
     if kept_fails >= target:
-        return CLEAR_ENOUGH.format(need=need, kept_fails=kept_fails)
+        return 0
     if not fails or not marked:
-        return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
+        return None
     extra = -(-2 * (target - kept_fails) * marked // fails)
-    if extra > MOST_ASKED:
-        return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
-    return CLEAR_ADD.format(need=need, target=target, kept_fails=kept_fails, extra=extra)
+    return None if extra > MOST_ASKED else extra
 
 
 def result_line(c: dict) -> str:
