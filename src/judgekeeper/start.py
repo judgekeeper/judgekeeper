@@ -1458,7 +1458,7 @@ def _read_above(root: Path, found: find.Search, tool: str | None,
     if stay:
         return None
     if not available and tool is None and not found.too_big() and not found.unreadable \
-            and not any(how == find.LINK for _, how in found.skipped):  # a linked results
+            and not any(how in find.LINKS for _, how in found.skipped):  # a linked results
         # file here is said, never read above by another path
         above = results_above_past(root)
         if above is not None:
@@ -1780,11 +1780,16 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     if len(found.skipped) > 5:
         talk.say(f"  and {len(found.skipped) - 5} more")
     which = "that file holds" if len(found.skipped) == 1 else "one of these holds"
-    readable = [(rel, why) for rel, why in found.skipped if why != find.LINK]
+    readable = [(rel, why) for rel, why in found.skipped if why not in find.LINKS]
     if not readable:  # never a command that reads a link: it leads anywhere
         it = "it links" if len(found.skipped) == 1 else "they link"
         next_step = (f"if {which} your results, copy the file {it} to into your project in its "
                      f"place, then run `{talk.command()}` again.")
+        if all(why == find.LINK_TO_NOTHING for _, why in found.skipped):  # nothing to copy
+            one = len(found.skipped) == 1
+            next_step = (f"point the {'link at a file that is' if one else 'links at files that are'}"
+                         f" there, or save your results in {'its' if one else 'their'} place, "
+                         f"then run `{talk.command()}` again.")
         if not getattr(talk, "screens", False):
             talk.say(f"Next: {next_step[0].upper()}{next_step[1:]}")
         return talk.stop(EXIT_USAGE, next_step)

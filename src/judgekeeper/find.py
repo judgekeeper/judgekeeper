@@ -734,8 +734,11 @@ class _Walk:
                     link = entry.is_symlink()
                     is_dir = not link and entry.is_dir(follow_symlinks=False)
                     is_file = not (link or is_dir) and entry.is_file(follow_symlinks=False)
-                    if link and _results_like(Path(entry.path)) and entry.is_file():
-                        self.skip(Path(entry.path), LINK)
+                    if link and _results_like(Path(entry.path)):
+                        if entry.is_file():
+                            self.skip(Path(entry.path), LINK)
+                        elif not os.path.exists(entry.path):  # nothing at its end
+                            self.skip(Path(entry.path), LINK_TO_NOTHING)
                 except OSError:  # it can't be told what it is (/dev/fd/3 from /): skipped
                     continue
                 if link:
@@ -1065,6 +1068,8 @@ def holds_results(found: Search) -> bool:
 
 
 LINK = "a link: judgekeeper doesn't follow links"
+LINK_TO_NOTHING = "a link to a file that is not there"
+LINKS = (LINK, LINK_TO_NOTHING)
 NOT_REGULAR = "is not a regular file (a named pipe or a device)"
 ABOVE = "in the folder above"
 NOT_UTF8 = "not saved as UTF-8"

@@ -1290,6 +1290,29 @@ def test_a_folder_holding_only_a_linked_file_says_it_is_a_link(tmp_path, capsys,
     assert not (repo / ".judgekeeper").exists(), said
 
 
+@pytest.mark.parametrize("kind", ["plain", "file"])
+def test_a_folder_holding_only_a_link_to_nothing_says_so(tmp_path, capsys, monkeypatch, reads,
+                                                          kind):
+    """The same, the link going nowhere (a mistyped path): said as a link to nothing, with a
+    step that can be done, and the repo top's own file is never read in its place."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    repo = tmp_path / "repo"
+    _kind(repo, "git")
+    other = table_project(repo / "other", split(20, 20), tag="r", name="graded.csv")
+    link = repo / "names" / "link"
+    _kind(link, kind)
+    try:
+        (link / "results.csv").symlink_to(Path("..") / "other" / "graded.csv")  # not names/other
+    except OSError:
+        pytest.skip("no symbolic links here")
+    said = _say(capsys, monkeypatch, link)[1]
+    assert "results.csv (a link to a file that is not there)" in said, said
+    assert "point the link at a file that is there" in " ".join(said.split()), said
+    assert "copy the file" not in said and "No eval results in link" not in said, said
+    assert not any(other.resolve() in files for _, files in reads), said
+    assert not (repo / ".judgekeeper").exists(), said
+
+
 # Every command a run prints works where its line says --------------------------------------
 
 

@@ -67,6 +67,7 @@
 - On the marking page, a line under the buttons (such as "Noted. Your first mark (Pass) still counts.") no longer moves Pass and Fail up, so a click at the buttons' lower edge still lands.
 - When `.judgekeeper/fix/before.json` is damaged and new answers come, the run says it can't compare with your last answers, and the result after you mark them says so too, instead of comparing on less without a word.
 - A table beside the results file it reads, newer than it and under other column names (such as `prompt`, `completion` and `label`), is now named, with the command that reads it, and no longer passed over without a word.
+- A results file that is a link to a file that is not there is now named as such, with a step you can do. Before, the run said nothing about it and read another file of the project in its place.
 
 ## 1.1.2 (2026-11-08)
 
