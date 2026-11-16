@@ -1266,12 +1266,17 @@ def results_stamp(ids) -> str:
 def new_round(ws, stamp: str, old: set[str], ids: list[str]) -> None:
     """New results (`stamp` changed): the answers in them that were not in the ones before
     (`old`) are the ones compared now (compare); an answer carried over is never compared
-    again. The same answers read again, or saved again, keep the round they had."""
+    again. The same answers read again, or saved again, keep the round they had. An answer
+    that is the newest one marked for its question is carried over too, whatever the results
+    in between held (`old`, read before any of them was marked)."""
     before = _before_or_new(ws)
     if before is None or (before["round"] or {}).get("stamp") == stamp:
         return
+    marked = {i for versions in before["questions"].values() if versions
+              for i in versions[-1]["ids"]}
     gone = sorted(old - set(ids))  # a repeated question's answer removed: it changed too
-    before["round"] = {"stamp": stamp, "new": sorted(i for i in ids if i not in old),
+    before["round"] = {"stamp": stamp,
+                       "new": sorted(i for i in ids if i not in old and i not in marked),
                        **({"gone": gone} if gone else {})}
     _write_before(ws, before)  # a "repaired" one stays so until a result says it (_damage_said)
 
