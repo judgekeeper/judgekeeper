@@ -1821,8 +1821,20 @@ def _tool_elsewhere(talk, found: find.Search, tool: str, available: list[str]) -
     holds its results (found.nested), else the results found here (`available`), read
     without --tool (those of a project of its own below: in that project), else where to run
     it."""
+    from judgekeeper import project
+
     results = results_of(tool)
-    below = next((sub for sub in found.nested if find.search(sub).results.get(tool)), None)
+    below, other = None, None  # `other`: results of `tool` that are another eval of a session
+    for sub in found.nested:
+        theirs = find.search(sub).results.get(tool, [])
+        if any(project.other_eval(sub, r.path) is None for r in theirs):
+            below = sub
+            break
+        if theirs and other is None:
+            other = (sub, theirs[0].path)
+    if below is None and other is not None:  # a command there would only stop: say why
+        line, step = project.other_eval_stop(other[1], project.other_eval(*other))
+        raise StartError(line, step.replace("{", "{{").replace("}", "}}"))  # next_step is a format
     if below is not None:
         rel = Path(os.path.relpath(below, Path.cwd())).as_posix()
         return {"next_step": TOOL_BELOW.format(command=talk.command_in(path_word(rel),
