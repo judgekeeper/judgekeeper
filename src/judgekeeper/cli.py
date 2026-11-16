@@ -491,6 +491,8 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
         _next(NEXT_REMOVED.replace("{command}", program()))
         raise SystemExit(EXIT_USAGE)
     if command in ("fix", "check") and (kept := _without_page_flags(args_list)) != args_list:
+        _say(f"judgekeeper {__version__}")  # the first line, as every run of `check` says it
+        _say("")
         print(NO_PAGE.format(command=command), file=sys.stderr)
         _next(f"run `{program(' '.join(textio.quote_arg(a) for a in kept))}`.")
         raise SystemExit(EXIT_USAGE)

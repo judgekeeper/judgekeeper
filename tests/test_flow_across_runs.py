@@ -740,9 +740,9 @@ def test_an_outer_project_never_reads_a_nested_projects_results(tmp_path, capsys
     monkeypatch.chdir(outer)
     code, out = _jk(capsys, "--no-browser")
     assert code == 3, out
-    assert ("These results belong to the project in inner/. To check them, run `judgekeeper` "
-            "in inner/.") in flat(out)
-    assert _next(out) == "Next: run `judgekeeper` in inner/."
+    assert ("These results belong to the project in inner/. To check them, run `judgekeeper "
+            "--no-browser` in inner/.") in flat(out)
+    assert _next(out) == "Next: run `judgekeeper --no-browser` in inner/."
     assert "File:            inner/" not in out
     assert not (outer / ".judgekeeper" / "start.json").exists()
 
@@ -763,7 +763,8 @@ def test_outer_results_are_read_and_the_nested_ones_named(tmp_path, capsys, monk
     code, out = _jk(capsys, "--no-browser", "--port", "0")
     assert code == 0, out
     assert "File:            outer_results.csv" in out
-    assert ("The project in inner/ has results too: to check them, run `judgekeeper inner`."
+    assert ("The project in inner/ has results too: to check them, run "
+            "`judgekeeper inner --no-browser`."
             in flat(out))
     _jk(capsys, "--stop")
 

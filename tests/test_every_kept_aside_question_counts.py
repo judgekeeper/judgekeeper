@@ -124,3 +124,22 @@ def _report(here) -> str:
     from tests.test_answers_without_grades import _seen
 
     return _seen(start_label.Workspace(here).report_html.read_text(encoding="utf-8"))
+
+
+def test_a_repeated_question_that_loses_its_failed_answer_is_fixed(rows):
+    first = _first(twice=[(q, ("pass", "fail")) for q in range(0, 20, 2)])
+    said = rows.round(first)
+    kept = rows.kept()
+    failed = {q for q, _, m in first if m == "fail" and q in kept}  # a Fail before
+    q = min(q for q in kept if q % 2 == 0)  # {Pass, Fail}
+    again = [(i, a.replace("First", "Second"), m) for i, a, m in first if i != q]
+    again += [r for r in first if r[0] == q and r[2] == "pass"]  # its Fail answer gone
+    said = rows.round(again)
+    since = rows.since()
+    assert since["fixed"] == 1 and since["broke"] == 0, (since, said)
+    assert since["kept_fails"] == len(failed), (since, said)
+    rows.run()  # read again: the same counts
+    assert rows.since() == since
+    third = [(i, a.replace("Second", "Third"), m) for i, a, m in again]  # q's answer stays
+    rows.round(third)
+    assert rows.since()["fixed"] == 0, rows.since()  # its answer removed once, not again

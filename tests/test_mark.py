@@ -75,7 +75,7 @@ def test_a_question_is_the_same_as_judgekeepers(here, capsys, pages):
     assert "Saved results from more than one eval tool:" in out
     assert _check(out, err) == (
         "Next: choose which eval tool's results to check (records, promptfoo), then run "
-        "`judgekeeper mark --tool NAME`.")
+        "`judgekeeper mark --tool records` or `judgekeeper mark --tool promptfoo`.")
     assert not (here / ".judgekeeper" / "marks.jsonl").exists()
     assert pages[0] == []
 

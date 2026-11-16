@@ -134,7 +134,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .answer { font-size: 20px; line-height: 1.6; margin: 0; max-width: 60ch; white-space: pre-wrap;
   overflow-wrap: anywhere; }
 .answer:dir(rtl), .question:dir(rtl) { margin-left: auto; }
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }
+.actions { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }
 .btn { height: 50px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
   gap: 10px; font-size: 16px; font-weight: 700; color: #fff; transition: filter 100ms ease; }
 .btn:active { filter: brightness(.9); }
@@ -150,8 +150,11 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .quiet { padding: 8px 20px; font-size: 14px; color: var(--muted); }
 .quiet:hover { color: var(--text); background: var(--hover); }
 .quiet kbd { font-family: var(--mono); font-size: 12px; color: var(--text); margin-left: 8px; }
-.status { margin: 0; padding: 0 40px 10px; text-align: center; font-size: 13px; font-weight: 600;
-  color: var(--red); }
+/* The line is out of the layout, at the foot of the answer: a line that shows or goes never
+   moves a button, so a click aimed at one lands. */
+.status { position: absolute; left: 0; right: 0; bottom: calc(100% + 1px); margin: 0; padding: 0 40px 10px;
+  text-align: center; font-size: 13px; font-weight: 600; color: var(--red); background: var(--bg);
+  pointer-events: none; }
 .status:empty { display: none; }
 .status.calm { color: var(--muted); font-weight: 400; }
 .end { padding: 56px 28px; display: flex; flex-direction: column; align-items: center; gap: 24px;
@@ -160,6 +163,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .end h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   max-width: 32ch; }
 .end .note { margin: 0; color: var(--muted); font-size: 15px; }
+/* Undo on the end card is where it was on the answer: the same row at the card's foot, with
+   Skip's room kept (unseen), so a click aimed at Undo lands. */
+.end .sub { align-self: stretch; margin: auto -28px -56px; }
+.ghost { visibility: hidden; }
 .go { font-weight: 700; border-radius: 4px; color: #fff; background: var(--green-fill);
   height: 50px; padding: 0 28px; font-size: 16px; text-decoration: none; display: inline-flex;
   align-items: center; justify-content: center; transition: filter 100ms ease; }
@@ -319,13 +326,14 @@ __TOP__
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
       <button type="button" class="btn pass" id="pass" aria-pressed="false" aria-keyshortcuts="ArrowRight">__TICK__<span>Pass</span><kbd>→</kbd></button>
+      <p class="status" id="status" role="status"></p>
     </div>
     <div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S"><span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>
-    <p class="status" id="status" role="status"></p>
     <p class="sr" id="done" role="status"></p>
   </section>
   <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
+    <div class="sub" id="end-sub" hidden><button type="button" class="quiet ghost" tabindex="-1" aria-hidden="true" disabled><span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" id="end-undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>
     <button type="button" class="go" id="again" hidden>Go back to them</button></section>
   <p class="foot">To come back: <code>__COMMAND__</code>__HELD__</p>
 </main>
@@ -839,13 +847,14 @@ __TOP__
   function finish(stay) {
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false; $("end").classList.remove("only");
+    $("end-sub").hidden = true;  // only while the result is about to open
     fitEnd();
     renderQueue(); renderProgress();
     var skipped = items.filter(function (it) { return it.skipped && it.again == null; }).length;
     if (!skipped) {
       setText("end-title", "You marked every answer.");
       $("again").hidden = true; $("end-note").hidden = false;
-      setText("end-note", "Opening your result\u2026");
+      setText("end-note", "Opening your result\u2026 Press Z to undo.");
       if (status.done) {
         setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
         focusCard(); return;
@@ -858,6 +867,7 @@ __TOP__
         setText("end-note", WORDS.change);
         focusCard(); return;
       }
+      $("end-sub").hidden = false;  // a click on its Undo is a Z
       if (queued.length) {  // a key pressed while the last mark saved (Z, say) comes first;
         // the result opens after it only when every answer is still marked
         queued.push({run: function () { if (ended && !changing) { leave(); } }});
@@ -1078,10 +1088,18 @@ __TOP__
   // ordinary mark line in marks.jsonl, so every step stays there).
   // The result opening: nothing more is taken back behind it (it is made from the marks
   // that stand when it opens), and the page says so.
-  var leaving = false;
-  function leave() { leaving = true; window.location.href = url("/result"); }
+  // It opens OPEN_MS after the last mark, so a Z in that moment still takes the mark back (the
+  // end card says "Opening your result"); after that the page has left.
+  var leaving = false, leaveTimer = null, OPEN_MS = 1000;
+  function leave() {
+    leaving = true;
+    leaveTimer = setTimeout(function () {
+      leaveTimer = null; window.location.href = url("/result"); }, OPEN_MS);
+  }
 
   function undo(key) {
+    $("end-sub").hidden = true;  // the end card goes with the undo
+    if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null; leaving = false; }
     if (leaving) { say(WORDS.opening, true); return; }
     if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked(key)) { return; }
@@ -1095,13 +1113,14 @@ __TOP__
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.
-  ["fail", "pass", "skip", "undo"].forEach(function (id) {
+  ["fail", "pass", "skip", "undo", "end-undo"].forEach(function (id) {
     $(id).addEventListener("mousedown", function (e) { e.preventDefault(); });
   });
   $("fail").addEventListener("click", function () { mark("fail"); });
   $("pass").addEventListener("click", function () { mark("pass"); });
   $("skip").addEventListener("click", function () { skip(); });
   $("undo").addEventListener("click", function () { undo(); });
+  $("end-undo").addEventListener("click", function () { act(function () { undo(true); }); });
 
   // The keys: → Pass and ← Fail (shown), 1 Pass and 2 Fail (an old habit, still working),
   // S skip, Z undo (U too). A held key or any key with Cmd, Ctrl or Alt does nothing.

@@ -26,7 +26,7 @@ import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from judgekeeper import keys, recorder, textio
@@ -39,6 +39,7 @@ EXTRAS = {"inspect": "inspect", "mlflow": "mlflow"}
 MAX_FILES = 5000
 MAX_SECONDS = 2
 MAX_DEPTH = 4
+MAX_BESIDE = 200  # files looked at beside the results file (other_names_beside)
 MAX_JSON = 200
 # Folders named like results: walked before the others in each folder, so the limits above
 # are spent on them first (a data/ folder of JSON documents never hides evals/results.json)
@@ -67,6 +68,7 @@ VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
 JSONL_SUFFIXES = (".jsonl", ".ndjson")  # one JSON object per line, under either name
 TABLE_SUFFIXES = (".csv", ".tsv", *JSONL_SUFFIXES)
 RESULTS_VARS = {"deepeval": "DEEPEVAL_RESULTS_FOLDER", "inspect": "INSPECT_LOG_DIR"}
+ENV_SIGNS = frozenset(RESULTS_VARS.values())  # a sign named after the variable that set it
 INSPECT_SKIP = "logs.json"  # Inspect's listing of a log folder, not a log
 INSPECT_MANIFESTS = (INSPECT_SKIP, "eval-set.json")  # Inspect's own files next to logs
 DEEPEVAL_TEMP = ".temp_test_run_data.json"  # DeepEval's file while a run goes on, not results
@@ -98,8 +100,9 @@ class Result:
     def too_big(self) -> bool:
         return self.tool != "mlflow" and self.size > MAX_BYTES
 
-    def too_big_message(self, command: str) -> str:
-        return f"{self.rel} is {megabytes(self.size)}. Run {command} to read it anyway."
+    def too_big_message(self, run: str) -> str:
+        """Its size, and `run`: the words that run the command reading it anyway (and where)."""
+        return f"{self.rel} is {megabytes(self.size)}. To read it anyway, {run}."
 
     def run_date(self) -> datetime | None:
         """The tool's own date for the results, when the file has one."""
@@ -109,9 +112,28 @@ class Result:
         """When the results were made: the tool's own date when the file has one, else the
         file's modified time. Always with a time zone."""
         if self._date is None:
-            self._date = _made_at(self) or datetime.fromtimestamp(
-                self.path.stat().st_mtime).astimezone()
+            self._date = _made_at(self) or file_time(self.path.stat().st_mtime)
         return self._date
+
+
+def local(moment: datetime) -> datetime:
+    """`moment` in this computer's time zone (one with no zone is local time already). On
+    Windows, local time near or before 1970 is unknown (localtime() takes no time before 1970,
+    and Python looks a day back), and asking raises OSError: then it stays in UTC."""
+    try:
+        return moment.astimezone()
+    except (OSError, OverflowError, ValueError):
+        return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def file_time(stamp: float) -> datetime:
+    """A time stamp (a file's modified time, say) as a local time: see local. One past what
+    datetime holds is 1970."""
+    try:
+        moment = datetime.fromtimestamp(stamp, UTC)
+    except (OSError, OverflowError, ValueError):
+        moment = datetime.fromtimestamp(0, UTC)
+    return local(moment)
 
 
 @dataclass
@@ -134,6 +156,8 @@ class Search:
     json_left: int = 0  # JSON files past MAX_JSON, never looked into
     # (rel, columns): answers under other column names, no grade (other_answers): named only
     other_columns: list[tuple[str, list[str]]] = field(default_factory=list)
+    # NEWEST_RUN note -> (the older run it names, the words it was made of)
+    older_runs: dict[str, tuple[Path, dict[str, str]]] = field(default_factory=dict)
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -257,6 +281,55 @@ def answers_only(path: Path) -> bool:
     except mapper.MapError as e:
         return str(e) == mapper.NO_VERDICTS
     return False
+
+
+def other_names_beside(read: Path, limit: int = 3) -> list[tuple[str, list[str], bool]]:
+    """The tables in the folder of the results file `read`, newer than it, that hold answers
+    under other column names (a question column and an answer column, own_format's words): at
+    most `limit`, newest first, as (name, columns, whether they have grades). judgekeeper
+    reads none of them as results; a grade is as mapper.guess finds one. A table it does
+    read, a file in a folder below and a table with no question or no answer are left out."""
+    from judgekeeper import mapper, own_format
+
+    read = Path(read)
+    try:
+        since = read.stat().st_mtime
+        entries = sorted(os.scandir(read.parent), key=lambda e: e.name)[:MAX_BESIDE]
+    except OSError:
+        return []
+    newer = []
+    for entry in entries:
+        path = Path(entry.path)
+        if entry.name.startswith(".") or path == read or kind(entry) != FILE \
+                or path.suffix.lower() not in TABLE_SUFFIXES:
+            continue
+        try:
+            changed = entry.stat(follow_symlinks=False).st_mtime
+        except OSError:
+            continue
+        if changed > since:
+            newer.append((changed, path))
+    out = []
+    for _, path in sorted(newer, key=lambda x: x[0], reverse=True):
+        try:
+            columns = table_columns(path)
+            if is_table(columns) or is_answers_table(columns) or is_records(columns) or \
+                    not all(any(mapper._is(c, words) for c in columns)
+                            for words in (own_format.INPUT_WORDS, own_format.OUTPUT_WORDS)):
+                continue
+            try:
+                mapper.guess(_first_units(path, mapper.SAMPLE_UNITS))
+                graded = True
+            except mapper.MapError as e:
+                if str(e) != mapper.NO_VERDICTS:
+                    continue
+                graded = False
+        except (OSError, ValueError, RecursionError):
+            continue
+        out.append((path.name, columns, graded))
+        if len(out) == limit:
+            break
+    return out
 
 
 def other_answers(path: Path) -> bool:
@@ -395,7 +468,7 @@ def store_facts(path: Path) -> tuple[datetime | None, int | None]:
         if "runs" in tables:
             (ms,) = con.execute("select max(start_time) from runs").fetchone()
             if isinstance(ms, int | float):
-                newest = datetime.fromtimestamp(ms / 1000).astimezone()
+                newest = file_time(ms / 1000)
         if "assessments" in tables:
             (count,) = con.execute("select count(*) from assessments").fetchone()
         if count == 0 and "metrics" in tables and con.execute(
@@ -469,7 +542,7 @@ def _made_at(result: Result) -> datetime | None:
             return _parse_date(stamp)
         if result.tool == "deepeval":
             m = DEEPEVAL_RUN.fullmatch(result.path.name)
-            return datetime(*map(int, m.groups())).astimezone() if m else None
+            return local(datetime(*map(int, m.groups()))) if m else None
         if result.tool == "inspect" and result.path.suffix.lower() == ".json":
             m = _CREATED.search(_head(result.path))
             return _parse_date(m[1].decode("utf-8", errors="replace")) if m else None
@@ -484,7 +557,7 @@ def _parse_date(text) -> datetime | None:
     if not isinstance(text, str) or not text:
         return None
     try:
-        return datetime.fromisoformat(text).astimezone()
+        return local(datetime.fromisoformat(text))
     except ValueError:
         return None
 
@@ -661,8 +734,11 @@ class _Walk:
                     link = entry.is_symlink()
                     is_dir = not link and entry.is_dir(follow_symlinks=False)
                     is_file = not (link or is_dir) and entry.is_file(follow_symlinks=False)
-                    if link and _results_like(Path(entry.path)) and entry.is_file():
-                        self.skip(Path(entry.path), LINK)
+                    if link and _results_like(Path(entry.path)):
+                        if entry.is_file():
+                            self.skip(Path(entry.path), LINK)
+                        elif not os.path.exists(entry.path):  # nothing at its end
+                            self.skip(Path(entry.path), LINK_TO_NOTHING)
                 except OSError:  # it can't be told what it is (/dev/fd/3 from /): skipped
                     continue
                 if link:
@@ -865,7 +941,7 @@ def search(root: str | Path) -> Search:
                     walk.add("records", Path(entry.path), entry.stat().st_size)
         if store is not None and store.is_file():
             walk.add("mlflow", store, store.stat().st_size)
-        elif store is not None and store.is_dir():
+        elif store is not None and is_mlflow_folder(store):  # its name is not enough
             walk.add("mlflow", store)
         for entry in sorted(os.scandir(root), key=lambda e: e.name):
             try:
@@ -912,13 +988,27 @@ def search(root: str | Path) -> Search:
     return walk.search
 
 
+def answers_as_table(found: Search, root: Path) -> None:
+    """--tool table asks for a table: the answers with no grade (answers_only) are read as
+    one, also beside another tool's results (where _answers_alone leaves them out), never
+    those of a project below (owner)."""
+    root = Path(root).resolve()
+    kept = [(path, size) for path, size in found.answers_only if owner(path, root) is None]
+    if kept and not found.results.get("table"):
+        found.results["table"] = [Result("table", path, path.relative_to(root).as_posix(), size)
+                                  for path, size in kept]
+        found.answers_read = True
+
+
 def _answers_alone(found: Search, root: Path) -> bool:
     """Whether answers with no grade are all `root` has: no results or table that can't be
     read, no sign of any eval tool, nothing in a format of its own (own_format.search), no
-    records above. Results or a tool's sign in a project below are its own (owner), never
-    read here, so they never stop these answers being read. A file of questions and answers
-    never takes the place of an LLM-as-a-judge's results here; with them, the folder is the
-    project, so results in the project folder above are not read in their place."""
+    records above. A variable set in the shell (ENV_SIGNS) whose folder holds no results is
+    no sign: it is set for every folder. Results or a tool's sign in a project below are its
+    own (owner), never read here, so they never stop these answers being read. A file of
+    questions and answers never takes the place of an LLM-as-a-judge's results here; with
+    them, the folder is the project, so results in the project folder above are not read in
+    their place."""
     from judgekeeper import own_format
 
     root = Path(root).resolve()
@@ -927,7 +1017,8 @@ def _answers_alone(found: Search, root: Path) -> bool:
                         for rs in found.results.values() for r in rs)
             and not any(owner(root / sign.rstrip("/"), root) is None
                         for signs in found.signs.values() for sign in signs if "/" in sign)
-            and not any("/" not in sign for signs in found.signs.values() for sign in signs)
+            and not any("/" not in sign and sign not in ENV_SIGNS
+                        for signs in found.signs.values() for sign in signs)
             and not _own_results(own_format.search(root)) and records_above(root) is None)
 
 
@@ -941,6 +1032,19 @@ def owner(path: Path, root: Path) -> Path | None:
     for folder in reversed(path.parents):
         if folder == root or not folder.is_relative_to(root):
             continue
+        if is_project(folder) and not _left_empty(folder):
+            return folder
+    return None
+
+
+def holder_below(path: Path, root: Path) -> Path | None:
+    """The nearest project of its own to `path` (a file found from `root`) below `root`: the
+    one a run there reads it in (owner gives the first on the way down). None when it is
+    `root`'s own."""
+    root = Path(root).resolve()
+    for folder in Path(os.path.abspath(path)).parents:
+        if folder == root or not folder.is_relative_to(root):
+            return None
         if is_project(folder) and not _left_empty(folder):
             return folder
     return None
@@ -964,6 +1068,8 @@ def holds_results(found: Search) -> bool:
 
 
 LINK = "a link: judgekeeper doesn't follow links"
+LINK_TO_NOTHING = "a link to a file that is not there"
+LINKS = (LINK, LINK_TO_NOTHING)
 NOT_REGULAR = "is not a regular file (a named pipe or a device)"
 ABOVE = "in the folder above"
 NOT_UTF8 = "not saved as UTF-8"
@@ -1032,14 +1138,17 @@ def _left_empty(folder: Path) -> bool:
 
 def nested_results(found: Search, answers: bool = False) -> list[str]:
     """The projects below the folder searched (`found.nested`) that hold results judgekeeper
-    reads, there or in a project inside them (named in turn), by their path from it;
-    `answers`: answers with no grade too (to name them)."""
+    reads, by their path from it; one that holds none of its own, the projects inside it
+    that do (a run there would only name them); `answers`: answers with no grade too (to
+    name them)."""
     out = []
     for folder in found.nested:
         below = search(folder)
-        if holds_results(below) or answers and below.answers_read or \
-                nested_results(below, answers):
-            out.append(folder.relative_to(found.root).as_posix())
+        rel = folder.relative_to(found.root).as_posix()
+        if holds_results(below) or answers and below.answers_read:
+            out.append(rel)
+        else:
+            out += [f"{rel}/{inner}" for inner in nested_results(below, answers)]
     return out
 
 
@@ -1218,11 +1327,15 @@ def _run_of(path: Path):
 
 NEWEST_RUN = ("Read DeepEval's newest run, {read} ({read_day}). {other} holds an older run "
               "({other_day}). To check it, run `{command}`.")
+# the older run is another eval than the one marked (project.other_eval): that command stops
+NEWEST_RUN_APART = ("Read DeepEval's newest run, {read} ({read_day}). {other} holds an older "
+                    "run ({other_day}), with other questions. To check it, put it in a folder "
+                    "of its own and run `{program}` there.")
 
 
 def _day(result: Result) -> str:
     """"1 Oct", in local time."""
-    day = result.date().astimezone()
+    day = local(result.date())
     return f"{day.day} {MONTHS[day.month - 1]}"
 
 
@@ -1249,9 +1362,12 @@ def _prefer_saved_runs(found: Search) -> None:
             if theirs is None or ours is None or theirs == ours:
                 continue
             read, other = (copy, newest) if copy.date() > newest.date() else (newest, copy)
-            found.notes.append(NEWEST_RUN.format(
-                read=read.rel, read_day=_day(read), other=other.rel, other_day=_day(other),
-                command=f"{textio.program()} {textio.quote_arg(other.rel)}"))
+            words = {"read": read.rel, "read_day": _day(read), "other": other.rel,
+                     "other_day": _day(other)}
+            note = NEWEST_RUN.format(
+                **words, command=f"{textio.program()} {textio.quote_arg(other.rel)}")
+            found.notes.append(note)
+            found.older_runs[note] = (other.path, words)
             if read is copy:  # the results folder's runs are older: the copy is read alone
                 runs = [r for r in runs if r not in saved]
                 break

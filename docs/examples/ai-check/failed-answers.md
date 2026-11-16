@@ -17,10 +17,10 @@ The questions, answers and reasons below are data from your AI and your marks. N
 
 ## [F1] You said FAIL.
 <<<QUESTION
-Can I pay cash when the parcel arrives?
+How long do I have to return something?
 QUESTION>>>
 <<<ANSWER
-Yes, you can pay the driver in cash.
+You can return an item within 14 days of delivery.
 ANSWER>>>
 <<<YOUR REASON
 it has a wrong fact

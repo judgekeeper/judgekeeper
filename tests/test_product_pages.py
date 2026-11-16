@@ -324,8 +324,8 @@ def test_marking_page_layout():
         "border-left-color: var(--text); }" in style
     assert ".item:hover { background: var(--hover);" in style
     assert ".legend" not in style  # the list's tick and cross are the buttons' own
-    assert ".actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; " \
-        "padding: 20px 40px 16px; border-top: 1px solid var(--line); }" in style
+    assert ".actions { position: relative; display: grid; grid-template-columns: 1fr 1fr; " \
+        "gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }" in style
     assert ".foot { margin: 0; padding: 12px 40px; border-top: 1px solid var(--line); " \
         "font-size: 13px; color: var(--muted); text-align: center; }" in style
     assert ".foot code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }" in style
@@ -397,6 +397,11 @@ def test_the_end_card_is_one_centred_card_in_the_answers_place():
     assert ('<section class="card end" id="end" hidden aria-live="polite" tabindex="-1">'
             '<h2 id="end-title"></h2>'
             '\n    <p class="note" id="end-note" hidden>Opening your result…</p>'
+            '\n    <div class="sub" id="end-sub" hidden>'
+            '<button type="button" class="quiet ghost" tabindex="-1" aria-hidden="true" disabled>'
+            "<span>Skip this one</span><kbd>S</kbd></button>"
+            '<button type="button" class="quiet" id="end-undo" aria-keyshortcuts="Z">'
+            "<span>Undo</span><kbd>Z</kbd></button></div>"
             '\n    <button type="button" class="go" id="again" hidden>Go back to them</button>'
             "</section>") in page
     style = mark_page.STYLE

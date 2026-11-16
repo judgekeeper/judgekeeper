@@ -328,7 +328,7 @@ def test_several_tools(here, capsys):
     assert "Saved results from more than one eval tool:" in out
     assert assert_one_next_at_the_end(out) == (
         "Next: choose which eval tool's results to check (records, promptfoo), then run "
-        "`judgekeeper --tool NAME`.")
+        "`judgekeeper --tool records` or `judgekeeper --tool promptfoo`.")
     assert not (here / ".judgekeeper" / "judge.json").exists()
     code, out, _ = run(capsys, "--tool", "promptfoo")
     assert code == 0
@@ -342,7 +342,8 @@ def test_several_judges(here, capsys):
     assert code == 3
     assert assert_one_next_at_the_end(out) == (
         "Next: choose which LLM-as-a-judge to check ('helpfulness', 'safety'), then run "
-        "`judgekeeper --metric NAME`.").replace("'", '"' if sys.platform == "win32" else "'")
+        "`judgekeeper --metric helpfulness` or `judgekeeper --metric safety`."
+    ).replace("'", '"' if sys.platform == "win32" else "'")
     code, out, _ = run(capsys, "--metric", "safety")
     assert code == 0, out
     assert "LLM-as-a-judge:  safety, claude-opus-5" in out
@@ -509,7 +510,8 @@ def test_own_format_questions_take_their_flag(here, capsys):
     code, out, _ = run(capsys)
     assert code == 3
     line = assert_one_next_at_the_end(out)
-    assert "which LLM-as-a-judge to check" in line and "`judgekeeper --metric NAME`" in line
+    assert "which LLM-as-a-judge to check" in line and "NAME" not in line
+    assert line.endswith("or `judgekeeper --metric all`.")  # every judge, one at a time
     code, out, _ = run(capsys, "--metric", "Safe wording")
     assert code == 3
     assert f"`judgekeeper --metric {quote_arg('Safe wording')} --yes`" in \

@@ -12,7 +12,7 @@ import types
 
 import pytest
 
-from judgekeeper import find, start, start_label
+from judgekeeper import find, start, start_label, textio
 from judgekeeper.cli import main
 from tests.start_projects import inspect_data, split, table_project
 
@@ -134,8 +134,28 @@ def test_an_empty_promptfoo_results_file_is_named_not_exported(tmp_path, capsys)
     code, out = run(capsys, tmp_path)
     assert code == 2, out
     assert "results.json is empty, so judgekeeper can't read it." in out
-    assert "`promptfoo eval -o results.json`" in out and "latest" not in out
+    save = out.split("`promptfoo eval -o ")[1].split("`")[0]
+    assert save.strip('"').replace("\\", "/").endswith("results.json") and "latest" not in out
+    assert "%USERPROFILE%" not in save  # PowerShell doesn't read it, so no command holds it
     assert "no saved results file" not in out.lower() and "own database" not in out
+
+
+def test_on_windows_the_save_command_for_an_empty_file_never_holds_the_home_folder(
+        tmp_path, capsys, monkeypatch):
+    """The line may say %USERPROFILE%\\..., the command to paste never does."""
+    proj = tmp_path / "home" / "proj"
+    proj.mkdir(parents=True)
+    (tmp_path / "other").mkdir()
+    (proj / "promptfooconfig.yaml").write_text("description: x\n", encoding="utf-8")
+    (proj / "results.json").write_bytes(b"")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.chdir(tmp_path / "other")
+    monkeypatch.setattr(textio, "is_windows", lambda: True)
+    code, out = run(capsys, proj)
+    assert code == 2, out
+    save = out.split("`promptfoo eval -o ")[1].split("`")[0]  # a line may say it from the home
+    assert save.strip('"').replace("\\", "/").endswith("results.json"), out  # folder, a command
+    assert "%USERPROFILE%" not in save, out  # shorter from here, or in full, never the home form
 
 
 @pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0,

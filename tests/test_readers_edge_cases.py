@@ -98,7 +98,8 @@ def test_a_judge_named_0_1_column_beside_a_score_column_asks_which(here, capsys)
     assert "llm_judge (60 answers)" in out
     assert "passed (60 answers)" in out
     assert out.index("llm_judge (60 answers)") < out.index("passed (60 answers)")
-    assert "--metric NAME" in assert_one_next_at_the_end(out)
+    line = assert_one_next_at_the_end(out)
+    assert "`judgekeeper --metric llm_judge`" in line and "NAME" not in line
 
 
 def test_a_judge_named_0_1_column_beside_a_verdict_column_asks_which(here, capsys):
@@ -109,7 +110,8 @@ def test_a_judge_named_0_1_column_beside_a_verdict_column_asks_which(here, capsy
     assert code == 3, out
     assert "http://127.0.0.1" not in out
     assert out.index("llm_judge (60 answers)") < out.index("verdict (60 answers)")
-    assert "--metric NAME" in assert_one_next_at_the_end(out)
+    line = assert_one_next_at_the_end(out)
+    assert "`judgekeeper --metric llm_judge`" in line and "NAME" not in line
     code, out = run(capsys, "--metric", "llm_judge")
     assert code == 0, out
     assert "Your LLM-as-a-judge passed 30 answers and failed 30." in flat(out)
