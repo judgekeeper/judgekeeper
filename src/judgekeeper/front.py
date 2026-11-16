@@ -1641,11 +1641,15 @@ def _beside_a_session(folder: Path) -> list[str]:
     """The folders below `folder` that hold results, when one is a project with a session of
     its own (find.nested_results) and the others hold the rest, none in `folder` itself or a
     tool's own folder there: projects of their own, never one session for them."""
-    if not project.is_project(folder) or not _sessions_below(folder):  # a folder that is no
+    sessions = _sessions_below(folder)
+    if not project.is_project(folder) or not sessions:  # a folder that is no
         # project reads the files in no project below and names the projects (_tool_below)
         return []
     found = find.search(folder)
     nested = find.nested_results(found)
+    nested += [name for name, _ in sessions if name not in nested and any(
+        how in find.LINKS for _, how in find.search(folder / name).skipped)]  # its results
+    # a link: its session is named still
     if not nested or len(_sessions_below(folder, nested)) < len(nested) or any(
             "/" not in sign for signs in found.signs.values() for sign in signs):
         return []
