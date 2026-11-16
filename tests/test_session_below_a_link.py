@@ -13,6 +13,7 @@ from tests.start_projects import split, table_project
 from tests.test_services_in_one_repo import _run
 
 NAMED = "ext/ and sl/ hold eval results"
+LINK = str(Path("..") / "ext" / "graded.csv")  # Windows reads a link's target with backslashes
 
 
 def _top(tmp_path, monkeypatch, name: str) -> Path:
@@ -40,7 +41,7 @@ def _sl(capsys, monkeypatch, top: Path, results: Path, link: str | None) -> Path
     return sl
 
 
-def _v5(tmp_path, capsys, monkeypatch, name: str, link: str | None = "../ext/graded.csv"):
+def _v5(tmp_path, capsys, monkeypatch, name: str, link: str | None = LINK):
     """The repository top: ext/graded.csv (loose, 40 rows) and sl/ with a session."""
     top = _top(tmp_path, monkeypatch, name)
     loose = table_project(top / "ext", split(20, 20), name="graded.csv", tag="v5q")
@@ -84,7 +85,7 @@ def test_a_session_on_a_link_to_nothing_is_named_beside_a_loose_results_file(
         tmp_path, capsys, monkeypatch):
     top, sl = _v5(tmp_path, capsys, monkeypatch, "dangling")
     (sl / "results.csv").unlink()
-    (sl / "results.csv").symlink_to("../ext/missing.csv")
+    (sl / "results.csv").symlink_to(str(Path("..") / "ext" / "missing.csv"))
     code, said = _run(capsys, monkeypatch, top)
     assert code == 3, said
     assert NAMED in said, said
