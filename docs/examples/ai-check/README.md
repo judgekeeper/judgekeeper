@@ -18,21 +18,26 @@ replacement.
 - `results.csv`: the 20 questions (`input`) and the bot's answers (`output`), with no grades.
 - `terminal-1.txt`: what `judgekeeper` printed. The first run found the answers and opened the
   marking page. After every answer was marked, the second run printed the result.
-- `marks.jsonl`: the marks, made on the marking page, one line per click. A reason was added
-  on the result page to each failed answer it listed.
+- `marks.jsonl`: the first run's marks, one line per mark. They were not clicked by hand: a
+  script sent each one to the marking page through the page's own save call, the one a click
+  makes. A reason was added the same way, through the result page's save call, to each failed
+  answer it listed.
 - `report.html`: the result page. Open it in your browser.
 - `failed-answers.md`: the answers failed, with the reasons, for a coding agent.
 
 The result: 12 of 20 answers passed, about 60%, between 39% and 78%. Of the 8 failed, 4 are
-kept aside to test a fix, so the result lists the other 4: 1 with a wrong fact, 1 that leaves
-out something important, 1 that doesn't answer the question, 1 unsafe.
+kept aside to test a fix, so the result lists the other 4: 1 with a wrong fact, 1 that
+doesn't answer the question, 1 that leaves out something important and 1 that is unsafe or
+not allowed.
 
 ## The second run
 
-The bot's prompt was changed, and it answered the same 20 questions again.
+The bot's prompt was changed, and it answered the same 20 questions again. The new answers were
+saved over `results.csv`, as judgekeeper's docs say, and `judgekeeper` was run again.
 
-- `results-after.csv`: the new answers. 6 of them say something new; the other 14 say the
-  same thing in new words.
+- `results-after.csv`: the new answers, the file that was saved over `results.csv`. 6 of them
+  say something new; the other 14 say the same thing in new words. (`results.csv` here is the
+  first run's.)
 - `terminal-2.txt`: what `judgekeeper` printed. The first command opened the marking page for
   the new answers; after every answer was marked, the second printed the result.
 
@@ -44,4 +49,4 @@ from Fail to Pass, with none breaking. If your change fixes about 2 in 3 of them
 about 9 kept-aside questions that failed before your change; you had 4. Add about 25 more
 questions." This example uses 20 questions, so a clear answer was not possible.
 
-Made with judgekeeper 1.2.0 on 2026-11-12.
+Made with judgekeeper 1.2.0 on 2026-11-15.
