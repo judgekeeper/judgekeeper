@@ -1136,13 +1136,32 @@ def test_running_text_is_justified_only_once_the_columns_are_full_width():
     # a path wraps after a "/" there, so the line before it isn't left short
     assert "white-space: normal" in _rule(".gx-text code.path", wide)
     paths = [c for c in _all(_main(GUIDE), "code") if "path" in c.classes()]
-    assert len(paths) == 5
+    assert len(paths) == 4
     text = GUIDE.read_text(encoding="utf-8")
     assert text.count('<code class="path">.judgekeeper/<wbr>') == 4
-    # the AI-check band's path stays on one line: its band is left-aligned, so no wide gaps
-    assert '<code class="path">.judgekeeper/fix/failed-answers.md</code>' in text
-    assert "white-space: nowrap" in _rule("#ai-check .gx-text code.path")
-    assert "text-align: left" in _rule("#ai-check .gx-text p")
+    # the AI-check band names no path, so it is justified like the rest of the Guide
+    assert not [sel for sel, _ in _rules() if sel.startswith("#ai-check")]
+
+
+def test_the_guides_ai_check_says_what_ai_and_what_it_costs_in_few_words():
+    """The band says which AI it means (a chatbot, an agent, any AI that answers questions),
+    one line per step, and what running the AI on the questions may cost."""
+    band = _by_id(GUIDE, "ai-check")
+    paras = [_flat(p) for p in _all(band, "p") if "gx-small" not in p.classes()]
+    assert paras[:6] == [
+        ("For a chatbot, agent or any AI that answers questions. Save its answers in a CSV, TSV "
+         "or JSONL file with input and output columns and no grades."),
+        "1. Find: run judgekeeper in your project folder. It finds your answers.",
+        ("2. Mark: mark each answer Pass or Fail. On the result page, add a reason to the failed "
+         "ones."),
+        "3. Measure: from 10 marks, see how many passed, with a range.",
+        ("4. Fix: judgekeeper saves the failed answers, apart from a few kept aside, with a prompt "
+         "for your coding agent to improve your AI’s prompt."),
+        ("5. Re-check: run your AI again and mark the new answers. On the questions kept aside, "
+         "judgekeeper counts how many were fixed and how many broke, and says whether the change "
+         "is more than a coincidence.")]
+    small = [_flat(p) for p in _all(band, "p", "gx-small")]
+    assert "Your AI runs once for each question, so this may use your API credits." in small
 
 
 def test_the_guides_commands_look_like_terminal_lines():
@@ -1735,7 +1754,6 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     assert [c.text() for c in paths] == [".judgekeeper/fix/mistakes.md",
                                          ".judgekeeper/fix/marked-answers.csv",
                                          ".judgekeeper/fix/marked-answers.csv",
-                                         ".judgekeeper/fix/failed-answers.md",
                                          ".judgekeeper/records/"]
     assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
 
