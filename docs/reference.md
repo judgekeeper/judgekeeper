@@ -193,9 +193,9 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 
 ## Check your AI's answers (no grades)
 
-You don't need an LLM-as-a-judge to start. A CSV, TSV or JSONL file with an `input` column (the question) and an `output` column (your AI's answer), and no `verdict` or score column, takes this path: you mark each answer Pass or Fail on the usual marking page. [An example run](examples/ai-check/README.md) has every file it makes.
+You don't need an LLM-as-a-judge to start. This is for a chatbot, agent or any AI that answers questions. A CSV, TSV or JSONL file with an `input` column (the question) and an `output` column (your AI's answer), and no `verdict` or score column, takes this path: you mark each answer Pass or Fail on the usual marking page. [An example run](examples/ai-check/README.md) has every file it makes.
 
-**No answers yet?** When judgekeeper finds no results and no sign of an eval tool in the folder, it prints a prompt for your coding agent (Claude Code, Cursor or Codex). The agent writes about 40 test questions, runs your AI on each one, and saves the questions and answers in `results.csv`, with no grades. Running your AI may use your API key. A folder with a promptfoo, DeepEval, Inspect AI or MLflow setup gets that tool's steps instead.
+**No answers yet?** When judgekeeper finds no results and no sign of an eval tool in the folder, it prints a prompt for your coding agent (Claude Code, Cursor or Codex). The agent writes about 40 test questions, runs your AI on each one, and saves the questions and answers in `results.csv`, with no grades. Your AI runs once for each question, so this may use your API credits. A folder with a promptfoo, DeepEval, Inspect AI or MLflow setup gets that tool's steps instead.
 
 **The result.** From 10 marks, the result says how many answers you passed and the pass rate with a range. Your answers are a sample of what people will ask, so there is a range even when every answer is marked; more answers make it narrower. 6 of 10 passed gives between 31% and 83%. In the example, 12 of 20 passed: about 60%, between 39% and 78%.
 

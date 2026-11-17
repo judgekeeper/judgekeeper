@@ -15,7 +15,7 @@
   </p>
 </div>
 
-An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong. No LLM-as-a-judge? judgekeeper can also check your AI's answers directly (see below).
+An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong. No LLM-as-a-judge? judgekeeper can also check the answers of your chatbot, agent or any AI that answers questions (see below).
 
 ![judgekeeper finds the results, opens the marking page, and shows how often the LLM-as-a-judge agrees with you.](https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/demo.webp)
 
@@ -46,12 +46,12 @@ In your project, judgekeeper reads your results files and writes only in `.judge
 
 ## No LLM-as-a-judge? Check your AI's answers
 
-The same 5 steps work on your AI's own answers. Give judgekeeper a CSV, TSV or JSONL file with `input` and `output` columns and no grades. No file yet? A coding agent (Claude Code, Cursor or Codex) can make one.
+For a chatbot, agent or any AI that answers questions. Save its answers in a CSV, TSV or JSONL file with `input` and `output` columns and no grades. No answers yet? `judgekeeper` prints a prompt for your coding agent (Claude Code, Cursor or Codex) to write about 40 test questions and save your AI's answers. Your AI runs once for each question, so this may use your API credits.
 
-1. **Find:** `judgekeeper` finds your answers. No answers yet? It prints a prompt for your coding agent to write about 40 test questions and save your AI's answers.
-2. **Mark:** mark each answer Pass or Fail. On the result page, add a reason to the failed answers it lists.
+1. **Find:** run `judgekeeper` in your project folder. It finds your answers.
+2. **Mark:** mark each answer Pass or Fail. On the result page, add a reason to the failed ones.
 3. **Measure:** from 10 marks, see how many passed, with a range.
-4. **Fix:** the failed answers that are not kept aside are saved in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
+4. **Fix:** judgekeeper saves the failed answers, apart from a few kept aside, in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
 5. **Re-check:** run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.
 
 [An example run](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md).
