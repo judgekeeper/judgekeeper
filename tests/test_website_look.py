@@ -479,25 +479,23 @@ def test_home_is_the_hero_the_steps_the_public_datasets_and_the_closing_box():
     assert [s.attrs.get("id") for s in sections] == [None, "steps", "ai-check", "real", None]
 
 
-def test_home_tells_about_checking_an_ais_answers_in_a_grey_window_under_the_steps():
-    """No LLM-as-a-judge: a window like the closing one, titled "your AI's answers", with a
-    grey border (the green one stays the closing box's), one heading, one sentence, the
-    command to run and a link to the Guide's section. No cursor and no script."""
+def test_home_tells_about_checking_an_ais_answers_in_a_window_like_the_closing_one():
+    """No LLM-as-a-judge: a window like the closing one (green border, green button), titled
+    "your AI's answers", with one heading, one short line, the command to run and a link to
+    the Guide's section. No cursor and no script."""
     (box,) = [s for s in _all(_main(HOME), "section", "close") if s.attrs.get("id") == "ai-check"]
     (win,) = _all(box, "div", "close-win")
-    assert "ai-win" in win.classes()
+    assert win.classes() == {"close-win"}
     assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == "your AI's answers"
     assert _flat(_all(box, "h2")[0]) == "No LLM-as-a-judge? Check your AI's answers."
-    assert _flat(_all(box, "p")[0]) == (
-        "Your chatbot, agent or any AI that answers questions: mark its answers, see how many "
-        "pass, fix its prompt, and see what changed.")
+    assert _flat(_all(box, "p")[0]) == "For a chatbot, agent or any AI. Mark its answers Pass or Fail."
     (prompt,) = _all(box, "p", "close-prompt")
     assert _flat(prompt) == "$ judgekeeper results.csv"
     assert not _all(prompt, "span", "ck-cursor") and not _all(box, "script")
     (link,) = _all(box, "a")
-    assert "b-side" in link.classes()
+    assert "b-main" in link.classes()
     assert (link.attrs["href"], _flat(link)) == ("start.html#ai-check", "See the steps →")
-    assert "border-color: var(--slate)" in _rule(".close-win.ai-win")
+    assert ".ai-win" not in CSS
 
 
 def test_the_demo_card_keeps_one_height():
