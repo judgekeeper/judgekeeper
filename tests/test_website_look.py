@@ -479,18 +479,25 @@ def test_home_is_the_hero_the_steps_the_public_datasets_and_the_closing_box():
     assert [s.attrs.get("id") for s in sections] == [None, "steps", "ai-check", "real", None]
 
 
-def test_home_tells_about_checking_an_ais_answers_in_a_plain_box_under_the_steps():
-    """No LLM-as-a-judge: one heading, one sentence and a link to the Guide's section, in the
-    closing box's plain form (no window, no animation)."""
+def test_home_tells_about_checking_an_ais_answers_in_a_grey_window_under_the_steps():
+    """No LLM-as-a-judge: a window like the closing one, titled "your AI's answers", with a
+    grey border (the green one stays the closing box's), one heading, one sentence, the
+    command to run and a link to the Guide's section. No cursor and no script."""
     (box,) = [s for s in _all(_main(HOME), "section", "close") if s.attrs.get("id") == "ai-check"]
+    (win,) = _all(box, "div", "close-win")
+    assert "ai-win" in win.classes()
+    assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == "your AI's answers"
     assert _flat(_all(box, "h2")[0]) == "No LLM-as-a-judge? Check your AI's answers."
     assert _flat(_all(box, "p")[0]) == (
-        "The same 5 steps work on your AI's own answers: mark them, see how many pass, fix "
-        "your AI's prompt, and see what changed.")
+        "Your chatbot, agent or any AI that answers questions: mark its answers, see how many "
+        "pass, fix its prompt, and see what changed.")
+    (prompt,) = _all(box, "p", "close-prompt")
+    assert _flat(prompt) == "$ judgekeeper results.csv"
+    assert not _all(prompt, "span", "ck-cursor") and not _all(box, "script")
     (link,) = _all(box, "a")
-    assert (link.attrs["href"], _flat(link)) == ("start.html#ai-check",
-                                                 "How to check your AI's answers")
-    assert not _all(box, "div", "close-win") and not _all(box, "script")
+    assert "b-side" in link.classes()
+    assert (link.attrs["href"], _flat(link)) == ("start.html#ai-check", "See the steps →")
+    assert "border-color: var(--slate)" in _rule(".close-win.ai-win")
 
 
 def test_the_demo_card_keeps_one_height():
@@ -665,6 +672,7 @@ def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
     "On public datasets." (8 + 17 + 80 = 24 + 1 + 80 on a laptop, 8 + 17 + 56 on a phone)."""
     close = _all(_main(HOME), "section", "close")[-1]
     (win,) = _all(close, "div", "close-win")
+    assert "ai-win" not in win.classes()
     (bar,) = _all(win, "div", "rt-bar")
     assert _flat(_all(bar, "span", "rt-title")[0]) == "your project"
     (prompt,) = _all(win, "p", "close-prompt")
