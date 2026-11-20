@@ -35,6 +35,7 @@ from types import SimpleNamespace
 from judgekeeper import marks, textio
 from judgekeeper.mapper import OUTPUT_WORDS, QUESTION_WORDS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
+from judgekeeper.records import derive_record_id
 from judgekeeper.redact import scrub
 from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
 
@@ -49,11 +50,14 @@ EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
 WORDS_SHOWN = 5
 WORD_WIDTH = 40  # characters of a word shown
 NO_MATCH, NOT_GRADED, MORE_THAN_ONE, BOTH = "no_match", "not_graded", "ambiguous", "both"
+NO_GRADE = "no_grade"  # a label in the results with no answer text: no graded line gave it one
 NO_DECISION = "no_decision"
+NO_TEXT = derive_record_id(None, None)  # the id of a label with no answer text
 BLANK = "blank"  # a row with an answer and an empty label cell
 SKIPPED = (  # (reason, one, many): said in this order
     (NO_MATCH, "{n} doesn't match any answer in your results (the answer text must be the same)",
      "{n} don't match any answer in your results (the answer text must be the same)"),
+    (NO_GRADE, "{n} label has no LLM-as-a-judge grade", "{n} labels have no LLM-as-a-judge grade"),
     (NOT_GRADED, "{n} is for an answer your LLM-as-a-judge didn't grade Pass or Fail",
      "{n} are for answers your LLM-as-a-judge didn't grade Pass or Fail"),
     (MORE_THAN_ONE, ("{n} matches more than one answer (add a question column to tell them "
@@ -472,7 +476,8 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         if label.key is not None:  # from the results: its answer's own id
             hits = by_base.get(label.key, [])
             if not hits:
-                plan.skip(NOT_GRADED if label.key in left_keys else NO_MATCH)
+                plan.skip(NOT_GRADED if label.key in left_keys
+                          else NO_GRADE if label.key == NO_TEXT else NO_MATCH)
                 continue
         else:
             output, question = _nfc(label.output), _nfc(label.input)
