@@ -100,6 +100,7 @@ def test_there_is_no_github_action():
 def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
+    entries = entries[1:] if entries[0] == "Unreleased" else entries  # changes not released yet
     assert entries == [VERSION, "1.1.2", "1.1.1", "1.1.0", "1.0.2", "1.0.1", "1.0.0"]  # the earlier ones are on PyPI
     assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1): see the PyPI release history.")
 
