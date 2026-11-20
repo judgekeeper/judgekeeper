@@ -193,9 +193,17 @@ jobs:
           with open("results.csv", "w", encoding="utf-8") as f:
               f.write("\n".join(rows) + "\n")
           EOF
-          uvx --index-url "$INDEX" "judgekeeper==$VERSION" --no-browser < /dev/null > out.txt 2>&1 || {
+          # As a person runs it: the CI variables are empty for this one command.
+          CI= GITHUB_ACTIONS= uvx --index-url "$INDEX" "judgekeeper==$VERSION" --no-browser < /dev/null > out.txt 2>&1 || {
             cat out.txt; exit 1; }
           cat out.txt
           grep -q "Step 1 of 5: Find" out.txt
           grep -Eq "http://127\.0\.0\.1:[0-9]+/\?token=" out.txt
-          uvx --index-url "$INDEX" "judgekeeper==$VERSION" --stop < /dev/null
+          CI= GITHUB_ACTIONS= uvx --index-url "$INDEX" "judgekeeper==$VERSION" --stop < /dev/null
+          # In a fresh folder, with the CI variables as GitHub sets them: no marking page.
+          cd .. && mkdir practice-ci && cp practice/results.csv practice-ci/ && cd practice-ci
+          CI=true GITHUB_ACTIONS=true uvx --index-url "$INDEX" "judgekeeper==$VERSION" --no-browser < /dev/null > out.txt 2>&1 || {
+            cat out.txt; exit 1; }
+          cat out.txt
+          grep -q "opens no marking page in CI" out.txt
+          test ! -e .judgekeeper/page.json

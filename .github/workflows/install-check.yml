@@ -97,6 +97,9 @@ jobs:
         shell: bash
         env:
           PYTHONUTF8: "1"
+          # judgekeeper opens no marking page in CI; the script reads that page's link.
+          CI: ""
+          GITHUB_ACTIONS: ""
           TOOL: ${{ matrix.tool }}
           VIA: ${{ matrix.via }}
         run: python scripts/install_check.py --tool "$TOOL" --via "$VIA" --source "$SOURCE" --work "$RUNNER_TEMP/install check"

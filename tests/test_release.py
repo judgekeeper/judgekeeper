@@ -325,6 +325,18 @@ def test_practice_release_installs_from_testpypi_on_three_systems():
         assert needed in steps, needed
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", " fix", " check"):
         assert key not in steps, key  # it never makes an AI call
+    # The page opens for a person, so that run clears the CI variables for its one command; a
+    # second run, with them set as GitHub sets them, opens no page and says so.
+    assert f"CI= GITHUB_ACTIONS= {uvx} --no-browser" in steps
+    assert f"CI=true GITHUB_ACTIONS=true {uvx} --no-browser" in steps
+    assert "opens no marking page in CI" in steps and "page.json" in steps
+
+
+def test_install_check_clears_the_ci_variables_for_its_runs():
+    """scripts/install_check.py reads the marking link, which judgekeeper prints only outside CI."""
+    step = next(s for s in _workflow("install-check.yml")["jobs"]["install-check"]["steps"]
+                if "install_check.py" in s.get("run", ""))
+    assert step["env"]["CI"] == "" and step["env"]["GITHUB_ACTIONS"] == ""
 
 
 def test_ci_builds_and_runs_the_installed_wheel_on_every_push():
