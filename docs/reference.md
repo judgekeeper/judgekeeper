@@ -13,8 +13,8 @@ In your project folder, in its virtual environment, `pip install judgekeeper`, t
 ```
 judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
             [--tracking-uri URI] [--pass-if RULE] [--label-map MAP] [--labels [FILE]]
-            [--judge-model NAME] [--yes] [--port PORT] [--no-browser]
-            [--new | --wait | --stop] [--version] [--debug]
+            [--judge-model NAME] [--before FILE] [--yes] [--port PORT]
+            [--no-browser] [--new | --wait | --stop] [--version] [--debug]
 ```
 
 Each run does the next step. A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there are fewer). If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks. None of these counts applies to an LLM-as-a-judge that gave every answer one grade: it gets its result at the first mark the other way.
@@ -55,6 +55,7 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 | `--label-map MAP` | More spellings of your LLM-as-a-judge's grades, e.g. `'good=pass,bad=fail'` (added to pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0); `=error` for a value that is no decision. Kept with your marks: later runs read the same way without it. A map given with `--labels` is this same map: it is saved for the project and also reads your LLM-as-a-judge's grades |
 | `--labels [FILE]` | Use Pass/Fail labels you already have as your marks: from FILE (CSV, TSV or JSONL with an answer and a label column), or with no FILE the human labels already in your results. See [Bring labels you already have](#bring-labels-you-already-have). Not kept: give it each time you want labels brought in |
 | `--judge-model NAME` | The LLM-as-a-judge's model, when the results do not record it. Given after marking started, it is written down with your marks, not a change |
+| `--before FILE` | Results with grades to compare these with, question by question, in place of the last results read here: exit 1 only when the change made it worse. Read the same way as these. See [Did your change make it worse?](#did-your-change-make-it-worse) |
 | `--yes` | Without a terminal: yes to the questions judgekeeper printed. Never to a choice of tool, LLM-as-a-judge or pass mark |
 | `--port PORT` | Port on 127.0.0.1 for the page (default 8765). `0` means any open port |
 | `--no-browser` | Print the page's link without opening a browser |
@@ -76,6 +77,27 @@ The page runs on 127.0.0.1 with a random token in its link.
 
 On your result page, say why you disagree on an answer. `fix` counts your reasons and suggests rule lines in `.judgekeeper/fix/suggestions.md`. The parts of your rule are buttons too: at most 6, the first five and the last; for a part with no button, use “Other…”.
 
+### Did your change make it worse?
+
+With results that have grades (from an LLM-as-a-judge or from code), each plain run also compares the newest results with the last graded results it read in this project, question by question, using those grades, not your marks. `--before FILE` compares with that file instead. The first run has nothing to compare with and says nothing more. The same results read again are compared with the same results as before, so the answer does not change.
+
+- A question is the same in both when its own test-case id is: an `id` column, a promptfoo test's description (when each test has its own), an Inspect AI sample id, a DeepEval test case's name, or the `target_id` given to `judgekeeper.record()`. Else it is its text (runs of spaces ignored), so a prompt written into each question needs an id to match. Questions in only one of the two are counted in one line and left out. When no question is in both, it says so and gives no result.
+- Fixed: Fail before, Pass now. Broke: Pass before, Fail now. A question with several answers is fixed when one failed before and all pass now, and broke when all passed before and one fails now. The rest are the same.
+- After the usual output it says how many were fixed, broke and stayed the same, then "Your change helped", "Your change made it worse", or "Can't tell yet" with which way it leans: clear when the exact two-sided sign test on fixed against broke is under 5% ([How the numbers are worked out](#how-the-numbers-are-worked-out)). With fewer than 5 questions in both, it always says "Can't tell yet".
+- It exits 1 only on "Your change made it worse", so a pipeline fails only then.
+- It keeps the last results in `.judgekeeper/last-graded.json` as hashes and grades only. Another LLM-as-a-judge or another setup of it (model, rule, pass mark, label map), or a file changed by hand, starts it again: those grades say nothing about a change to your AI.
+
+In GitHub Actions, upload your results as an artifact named `results` on `main`, then on a pull request:
+
+```yaml
+- env: { GH_TOKEN: "${{ github.token }}" }
+  run: |
+    id=$(gh run list -b main -w eval.yml -s success -L 1 --json databaseId -q '.[0].databaseId')
+    gh run download "$id" -n results -D main
+    mv main/results.json main-results.json
+    judgekeeper results.json --before main-results.json
+```
+
 ## mark: mark more answers
 
 ```
@@ -84,7 +106,7 @@ judgekeeper mark [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                  [--judge-model NAME] [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop]
 ```
 
-Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some, else the marking page. To change a mark, click it in the list.
+Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version` or `--before`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some, else the marking page. To change a mark, click it in the list.
 
 After your first 10 marks, about 1 in 20 answers comes back a second time, so judgekeeper can see how often your own marks change. Its card says you saw it before. Only your first mark counts. It adds about 5% more marks.
 
@@ -393,6 +415,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `fix/split-answers.json` | With answers and no grades: which questions you marked are kept aside, at random, to test a change to your AI later |
 | `fix/failed-answers.md` | With answers and no grades: the answers you failed that you can see, each question, the answer and your reason, grouped by your most common reason. Written again with each mark once there is a result, and removed when no answer you failed is listed (every one you can see passes now, or is kept aside); the next run says so once |
 | `fix/before.json` | With answers and no grades: your marked answers from your last results and the ones before them, as ids and hashes only, to count what was fixed and what broke after you change your AI |
+| `last-graded.json` | With grades in your results: the grades of the last results read and the ones before them, as question hashes and Pass or Fail only, and a hash of the LLM-as-a-judge's setup, to say whether your change made it worse |
 | `rules/` | Each rule `fix` tested, as `<hash>.txt`. Written only when your results hold the LLM-as-a-judge's rule |
 | `results-seen.json` | The setup last read, so a check with nothing new reads nothing again. Written by `judgekeeper check`, with an LLM-as-a-judge |
 | `verdicts/` | Each setup's grades on your marked answers (ids and grades only) |
@@ -430,7 +453,7 @@ The tests run on Linux, Windows and macOS.
 | exit code | meaning | commands |
 |---|---|---|
 | 0 | success: the step is done | all |
-| 1 | the drop's middle estimate is over 20 points, whichever word it says (Worse or Not sure): the new LLM-as-a-judge agrees with you over 20 points less on the answers you passed or failed | `check` |
+| 1 | the drop's middle estimate is over 20 points, whichever word it says (Worse or Not sure): the new LLM-as-a-judge agrees with you over 20 points less on the answers you passed or failed. For `judgekeeper` on results with grades: "Your change made it worse" ([Did your change make it worse?](#did-your-change-make-it-worse)) | `check`, `judgekeeper` |
 | 2 | usage error: bad arguments, a file it can't read, a place it can't write, a removed command, an error it didn't expect, or a results file given to `fix` or `check` from another eval tool or LLM-as-a-judge | all |
 | 3 | you are needed: the `Next:` line says what to do. For example: no eval results found, too few of one kind, a rule to change, a grade it doesn't know, or stopped at a question it cannot ask (no terminal) | all |
 | 130 | stopped with Ctrl-C. What was saved stays saved. It prints "Stopped." and a Next: line, unless the run had already printed its Next: line | all |

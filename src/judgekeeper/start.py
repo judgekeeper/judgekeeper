@@ -509,6 +509,7 @@ class Answer:
     mark: Mark = NO_MARK  # what the reader learned about this verdict (records.Mark)
     pass_mark: float | None = None  # the pass mark `score` was held against, when known
     pass_op: str | None = None  # how: ">=", ">", "<=" or "<"; None when only the data can tell
+    case: str | None = None  # the file's own test-case id, when it has one (_names_cases)
 
 
 @dataclass
@@ -574,6 +575,19 @@ def _mark_of(r: ScoreRecord, v, norm: Normaliser, threshold) -> tuple[float | No
     return _number(threshold), None
 
 
+def _names_cases(records: RecordList) -> bool:
+    """Whether the file's own ids name its test cases (Answer.case), in any format: the reader
+    kept them rather than making them from the text, and each id is one question in the file.
+    Inspect AI's reader writes "None" for every sample with no id, which names nothing."""
+    if records.ids_derived:
+        return False
+    questions: dict[str, set] = {}
+    for r in records:
+        if r.target_id:
+            questions.setdefault(str(r.target_id), set()).add(derive_record_id(r.input, None))
+    return all(len(q) == 1 for q in questions.values())
+
+
 def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normaliser,
                own_ids: bool = False, human_labels: bool = True) -> Pool:
     """The pool from the judge `metric`'s verdicts in `files`, newest file first. An answer
@@ -587,10 +601,14 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
     chosen: dict[str, Answer] = {}
     for source, records in files:
 
-        def key_of(r, records=records) -> str:
-            if own_ids and not records.ids_derived and r.target_id:
-                return str(r.target_id)
-            return derive_record_id(r.input, r.output, r.trajectory)
+        def own(r, records=records) -> bool:
+            return bool(own_ids and not records.ids_derived and r.target_id)
+
+        def key_of(r) -> str:
+            return str(r.target_id) if own(r) else derive_record_id(r.input, r.output,
+                                                                    r.trajectory)
+
+        cases = _names_cases(records)
 
         extra = records.per_metric.get(metric, {})
         threshold = None if extra.get("strict_mode") else extra.get("threshold")
@@ -644,7 +662,7 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                     reason=v.rationale or r.explanation or "", score=score,
                     fingerprint=make_fingerprint(_known(r.evaluator), r.created_at),
                     source=source, agent=r.agent(), mark=r.mark, pass_mark=pass_mark,
-                    pass_op=pass_op)
+                    pass_op=pass_op, case=str(r.target_id) if cases and r.target_id else None)
     pool.answers = list(chosen.values())
     return pool
 

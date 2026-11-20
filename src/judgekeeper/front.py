@@ -10,8 +10,12 @@ A person and a coding agent read the same output, and the agent follows the one 
 So the output holds counts, names, paths and the rule, never an answer's or an input's text,
 and `Next:` names only judgekeeper's commands or the person's eval tool. Without a terminal, a
 choice prints the flag that answers it and exits 3; a yes/no question is noted, the run goes
-on as if yes but writes nothing, and `--yes` then answers exactly those questions.
-No AI call and no key. Exit codes: 0 done, 3 the person is needed, 2 usage error, 130 Ctrl-C.
+on as if yes but writes nothing, and `--yes` then answers exactly those questions. One
+exception: on results with grades, the comparison with the results before (before_after.py)
+comes last, after the usual `Next:` line, and adds a second `Next:` when the change made it
+worse.
+No AI call and no key. Exit codes: 0 done, 1 the grades say the change made it worse
+(before_after.py, results with grades only), 3 the person is needed, 2 usage error, 130 Ctrl-C.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from judgekeeper import (
     __version__,
     background,
     batches,
+    before_after,
     find,
     judge_check,
     judge_setup,
@@ -272,6 +277,7 @@ class FrontTalk(start.Talk):
         self.few_fails = False  # Find said how few answers the LLM-as-a-judge failed
         self.before_damaged = False  # fix/before.json was damaged and this run replaced it
         self.marking = False  # the run is `mark` (_run)
+        self.before: str | None = None  # --before: the results file to compare with
         self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
         self.left_below: list[str] = []  # projects below whose files were left out (_tool_below)
         self.refresh()
@@ -448,15 +454,16 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         judge_model: str | None = None, yes: bool = False,
         port: int = DEFAULT_PORT, no_browser: bool = False, new: bool = False,
         wait: bool = False, stop: bool = False, labels: str | None = None,
-        given: bool = False) -> int:
+        given: bool = False, before: str | None = None) -> int:
     """`judgekeeper`. Returns the exit code. `labels`: --labels, a file's name or
-    labels.IN_RESULTS. `given`: the PATH was given on the command line (Talk.given)."""
+    labels.IN_RESULTS. `given`: the PATH was given on the command line (Talk.given). `before`:
+    --before, the results to compare these with."""
     options = {"tool": tool, "metric": metric, "experiment": experiment,
                "tracking_uri": tracking_uri, "pass_if": pass_if, "label_map": label_map,
                "judge_model": judge_model, "port": port,
                "no_browser": no_browser}
     talk = FrontTalk(yes=yes, path=path, options=options, new=new)
-    talk.labels, talk.given = labels, given
+    talk.labels, talk.given, talk.before = labels, given, before
     talk.refresh()
     return go(talk, Path(path), wait=wait, stop=stop, marking=False)
 
@@ -525,6 +532,24 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     ws = Workspace(found.root)
     if not found.graded:  # answers with no grade: the person marks each, no LLM-as-a-judge
         return _no_grades(talk, ws, found, wait, marking)
+    # the grades compared with the last ones read (or --before's file): a file that can't be
+    # read stops here, before anything is said
+    seen = None if marking else before_after.look(
+        talk, ws, found, talk.before, other_judge=bool(_why_start_over(talk, ws, found)))
+    try:
+        code = _graded(talk, ws, found, mapped, wait, marking)
+    except Stop:  # said why: the change is said after it, and nothing is written
+        if seen is not None and _say_change(talk, ws, seen, write=False):
+            raise Stop(before_after.EXIT_WORSE) from None
+        raise
+    if seen is None:
+        return code
+    return before_after.EXIT_WORSE if _say_change(talk, ws, seen) else code
+
+
+def _graded(talk: FrontTalk, ws: Workspace, found: start.Found, mapped, wait: bool,
+            marking: bool) -> int:
+    """The usual run on results with grades."""
     if no_grades.here(ws):  # a grade column added since: the marks are used as they are
         with page.one_at_a_time(ws.dir, talk.say):
             no_grades.to_graded(ws, found)
@@ -533,6 +558,23 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     if not marking and _find_anew(talk, ws, found):
         return _say(talk, found, mapped, wait)
     return _go_on(talk, found, mapped, wait, marking)
+
+
+def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
+                write: bool = True) -> bool:
+    """After the usual output: what the newest results did against the ones before (said only
+    when they were compared), and the results read kept for the next run (`write`: unless a
+    question went unanswered, which writes nothing). Whether it made it worse."""
+    c = seen.comparison
+    if c is not None and talk.before is None and seen.had and before_after.read(ws) is None:
+        c = None  # started over (another LLM-as-a-judge): the last results are not its baseline
+    for para in before_after.lines(c) if c is not None else ():
+        talk.say()
+        for line in para:
+            talk.para(line)
+    if write and not talk.noted and ws.start.is_file():
+        before_after.write(ws, seen.before, seen.now, seen.setup)
+    return c is not None and c.worse
 
 
 def _holder_of_kept(path: Path) -> Path | None:

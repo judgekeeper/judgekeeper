@@ -103,7 +103,8 @@ def test_each_flag_table_says_what_the_commands_help_says(command):
 def test_mark_has_the_flags_of_judgekeeper_and_says_so():
     section = _sections()[COMMANDS["mark"]]
     front, mark = _options(None), _options("mark")
-    assert {k: v for k, v in front.items() if k not in ("--version", "--debug")} == mark
+    assert {k: v for k, v in front.items() if k not in ("--version", "--debug", "--before")} \
+        == mark
     assert "the same flags as `judgekeeper`" in _flat(section)
     assert _usage_flags(section) == set(mark)
 

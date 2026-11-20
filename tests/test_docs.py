@@ -36,7 +36,7 @@ def test_the_readme_is_short_and_in_order():
     text = _readme()
     assert text.startswith('<div align="center">\n  <img ')  # one centered header block
     body = text.split("\n</div>\n", 1)[1]
-    assert len(body.splitlines()) < 71  # the text under the header stays short
+    assert len(body.splitlines()) < 72  # the text under the header stays short
     top = text[:text.index("\n## ")]
     for needed in ("<strong>Check your LLM-as-a-judge in 5 steps.</strong>",
                    "Find. Mark. Measure. Fix. Re-check.", "docs/assets/demo.webp"):

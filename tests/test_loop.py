@@ -18,7 +18,7 @@ import pytest
 from judgekeeper import __version__, background, label, marks, page, report_page, start, start_label
 from tests.page_http import retried
 from tests.start_projects import answer, promptfoo_project, records_project, split
-from tests.test_front import assert_one_next_at_the_end, next_lines, run
+from tests.test_front import assert_one_next_at_the_end, before_comparison, next_lines, run
 from tests.test_screens import PATH  # which path, for promptfoo's results.json
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
@@ -64,10 +64,15 @@ def _link(out: str) -> str:
 
 
 def _check(out: str, err: str = "") -> str:
+    """The checks every run's output passes; its Next: line. A comparison with the results
+    before comes after the usual output and its Next: line (before_after.lines)."""
     assert TAG.strip() not in out + err
     assert "token=" not in out + err
     assert out.startswith(f"judgekeeper {__version__}\n\n"), out
-    return assert_one_next_at_the_end(out)
+    return assert_one_next_at_the_end(before_comparison(out))
+
+
+CHANGED = "On the 36 questions in both results: fixed 0, broke 2, same 34."  # 20/16 -> 18/18
 
 
 def _click(ws, n=None, seconds=7, first=0):
@@ -443,6 +448,7 @@ def test_a_new_eval_run_keeps_the_marks_and_marking_goes_on(here, capsys, pages)
     assert _flat(out).count(ADDED) == 1  # the new answers join as a second batch
     assert "You marked 6 answers so far: " in out
     assert _check(out, err) == NEXT_KEEP
+    assert _flat(out[len(before_comparison(out)):]).startswith(CHANGED)  # then the comparison
     assert ws.pool.read_text(encoding="utf-8").endswith(pool)  # the answers marked are kept
     assert not list(ws.dir.glob("previous-*"))
 
@@ -460,6 +466,7 @@ def test_after_a_new_eval_run_the_result_goes_on(here, capsys, pages):
     assert ("This result is on 1 of 2 batches (36 answers). 36 newer answers need a few marks "
             "first.") in _flat(out)
     assert _check(out) == NEXT_RESULT
+    assert _flat(out[len(before_comparison(out)):]).startswith(CHANGED)  # then the comparison
 
 
 def test_the_same_results_say_nothing_about_running_again(here, capsys, pages):

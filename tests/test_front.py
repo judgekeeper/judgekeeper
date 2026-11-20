@@ -90,6 +90,14 @@ def assert_one_next_at_the_end(out: str) -> str:
     return next_lines(out)[0]
 
 
+def before_comparison(out: str) -> str:
+    """The usual output: what is said before the comparison with the results before
+    (before_after.lines), which comes last."""
+    m = re.search(r"^(On the \d+ questions? in both results:|No question is in both results)",
+                  out, flags=re.MULTILINE)
+    return out[:m.start()] if m else out
+
+
 START = 'Next: mark answers on the page until a "See the numbers so far" link appears, then click it.'
 
 
