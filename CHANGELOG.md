@@ -1,11 +1,14 @@
 # Changelog
 
-## 1.3.0 (unreleased)
+## 1.3.0 (2026-11-20)
 
 - Did your change make it worse? On results with grades, `judgekeeper` now also compares the newest results with the last ones it read, question by question, using the grades in them, not your marks. It says how many were fixed, broke and stayed the same, then whether the change helped, made it worse, or can't tell yet, and exits 1 only when it made it worse. `--before FILE` compares with that file instead, such as the results from `main` in CI. A question is matched by its own test-case id where the results have one (an `id` column, promptfoo test descriptions, Inspect AI sample ids, DeepEval test case names, `judgekeeper.record()`'s `target_id`), else by its text. The last results are kept in `.judgekeeper/last-graded.json` as hashes and grades only.
 - A damaged or hand-edited file in `.judgekeeper/` (`fix/split-answers.json`, `fix/split.json`, `fix/before.json`, `result.json`) no longer stops every run: judgekeeper says it is damaged and starts it again, or makes the result again from your marks.
 - judgekeeper no longer writes `fix/before.json` when `.judgekeeper/fix/` is a link to another folder.
 - Files judgekeeper writes now also hide Stripe live keys, private key blocks, and a password after `password`, `passwd`, `pwd` or `secret` and `:` or `=` when it looks like one (8 characters or more, with a digit or a sign). Ordinary words after them stay as written, and so do a link, a domain or path, an email, a word in brackets, a menu path (`Settings>Account`), a version (`Python3.12`) and a word like `2-factor` or `8+characters`.
+- In a records file, a HUMAN label with only a `target_id` now takes its answer from the LLM-as-a-judge line with the same `target_id`, so labels exported by tools such as mcp-server-tester import. A label with no LLM-as-a-judge grade is skipped, and judgekeeper says how many.
+- On the marking page, a mark from a tab whose card was already marked in another tab is no longer saved over it: the page says so and loads the list again. An Undo click made while a mark is saving now waits for the save, as the Z key does. A press that sends no click event now counts as a click.
+- A CSV whose answers have amounts such as `$50,000` is now read, not refused with "has a quote that never closes". A bare number in a file whose rows hold grade words is no longer taken as a grade.
 
 ## 1.2.0 (2026-11-16)
 
