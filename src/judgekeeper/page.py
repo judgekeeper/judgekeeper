@@ -50,6 +50,9 @@ from judgekeeper.start_label import StartSession, Workspace
 LINK = "Open this link in your browser to mark answers:"
 RESULT_LINK = "Open this link in your browser to see your result:"
 OPENING_BROWSER = "Opening the marking page in your browser…"
+NO_PAGE_IN_CI = ("judgekeeper opens no marking page in CI. To mark answers, run `{command}` "
+                 "on your own computer.")
+CI_VARIABLES = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "BUILDKITE", "TF_BUILD", "JENKINS_URL")
 DONE = "When you're done, run {program} in your project folder."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
 KEPT = "kept"  # the page was open already, with no terminal: no new tab, no link printed
@@ -291,6 +294,17 @@ def _stamp(page: Page, how: str = PRINTED) -> bool:
         page.server.session.link = how
         return True
     return ask(page.port, "POST", "/printed", {"token": page.token}, body={"link": how}) == 200
+
+
+def in_ci() -> bool:
+    """Whether this runs as a CI job: one of CI_VARIABLES is set to something other than
+    nothing, "false" or "0". Having no terminal is not CI (coding agents have none and get
+    the page), so no terminal is not looked at. In CI no page starts and no browser opens."""
+    for name in CI_VARIABLES:
+        value = os.environ.get(name, "").strip().lower()
+        if value not in ("", "false", "0"):
+            return True
+    return False
 
 
 def terminal() -> bool:
