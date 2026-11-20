@@ -50,14 +50,15 @@ EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
 WORDS_SHOWN = 5
 WORD_WIDTH = 40  # characters of a word shown
 NO_MATCH, NOT_GRADED, MORE_THAN_ONE, BOTH = "no_match", "not_graded", "ambiguous", "both"
-NO_GRADE = "no_grade"  # a label in the results with no answer text: no graded line gave it one
+NO_GRADE = "no_grade"  # a label in the results with no answer text: no graded line has its id
 NO_DECISION = "no_decision"
 NO_TEXT = derive_record_id(None, None)  # the id of a label with no answer text
 BLANK = "blank"  # a row with an answer and an empty label cell
 SKIPPED = (  # (reason, one, many): said in this order
     (NO_MATCH, "{n} doesn't match any answer in your results (the answer text must be the same)",
      "{n} don't match any answer in your results (the answer text must be the same)"),
-    (NO_GRADE, "{n} label has no LLM-as-a-judge grade", "{n} labels have no LLM-as-a-judge grade"),
+    (NO_GRADE, "{n} label is for an answer that is not in your results",
+     "{n} labels are for answers that are not in your results"),
     (NOT_GRADED, "{n} is for an answer your LLM-as-a-judge didn't grade Pass or Fail",
      "{n} are for answers your LLM-as-a-judge didn't grade Pass or Fail"),
     (MORE_THAN_ONE, ("{n} matches more than one answer (add a question column to tell them "
@@ -234,14 +235,20 @@ NEEDS = ("{file} needs an answer column (output or answer) and a label column (l
 def read_file(path: Path, label_map: dict | None = None,
               mine: str | dict | None = None,
               command: Callable[..., str] | None = None,
-              given: str | None = None) -> list[Label]:
+              given: str | None = None, pool=None, metric: str | None = None) -> list[Label]:
     """The labels in the file at `path`. A LabelsStop when it can't be read as labels, lacks
     the columns, has two columns for the same thing (_twice; `command`: the command run),
     has no label in any cell, or holds a number or a word that isn't Pass or Fail
     (read_marks; `mine`: the person's own --label-map; `given`: the file as typed). A row with
     a blank label is kept with no mark (""), so the labels skipped add up (BLANK); one with no
-    answer either is no label (an empty line)."""
+    answer either is no label (an empty line). A JSONL file of records (`pool`, `metric`: the
+    results' answers and the LLM-as-a-judge) is read as records: its labels name their answers
+    by `target_id` (read_records_file)."""
     from judgekeeper import find
+
+    if pool is not None and path.suffix.lower() in find.JSONL_SUFFIXES \
+            and find.is_records(_first_columns(path)):
+        return read_records_file(path, pool, metric, mine, command, given)
     from judgekeeper.table import MORE_CELLS, TableError, open_quote, read_kept, wide_row_hint
     from judgekeeper.table import written_header as header_of
 
@@ -285,6 +292,15 @@ def read_file(path: Path, label_map: dict | None = None,
                          input=_scrubbed(row.get(in_col)) if in_col else None,
                          id=None if _blank(given_id) else str(given_id)))
     return out
+
+
+def _first_columns(path: Path) -> list[str]:
+    from judgekeeper import find
+
+    try:
+        return find.table_columns(path)
+    except OSError:
+        return []
 
 
 def _scrubbed(value):
@@ -368,18 +384,82 @@ def in_results(pool, metric: str | None = None, command: Callable[..., str] | No
                mine: str | dict | None = None) -> list[Label]:
     """The human labels in the results (start.Pool.humans), one per answer and name: on an
     answer that has some named like the judge (`metric`), only those. A LabelsStop when there
-    are none, or for a word that isn't Pass or Fail."""
+    are none (or all are for another criterion: _elsewhere), or for a word that isn't Pass or
+    Fail."""
     humans = list(pool.humans)
     if not humans:
+        if (line := _elsewhere(pool.elsewhere, metric)) is not None:
+            raise LabelsStop([line])
         raise LabelsStop([("No Pass/Fail labels found in your results. To use labels from a "
                            f"file, run `{_plain(command)('--labels', '<file>')}`.")])
+    return _read_humans(humans, pool, metric, RESULTS_NAME, mine, command)
+
+
+def _read_humans(humans: list, pool, metric: str | None, name: str,
+                 mine: str | dict | None, command: Callable[..., str] | None,
+                 given: str | None = None) -> list[Label]:
+    """`humans` ((answer id, value, name), as start.Pool.humans) as labels."""
     if metric is not None:
-        named = {key for key, _, name in humans if name == metric}
+        named = {key for key, _, label_name in humans if label_name == metric}
         humans = [h for h in humans if h[0] not in named or h[2] == metric]
-    read = read_marks([value for _, value, _ in humans], pool.label_map, RESULTS_NAME, mine,
-                      command=command)
+    read = read_marks([value for _, value, _ in humans], pool.label_map, name, mine, given,
+                      command)
     return [Label(mark=mark, key=key) for (key, _, _), mark in zip(humans, read, strict=True)
             if mark is not None]
+
+
+def _elsewhere(counts: dict, metric: str | None) -> str | None:
+    """"Your 40 labels are for "Tone", but your LLM-as-a-judge grades "Safe wording", so none
+    of them were added.": for labels that are all for another criterion. None when there are
+    none, or the LLM-as-a-judge is not known."""
+    if not counts or metric is None:
+        return None
+    n = sum(counts.values())
+    shown = [f'"{_word(name)}"' for name in sorted(counts)]
+    if len(shown) > WORDS_SHOWN:
+        shown = [*shown[:WORDS_SHOWN], f"{len(shown) - WORDS_SHOWN} more"]
+    said = shown[0] if len(shown) == 1 else f"{', '.join(shown[:-1])} and {shown[-1]}"
+    ending = "it was not added" if n == 1 else "none of them were added"
+    return (f'Your {plural(n, "label", "labels")} {"is" if n == 1 else "are"} for {said}, but '
+            f'your LLM-as-a-judge grades "{_word(metric)}", so {ending}.')
+
+
+def read_records_file(path: Path, pool, metric: str | None,
+                      mine: str | dict | None = None,
+                      command: Callable[..., str] | None = None,
+                      given: str | None = None) -> list[Label]:
+    """The labels in a records JSONL file (its HUMAN lines): each names its answer by
+    `target_id` among the results' grades (start.Pool.by_target), or by its own question and
+    answer when it holds them, as the results' labels do (start.build_pool). A LabelsStop when
+    the file can't be read as records, or holds no label for the LLM-as-a-judge."""
+    from judgekeeper import start
+    from judgekeeper.records import HUMAN, RecordsError, read_records
+
+    name = path.name
+    try:
+        records = read_records(path, cut_end_ok=True, bad_lines_ok=True)
+    except start.UNREADABLE:
+        raise LabelsStop([f"{name} could not be read as records."]) from None
+    except RecordsError as e:
+        raise LabelsStop([scrub(str(e))]) from None
+    humans, elsewhere = [], {}
+    for r in records:
+        if r.annotator_kind != HUMAN:
+            continue
+        value = start._verdict_value(r, None)
+        label_name = start.human_name(r.name, metric, pool.sole)
+        if label_name is None:
+            if not _blank(value):
+                elsewhere[r.name] = elsewhere.get(r.name, 0) + 1
+        elif start.text_free(r):
+            keys = pool.by_target.get(str(r.target_id), ())
+            humans.append((next(iter(keys)) if len(keys) == 1 else start.NO_TEXT_ID, value,
+                           label_name))
+        else:
+            humans.append((derive_record_id(r.input, r.output, r.trajectory), value, label_name))
+    if not humans:
+        raise LabelsStop([_elsewhere(elsewhere, metric) or f"{name} has no labels."])
+    return _read_humans(humans, pool, metric, name, mine, command, given)
 
 
 # Matching ---------------------------------------------------------------------------------
