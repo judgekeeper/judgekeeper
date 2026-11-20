@@ -71,6 +71,42 @@ def test_a_split_changed_by_hand_starts_again(here, capsys, marked):
     assert _split(here).hidden == [] and _fails_listed(here) == 4
 
 
+def test_a_split_with_a_lone_surrogate_starts_again(here, capsys, marked):
+    """A character no file can hold ("\\ud800", written as JSON escapes it) is damage like
+    any other: said once and started again, never a crash on every run."""
+    marked(MARKS)
+    path = _split_file(here)
+    d = json.loads(path.read_text(encoding="utf-8"))
+    d["note"] = "\ud800"
+    path.write_text(json.dumps(d), encoding="utf-8")
+    code, out, err = run(capsys, "fix")
+    assert code != 2 and "Traceback" not in err, out + err
+    assert "split-answers.json: it was changed by hand" in flat(out), out
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 0, out + err
+    assert AGAIN.format(why="it was changed by hand") in flat(out), out
+    assert _split(here).hidden == [] and _fails_listed(here) == 4
+
+
+@pytest.mark.parametrize("change", [
+    {"kept": -1}, {"kept": "x"}, {"kept": True}, {"fails": 5}, {"fails": "x"},
+    {"since": "x"}, {"since": {"damaged": "x", "kept": "x"}}])
+def test_a_result_with_wrong_types_is_made_again(here, capsys, marked, change):
+    """A result.json changed by hand is never reused when its values are not as judgekeeper
+    writes them: the result is made again from the marks, and no run stops on it."""
+    marked(MARKS)
+    path = _ws(here).result_json
+    good = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps({**good, **change}), encoding="utf-8")
+    for argv in (("--no-browser",), ("fix",), ("--no-browser",)):
+        code, out, err = run(capsys, *argv)
+        assert code in (0, 3) and "Traceback" not in err, (argv, out + err)
+        assert "didn't expect" not in flat(out + err), out + err
+    again = json.loads(path.read_text(encoding="utf-8"))
+    assert {k: again.get(k) for k in change} == {k: good.get(k) for k in change}
+    assert _fails_listed(here) == len(good["fails"])
+
+
 def test_a_split_that_is_a_link_is_refused_and_keeps_the_failed_answers(here, capsys,
                                                                         marked):
     marked(MARKS)

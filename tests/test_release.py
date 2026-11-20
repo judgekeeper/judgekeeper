@@ -97,20 +97,30 @@ def test_there_is_no_github_action():
     assert "action" not in _workflow("ci.yml")["jobs"]
 
 
+def _released(text: str) -> list[tuple[str, str]]:
+    """Each entry's (version, date), without one on top for a later version that says it is
+    not released yet: it waits there for its release."""
+    entries = re.findall(r"^## (\S+) \((.*)\)$", text, flags=re.MULTILINE)
+    if entries and entries[0][1] == "unreleased" and entries[0][0] != VERSION:
+        assert tuple(map(int, entries[0][0].split("."))) > tuple(map(int, VERSION.split(".")))
+        return entries[1:]
+    return entries
+
+
 def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
+    entries = [v for v, _ in _released(text)]
     assert entries == [VERSION, "1.1.2", "1.1.1", "1.1.0", "1.0.2", "1.0.1", "1.0.0"]  # the earlier ones are on PyPI
     assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1): see the PyPI release history.")
 
 
 def test_the_lead_changelog_entry_has_its_release_date():
-    """Filled on release day: never the YYYY-MM-DD placeholder."""
+    """Filled on release day: never the YYYY-MM-DD placeholder, nor "unreleased"."""
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    lead = re.search(r"^## (\S+) \((.*)\)$", text, flags=re.MULTILINE)
-    assert lead and lead[1] == VERSION
-    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", lead[2]), lead[2]
-    date.fromisoformat(lead[2])  # a real day
+    version, day = _released(text)[0]
+    assert version == VERSION
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", day), day
+    date.fromisoformat(day)  # a real day
 
 
 LEAD_BULLETS = [  # word for word, in this order, at the top of the 1.1.0 entry

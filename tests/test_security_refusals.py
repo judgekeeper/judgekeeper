@@ -809,14 +809,24 @@ def test_a_key_next_to_letters_of_another_script_is_hidden(key, before, after):
 
 
 @pytest.mark.parametrize("unit", ["\u200bsk-", "\u200beyJ", "\u200bAIza", "x\u00adsk-",
-                                  "x\u200bsk-ant-api03-", "\u200ba"])
+                                  "x\u200bsk-ant-api03-", "\u200ba", "x\u200bsk_live_",
+                                  "\u200bpassword=", "x\u200bsecret:",
+                                  "-----BEGIN PRIVATE" + " KEY-----\u200b",
+                                  "\u200b-----BEGIN "])
 def test_scrub_takes_little_time_on_many_hidden_characters(unit):
+    """At most a few times as long as the same hidden characters between plain letters: a
+    search that went back over the text would take hundreds of times as long on a megabyte.
+    Relative, so a slow machine slows both."""
     import time
 
-    text = unit * (1_000_000 // len(unit))
-    start = time.perf_counter()
-    redact.scrub(text)
-    assert time.perf_counter() - start < 2
+    def took(text: str) -> float:
+        start = time.perf_counter()
+        redact.scrub(text)
+        return time.perf_counter() - start
+
+    n = 1_000_000 // len(unit)
+    plain = "".join(c if redact._SPLITTERS.match(c) else "a" for c in unit) * n
+    assert took(unit * n) < 6 * took(plain) + 0.05
 
 
 def test_scrub_takes_little_memory_on_a_big_text_with_one_hidden_character():
