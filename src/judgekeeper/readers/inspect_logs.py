@@ -978,7 +978,9 @@ def _stopped(data: dict, samples: int, errored: Counter) -> str | None:
 
 
 def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
-    """ScoreRecords from one Inspect AI log: one LLM record per scorer per sample and epoch.
+    """ScoreRecords from one Inspect AI log: per sample and epoch, one record per scorer (LLM,
+    or CODE for a code scorer; a dict score gives one per key), and a HUMAN one when a person
+    edited the score.
     `with_errors`: also one record per scorer for a sample that errored before it was scored
     (see the module docstring). The samples are gone through once, in order, and each let go
     once its records are made."""

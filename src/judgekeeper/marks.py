@@ -12,8 +12,10 @@ A reason line (reasons.py) carries the same mark and changes only the reasons, s
 keeps its own time. The last line for an answer wins. A line without its stamps (`by`, `at`,
 `sitting`) is not counted, and the result says how many; one that can't be read (cut by a full
 disk or a power cut) is left out, and the run says so. The file holds no answer or input text:
-that stays in pool.jsonl. Lines are only ever added, never through a link, and a cut last line
-gets its newline first.
+that stays in pool.jsonl. A mark is a line added (append), never through a link, and a cut
+last line gets its newline first. The whole file is written again, renamed into place, only
+to start it (begin) or to change its header or ids (start_label._name_judge,
+no_grades._to_id_column and _header).
 """
 
 from __future__ import annotations
@@ -53,7 +55,7 @@ FROM_RESULTS = "results"  # "from" of the labels already in the results
 STAMPS = ("by", "at", "sitting")
 PRINTED = "printed"
 BROWSER_ENV = "browser-env"  # the page was opened by the program named in BROWSER
-ASKED = "asked"  # a link printed at a terminal with --no-browser (read, not said)
+ASKED = "asked"  # no longer stamped (a link printed at a terminal is not); still counted
 LINKS = (PRINTED, BROWSER_ENV, ASKED)
 
 
@@ -367,7 +369,8 @@ def made(m: Marks, ids=None) -> dict:
     (reasons.UNSURE), how many were changed after the judge's grades were shown, and, when the
     page showed some answers a second time, how many of those (marked Pass or Fail both times
     on the page) were marked differently (`repeats`). Marks brought with --labels count in the
-    totals only: they have no sitting and no time."""
+    totals only: their sitting is the import's ("file-..."), never a page's, and they have
+    no time."""
     from judgekeeper.reasons import UNSURE
 
     lines = [m.last[i] for i in m.counted() if ids is None or i in ids]

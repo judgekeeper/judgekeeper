@@ -276,7 +276,7 @@ def test_nothing_is_loaded_or_linked_from_outside(name, live):
 # 4. The scripts the CSP allows -----------------------------------------------------------
 
 SCRIPT_SHA256 = "9b80caabf5fca1ae4f1eee82f9569155cadfc66eca67cb75a6e6de5994d3990e"
-REASONS_SCRIPT_SHA256 = "bfc3eb31524dee24e9be90c27c0c625ca184f6a82419371aaac22e20061d50d2"
+REASONS_SCRIPT_SHA256 = "2d835a68c78a1dcf8a8128c671c582c1a94d96bb512b2f802f33be0078414fa3"
 
 
 def _sha(text: str) -> str:

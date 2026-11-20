@@ -1,5 +1,5 @@
 """Repeats: after the first marks, about 1 in 20 answers comes back a second time on the
-marking page, never said. Only the first mark counts; the result says how often the second
+marking page, its card saying so. Only the first mark counts; the result says how often the second
 mark differed, and, from enough repeats, what even a perfect LLM-as-a-judge would show at that
 rate."""
 
@@ -317,7 +317,7 @@ def test_the_page_shows_an_offered_repeat_next_and_sends_its_slot():
         back: ids["q-text"].textContent,
         sent: sent.map(function (s) { return [s.body.id, s.body.label, s.body.again]; })}));""",
                data)
-    assert got["shown"] == "Question 0?"  # the repeat comes next, looking like any answer
+    assert got["shown"] == "Question 0?"  # the repeat comes next
     assert got["after"] == "Question 1?"
     assert got["listed"] == len(data["items"])  # never twice in the list
     assert got["sent"][:2] == [["a0", "pass", None], ["a0", "fail", 10]]

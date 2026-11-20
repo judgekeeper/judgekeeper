@@ -15,8 +15,9 @@ class Judgment:
     For pairwise items `verdict` comes from the AB ordering (output_a shown first) and
     `swapped` holds the BA ordering. Both verdicts are expressed in the item's original
     labels, so `swapped.verdict == "A"` means the judge preferred output_a even when it was
-    shown second. `snapshot` is the model id the provider reported serving for this call.
-    A custom judge that raised or returned nothing usable has verdict "error" and `error` set.
+    shown second. `snapshot` is the model id the results name for this judgment. A grade that
+    is no decision ("error", "n/a" and the like, normalise.NO_DECISION) has verdict "error"
+    and `error` set.
     """
 
     verdict: str | None

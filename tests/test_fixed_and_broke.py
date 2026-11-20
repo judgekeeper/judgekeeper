@@ -30,8 +30,8 @@ def more(need: int, kept: int, extra: int) -> str:
     """What a clear answer needs, after "Can't tell yet" (no_grades.clear_line)."""
     target = no_grades.clear_target(need)
     return (f"A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
-            f"with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
-            f"{target} kept-aside Fails; you have {kept}. Add about {extra} more questions.")
+            f"with none breaking. If your change fixes about 2 in 3 of them, that needs about "
+            f"{target} kept-aside questions that failed before your change; you had {kept}. Add about {extra} more questions.")
 
 
 WAIT = "Mark the new answers to see what changed."
@@ -284,18 +284,19 @@ def test_new_answers_not_marked_yet_show_no_counts(project):
     project.first(fails={0, 1, 2, 3}, n=12)
     kept = project.kept()
     said = project.again({kept[0]: None, kept[1]: None}, marked=False)  # 10 still marked
-    assert WAIT in said
-    assert "questions kept aside:" not in said
-    assert _result(project.here)["since"] == {"waiting": True}
+    assert "Step 2 of 5: Mark" in said and "2 new answers are waiting to be marked." in said
+    assert "questions kept aside:" not in said and "You passed" not in said
+    assert not _result(project.here).get("since")
     seen = " ".join(_seen(_report(project.here)).split())
-    assert WAIT in seen and "Fixed" not in seen
+    assert "Fixed" not in seen
 
 
 def test_counts_wait_for_every_changed_question_shown_ones_too(project):
     project.first(fails={0, 1, 2, 3}, n=12)
     kept, shown = project.kept(), project.shown()
-    project.again({i: "pass" for i in kept} | {shown[0]: None})
-    assert _result(project.here)["since"] == {"waiting": True}
+    said = project.again({i: "pass" for i in kept} | {shown[0]: None})
+    assert "Step 2 of 5: Mark" in said and "1 new answer is waiting to be marked." in said
+    assert "questions kept aside:" not in said, said
     _mark(project.here, {shown[0]: "pass"})
     said = project.run()
     assert WAIT not in said and f"On the {len(kept)} questions kept aside" in said
@@ -326,11 +327,11 @@ def test_a_question_with_spaces_added_and_the_same_answer_is_never_compared(proj
     project.again({q: "pass"})
     assert _result(project.here)["since"]["fixed"] == 1
     _write(project.here, project.outs, asked={q: f"What is  question {q}? "})
-    project.run()
-    unmarked = _result(project.here).get("since")
+    said = project.run()
+    assert "Step 2 of 5: Mark" in said and "questions kept aside:" not in said, said
     _mark(project.here, {q: "pass"})
     project.run()
-    assert unmarked is None and _result(project.here).get("since") is None
+    assert _result(project.here).get("since") is None
 
 
 def test_the_same_answers_saved_again_keep_the_comparison_and_add_no_test(project):
@@ -390,7 +391,8 @@ def test_a_second_and_third_change_divide_the_level_then_ask_for_new_questions(p
     assert LEANS_WORSE + " " + more(7, 0, 74) in said  # the 6 shown Fails of 20 failed
     assert NEW_SET not in said
     said = project.again({i: "pass" for i in kept})  # 6 and 0: not under 0.05 / 3
-    assert LEANS_BETTER + " " + need_only(7, 6) + " " + new_set(30) in said  # one number
+    assert LEANS_BETTER + " " + new_set(30) in said  # one number: new questions only
+    assert "you had 6" not in said, said  # never more of the used-up set
     assert "Add about 17" not in said  # a new set's 9 kept-aside Fails: 18 Fails, at 12 in 20
     tests = no_grades.read_split(_ws(project.here)).tests
     assert len(tests) == fix.MAX_RULES == 3
@@ -430,6 +432,78 @@ def test_after_three_changes_the_set_is_retired_and_new_questions_make_a_new_one
     hidden = {_index(page.raw[i]["input"]) for i in split.hidden}
     assert hidden and hidden <= set(range(20, 30))
     assert len([i for i in hidden if i < 29]) == 5  # half of the 9 Fails, rounded up
+    assert NEW_SET not in said
+
+
+def _three_changes(project) -> None:
+    """40 questions, 24 of them Fails, and 3 changes tested on the ones kept aside."""
+    project.first(fails=set(range(24)), n=40)
+    kept = project.kept("fail")
+    for m in ("pass", "fail", "pass"):
+        project.again({i: m for i in kept})
+    assert len(no_grades.read_split(_ws(project.here)).tests) == fix.MAX_RULES
+
+
+def _answered_again_with(project, new: dict[int, str]) -> None:
+    """A new results file: the old questions answered again, the `new` questions added, and
+    every answer marked on the page (the old ones as before), before the next result."""
+    project.round += 1
+    for i in project.outs:
+        project.outs[i] = f"Answer {i}, take {project.round + 1}."
+    for i in new:
+        project.outs[i] = f"First answer {i}."
+    _write(project.here, project.outs)
+    project.run()
+    project.marks |= new
+    _mark(project.here, project.marks)
+
+
+def _questions(project, ids) -> set[int]:
+    page = _session(project.here)
+    return {_index(page.raw[i]["input"]) for i in ids}
+
+
+def test_new_questions_marked_before_the_fourth_result_make_a_new_set(project):
+    _three_changes(project)
+    _answered_again_with(project, {i: "fail" if i < 46 else "pass" for i in range(40, 50)})
+    said = project.run()
+    split = no_grades.read_split(_ws(project.here))
+    assert (split.set, split.fresh, split.tests, split.pending) == (2, None, [], [])
+    hidden = _questions(project, split.hidden)
+    assert hidden <= set(range(40, 50))
+    assert len(hidden & set(range(40, 46))) == 3 and len(hidden - set(range(40, 46))) == 2
+    assert NEW_SET not in said and no_grades.ALL_SHOWN not in said
+    assert no_grades.ALL_SHOWN not in _report(project.here)
+    said = project.again({i: "pass" for i in hidden})  # the next change is tested on them
+    assert _counts_line(5, 3, 0, 2) in said
+
+
+def test_fewer_new_questions_wait_and_never_join_the_used_up_set(project):
+    _three_changes(project)
+    kept = set(project.kept())
+    _answered_again_with(project, {i: "fail" for i in range(40, 45)})
+    split = no_grades.read_split(_ws(project.here))
+    assert _questions(project, split.pending) == set(range(40, 45))
+    assert _questions(project, split.seen + split.hidden) == set(range(40))
+    said = project.run()  # the fourth change retires the set; the 5 still wait
+    split = no_grades.read_split(_ws(project.here))
+    assert split.hidden == [] and split.fresh == {"want": fix.FRESH}
+    assert _questions(project, split.pending) == set(range(40, 45))
+    assert NEW_SET in said and kept <= _questions(project, split.seen)
+    text = (_ws(project.here).dir / "fix" / "failed-answers.md").read_text(encoding="utf-8")
+    assert all(f"First answer {i}." not in text for i in range(40, 45))
+    for i in range(45, 50):  # 5 more new questions: 10, a new set
+        project.outs[i] = f"First answer {i}."
+    _write(project.here, project.outs)
+    project.run()
+    project.marks |= dict.fromkeys(range(45, 50), "pass")
+    _mark(project.here, project.marks)
+    said = project.run()
+    split = no_grades.read_split(_ws(project.here))
+    assert (split.set, split.fresh, split.pending) == (2, None, [])
+    hidden = _questions(project, split.hidden)
+    assert hidden <= set(range(40, 50))
+    assert len(hidden & set(range(40, 45))) == 3 and len(hidden - set(range(40, 45))) == 3
     assert NEW_SET not in said
 
 
@@ -578,8 +652,8 @@ def test_an_llm_as_a_judge_project_gets_no_comparison(here, capsys, pages):
 def harder(need: int, kept: int) -> str:
     target = no_grades.clear_target(need)
     return (f"A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
-            f"with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
-            f"{target} kept-aside Fails; you have {kept}. Add harder questions, ones your AI may "
+            f"with none breaking. If your change fixes about 2 in 3 of them, that needs about "
+            f"{target} kept-aside questions that failed before your change; you had {kept}. Add harder questions, ones your AI may "
             f"get wrong, and mark their answers.")
 
 
@@ -595,20 +669,19 @@ def test_more_than_100_questions_to_add_asks_for_harder_ones(c, said):
     assert no_grades.clear_line(c) == said
 
 
-def need_only(need: int, kept: int) -> str:
-    return more(need, kept, 0).split(" Add about")[0]
-
-
 @pytest.mark.parametrize("c", [
     {"test": 3, "kept_fails": 3, "fails": 6, "marked": 38, "last": True},  # was 76 and 86 more
     {"test": 3, "kept_fails": 0, "fails": 0, "marked": 30, "last": True},  # was harder questions twice
+    {"test": 3, "kept_fails": 12, "fails": 20, "marked": 40, "last": True},  # enough, used up
 ])
-def test_after_3_changes_the_box_names_one_number(c):
-    said = no_grades.clear_line(c)
-    assert said == need_only(7, c["kept_fails"])
+def test_after_3_changes_the_box_asks_only_for_new_questions(c):
+    """The kept-aside set used up: no line asks for more of its questions, so the box says
+    one thing, the new set's (new_set_line)."""
+    assert no_grades.clear_line(c) is None
     box = " ".join([no_grades.result_line({**c, "clear": False, "kind": "same"}),
                     no_grades.new_set_line(c)])
-    assert box.count("Add ") == 1, box
+    assert box.count("Add ") == 1 and "kept-aside questions that failed before" not in box, box
+    assert box.startswith(no_grades.CHANGE["same"] + " You have tested 3 changes"), box
 
 
 def test_a_damaged_before_json_is_said_once_and_new_answers_still_wait(project):
@@ -617,9 +690,11 @@ def test_a_damaged_before_json_is_said_once_and_new_answers_still_wait(project):
     project.again({0: None, 1: None, 7: None}, marked=False)
     path = _before(project.here)
     path.write_text(path.read_text(encoding="utf-8").replace('"', "'", 2), encoding="utf-8")
-    assert DAMAGED in project.run()  # the run that found it
-    assert DAMAGED not in project.run()  # the same answers again: said once
+    said = [project.run(), project.run()]
     _, out, err = run(project.capsys, "mark", "--no-browser")
     assert "3 new answers are waiting to be marked." in flat(out), out + err
     _mark(project.here, {0: "pass", 1: "pass", 7: "pass"})
-    assert DAMAGED not in project.run()
+    said += [project.run(), project.run()]
+    # said in the run that replaced it (with the new answers), then once on the result
+    assert [DAMAGED in x for x in said] == [True, False, True, False], said
+    # that would compare, once

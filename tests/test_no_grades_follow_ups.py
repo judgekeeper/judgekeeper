@@ -23,7 +23,8 @@ FOUND_NEW = ("Found {n} since your last results. Mark them to see what changed. 
              "are the same as before and keep their marks.")
 QUESTION_NEXT = "Next: paste the prompt above into your coding agent, then run `judgekeeper` again."
 FIX_NEXT = ("Next: paste the prompt above into your coding agent. After it changes your AI's "
-            "prompt, save your AI's new answers and run `judgekeeper` again.")
+            "prompt, save your AI's new answers in results.csv or a new file next to it and run "
+            "`judgekeeper` again.")  # the file named, as the result page names it
 ONLY_FAILED = "Reasons are only for answers you failed."
 
 
@@ -287,12 +288,13 @@ def test_fix_with_failed_answers_says_to_paste_the_prompt(here, capsys):
     assert assert_one_next_at_the_end(out) == FIX_NEXT
 
 
-def test_fix_without_failed_answers_keeps_its_next_line(here, capsys):
+def test_fix_without_failed_answers_gives_the_results_next_step(here, capsys):
     _marked(here, capsys, ["pass"] * 10)
     code, out, _ = run(capsys, "fix")
     assert code == 3
-    assert assert_one_next_at_the_end(out).startswith(
-        "Next: add your LLM-as-a-judge's grades to results.csv")
+    said = assert_one_next_at_the_end(out)
+    assert "verdict column" not in said
+    assert said == "Next: run `judgekeeper mark` to mark more answers.", said
 
 
 def test_checks_no_judge_line_wraps_as_fixs_does(here, capsys):

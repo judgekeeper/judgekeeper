@@ -112,8 +112,8 @@ def test_keys_in_each_env_file_up_to_the_project_are_hidden(layout, tmp_path, mo
         (env / "package.json").write_text("{}", encoding="utf-8")
         (env / ".env").write_text(f"SUB_TOKEN={SUB}\n", encoding="utf-8")
         results = env / "evals" / "results.json"
-        monkeypatch.chdir(top)
-        named = "apps/x/evals/results.json"
+        monkeypatch.chdir(top / "apps" / "x")  # named from top/, it is checked in apps/x/
+        named = "evals/results.json"
     else:  # the folder the command runs in is no project
         env = top
         results = top / "evals" / "results.json"

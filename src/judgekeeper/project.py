@@ -9,13 +9,14 @@ from pathlib import Path
 
 from judgekeeper import marks
 from judgekeeper.fingerprint import utc_now
+from judgekeeper.judge_setup import FILE
 from judgekeeper.start_label import (
     FOLDER,
     Workspace,
 )
 from judgekeeper.textio import PRIVATE_FOLDER, kept_at
 
-# Not part of a check: .gitignore, baseline.json (set by `baseline set`), records/
+# Not part of a check: .gitignore, baseline.json (from an older judgekeeper), records/
 # (judgekeeper.record()); and what `judgekeeper check` keeps across marks: history.jsonl and
 # the verdicts of each judge setup (verdicts/)
 KEPT = (".gitignore", "baseline.json", "records", "history.jsonl", "verdicts")
@@ -27,8 +28,9 @@ def _stamp() -> str:
 
 
 def move_to_previous(ws: Workspace, say) -> Path | None:
-    """Move everything in `.judgekeeper/` except baseline.json, records/ and earlier
-    previous-<date>/ folders into a new previous-<date>/ folder. Nothing is deleted. Said
+    """Move everything in `.judgekeeper/` except KEPT (.gitignore, baseline.json, records/,
+    history.jsonl, verdicts/) and earlier previous-<date>/ folders into a new previous-<date>/
+    folder. Nothing is deleted. Said
     only when marks moved."""
     if not ws.dir.is_dir():
         return None
@@ -60,7 +62,7 @@ def project_of(path: Path) -> Path:
     are the ones it reads or there are none here (kept_apart); else the folder itself, the
     same with a path given or not."""
     here, given = _here(path)
-    above = store_above(here)
+    above = store_above(here, judged=True)
     if above is None:
         return here
     marked = marks_above(above, given)
@@ -112,9 +114,10 @@ def _here(path: Path) -> tuple[Path, Path | None]:
     return path.resolve(), None
 
 
-def store_above(here: Path) -> Path | None:
+def store_above(here: Path, judged: bool = False) -> Path | None:
     """The nearest folder from `here` up whose .judgekeeper/ holds a session, without leaving
-    the project or reaching the home folder."""
+    the project or reaching the home folder; `judged`: or only the judge.json of a first run
+    that stopped before marking."""
     try:
         home = Path.home().resolve()
     except (RuntimeError, OSError):
@@ -123,7 +126,7 @@ def store_above(here: Path) -> Path | None:
         if folder == home:
             break
         ws = Workspace(folder)
-        if ws.start.is_file() or ws.labels.is_file():
+        if ws.start.is_file() or ws.labels.is_file() or judged and (ws.dir / FILE).is_file():
             return folder
         if is_project(folder):
             break
@@ -175,35 +178,105 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
     if not mine:
         return False
     theirs = _theirs(store)
+    ws = Workspace(store)
+    if given is None and here != store and not ws.start.is_file() and not ws.labels.is_file():
+        # only a first run's judge.json above: the files nearest it are the ones it was made
+        # on; results here of that eval, or those files, use it, another eval keeps its own run
+        # (answers with no grade have no judge: their own run, as before; nor does another
+        # eval tool's, which the judge.json above is not of and the command here reads alone)
+        made_on = _nearest(theirs, store)
+        if any(t.is_relative_to(here) for t in made_on):
+            return False
+        graded = {r.path.resolve() for r in found.results.get(session_tool(store), [])} - {
+            Path(path).resolve() for path, _ in found.answers_only}
+        return not any(t.is_file() and one_eval(t, m) for t in made_on for m in graded)
+    if any(t.is_relative_to(here) for t in theirs):  # a folder holding a file it reads is
+        return False  # its own, the folders below too: another eval there is said so
     # a file beside one it reads is its own: new results of it join, another eval is said so
     # (other_eval) and never gets marks of its own
     return not all(any(m == t or m.is_relative_to(t) or not t.is_dir() and m.parent == t.parent
                        for t in theirs) for m in mine)
 
 
+def _nearest(paths: list[Path], store: Path) -> list[Path]:
+    """The `paths` (inside `store`) fewest folders down from it."""
+    depth = {p: len(p.relative_to(Path(store).resolve()).parts) for p in paths
+             if p.is_relative_to(Path(store).resolve())}
+    least = min(depth.values(), default=0)
+    return [p for p, d in depth.items() if d == least]
+
+
 def _theirs(store: Path) -> list[Path]:
-    """The results files (or folders) the session in `store` reads, as full paths."""
+    """The results files (or folders) the session in `store` reads, as full paths. Only the
+    judge.json of a first run that stopped before marking: the results of its eval tool found
+    from `store`."""
+    ws = Workspace(store)
+    if not ws.start.is_file() and not ws.labels.is_file():
+        return _judged(store)
     return [Path(kept_at(f, store)).resolve() for f in _read_by(store)]
+
+
+def _judged(store: Path) -> list[Path]:
+    """The results of the eval tool named in the judge.json in `store`, found from `store`."""
+    from judgekeeper import find
+
+    tool = session_tool(store)
+    if tool not in find.TOOLS:
+        return []
+    return [r.path.resolve() for r in find.search(store).readable(tool)]
+
+
+def session_tool(store: Path) -> str | None:
+    """The eval tool of the session in `store`: start.json's, else (a first run that stopped
+    before marking) judge.json's."""
+    import json
+
+    ws = Workspace(store)
+    try:
+        if ws.start.is_file():
+            return json.loads(ws.start.read_text(encoding="utf-8"))["tool"]
+        tool = json.loads((ws.dir / FILE).read_text(encoding="utf-8"))["setup"]["tool"]
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        return None
+    return tool if isinstance(tool, str) else None
 
 
 OTHER_EVAL = ("{file} shares few questions with the results you marked ({marked}), so it looks "
               "like another eval.")
 TO_MARK_IT = "To mark it, put it in a folder of its own and run `{program}` there."
 OTHER_EVAL_NEXT = "put {file} in a folder of its own, then run `{program}` there."
+REWRITTEN = ("{file} now holds other questions than the answers you marked, so it looks like "
+             "another eval. Its answers are not added to the ones you mark.")
+
+
+def rewritten(store: Path, path: Path) -> bool:
+    """Whether the results file `path` the session in `store` reads now holds another eval
+    (written again with other questions: _same_eval says no). Its answers never join the
+    pool: two evals are never one (REWRITTEN says so)."""
+    path = Path(path).resolve()
+    if not Workspace(store).start.is_file() or not path.is_file():
+        return False
+    try:
+        stamps = (path.stat().st_mtime_ns, Workspace(store).pool.stat().st_mtime_ns)
+    except OSError:
+        stamps = (0, 0)
+    return not _same_eval_cached(path, Path(store).resolve(), stamps)
 
 
 def other_eval(store: Path, path: Path) -> Path | None:
-    """The file the session in `store` reads that the results file `path` sits beside, when
-    `path` is another eval (not _same_eval): it is never read, marked or given marks of its
-    own (other_eval_line says why). None for one it reads, the same eval, or a file
-    elsewhere."""
+    """The file the session in `store` reads that the results file `path`, in the same
+    project (beside it or in a folder below), is another eval of (not _same_eval): it is
+    never read, marked or given marks of its own (other_eval_line says why); the file beside
+    it when there is one. None for one it reads, the same eval, or a file outside `store`."""
     path = Path(path).resolve()
-    if not Workspace(store).start.is_file() or not path.is_file():
+    if not Workspace(store).start.is_file() or not path.is_file() \
+            or not path.is_relative_to(Path(store).resolve()):
         return None
     theirs = _theirs(store)
     if any(path == t or path.is_relative_to(t) for t in theirs):
         return None
-    beside = next((t for t in theirs if not t.is_dir() and path.parent == t.parent), None)
+    files = [t for t in theirs if not t.is_dir()]
+    beside = next((t for t in files if path.parent == t.parent), files[0] if files else None)
     if beside is None or not _results(path):  # a file it can't read as results: no eval
         return None
     try:
@@ -213,23 +286,21 @@ def other_eval(store: Path, path: Path) -> Path | None:
     return None if _same_eval_cached(path, Path(store).resolve(), stamps) else beside
 
 
-def others_beside(store: Path) -> list[tuple[Path, Path]]:
-    """(another eval, the file it sits beside) for each results file in the folder of a file
-    the session in `store` reads that is another eval (other_eval), by name."""
-    out, seen = [], set()
-    for t in _theirs(store):
-        folder = t.parent
-        if t.is_dir() or folder in seen:
-            continue
-        seen.add(folder)
-        try:
-            files = sorted(f for f in folder.iterdir() if f.is_file()
-                           and not f.name.startswith("."))
-        except OSError:
-            continue
-        for f in files:
-            if (beside := other_eval(store, f)) is not None:
-                out.append((f.resolve(), beside))
+def other_evals(store: Path) -> list[tuple[Path, Path]]:
+    """(another eval, the file the marks were made on) for each results file the walk from
+    `store` finds (find.search: never inside a project below) that is another eval
+    (other_eval), by path."""
+    from judgekeeper import find
+
+    if not Workspace(store).start.is_file():
+        return []
+    found = find.search(store)
+    files = [r.path for rs in found.results.values() for r in rs]
+    files += [path for path, _ in found.answers_only]
+    out = []
+    for f in sorted({Path(f).resolve() for f in files}):
+        if (beside := other_eval(store, f)) is not None:
+            out.append((f, beside))
     return out
 
 
@@ -243,19 +314,33 @@ def _results(path: Path) -> bool:
         return False
 
 
-def other_eval_line(path: Path, marked: Path) -> str:
+def _answers(path: Path) -> bool:
+    """Whether `path` is a table of answers with no grade (find.answers_only)."""
+    import csv
+
+    from judgekeeper import find
+
+    try:
+        return find.answers_only(path)
+    except (OSError, ValueError, RecursionError, csv.Error):
+        return False
+
+
+def other_eval_line(path: Path, marked: Path, away: str = "") -> str:
     """The line for `path`, another eval beside `marked`: both named as every path line names
-    them (textio.line_path), a typed path too."""
-    return f"{_other_eval_said(path, marked)} {TO_MARK_IT.format(program=program_anywhere())}"
+    them (textio.line_path), a typed path too. `away`: what the command for that folder of
+    its own repeats (front.FrontTalk.away)."""
+    return (f"{_other_eval_said(path, marked)} "
+            f"{TO_MARK_IT.format(program=program_anywhere() + away)}")
 
 
-def other_eval_stop(path: Path, marked: Path) -> tuple[str, str]:
+def other_eval_stop(path: Path, marked: Path, away: str = "") -> tuple[str, str]:
     """(the line, the Next step) for a command that stops at `path`, another eval beside
     `marked`."""
     from judgekeeper import textio
 
     return _other_eval_said(path, marked), OTHER_EVAL_NEXT.format(
-        file=textio.line_path(path), program=program_anywhere())
+        file=textio.line_path(path), program=program_anywhere() + away)
 
 
 def _other_eval_said(path: Path, marked: Path) -> str:
@@ -299,41 +384,82 @@ def _same_eval(path: Path, store: Path) -> bool:
                 if line.strip()]
     except (OSError, ValueError, AttributeError, RecursionError):
         return True  # the session's own files: the command says what is wrong with them
-    return same_questions(path, tool, held)
+    from judgekeeper import no_grades
+
+    return same_questions(path, tool, held, answers=no_grades.here(ws))
 
 
-def same_questions(path: Path, tool: str | None, held: list) -> bool:
+def same_questions(path: Path, tool: str | None, held: list, answers: bool = False) -> bool:
     """Whether the results file `path` is of the eval of `tool` whose answers are `held`
-    (dicts with input, output and id), as _same_eval says."""
+    (dicts with input, output and id), as _same_eval says. `answers`: `held` are answers
+    marked with no grade, so a table of answers with no grade is read as they were."""
     from judgekeeper import find, start, table
     from judgekeeper.records import RecordsError, derive_record_id
 
     kind = find.classify_file(path)
+    answers = answers and kind == "table" and _answers(path)
     if not tool or kind is None:
         return False
     if kind not in ("table", "inspect", *start.FILE_READERS):
         return kind == tool
     try:  # another tool's file too: one with these answers is no other eval, only misread
-        records = start._read(find.Result(kind, path, path.name, path.stat().st_size)).records
+        records = start._read(find.Result(kind, path, path.name, path.stat().st_size),
+                              answers).records
     except (OSError, ValueError, TypeError, AttributeError, RecordsError, start.StartError,
             *start.UNREADABLE):
         return True  # the command says why it can't read it
-    if not records or len(records) >= table.MAX_ROWS:  # none or only the first rows read
+    rows = ([(a.get("input"), a.get("output")) for a in records.answers] if answers
+            else [(r.input, r.output) for r in records])  # answers with no grade: as marked
+    if not rows or len(rows) >= table.MAX_ROWS:  # none or only the first rows read
         return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
-    # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
-    ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
-            if f}
-    questions = set().union(*ours)
-    theirs = {frozenset(f) for f in (_forms(r.input, r.output) - {""} for r in records) if f}
-    if questions and theirs:  # an answer a refusal or a stock line gives is no sign; half of
-        # the smaller side: the same eval run on more questions is still this one
-        return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
+    if (shared := shares_questions(held, rows)) is not None:
+        return shared
     ids = {str(a.get("id")) for a in held}
+    if answers:  # each answer's id made as the marked ones' were (start._answers_only)
+        return any(str(a.get("id")) in ids for a in records.answers)
     try:
         return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
     except (TypeError, ValueError):
         return True
+
+
+def shares_questions(held: list, rows: list) -> bool | None:
+    """Whether the answers `rows` ((question, answer) pairs) are of the eval of `held` (dicts
+    with input and output): they share half of the smaller side's distinct questions. None
+    when either side has no question to compare."""
+    # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
+    ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
+            if f}
+    questions = set().union(*ours)
+    theirs = {frozenset(f) for f in (_forms(q, a) - {""} for q, a in rows) if f}
+    if not (questions and theirs):
+        return None
+    # an answer a refusal or a stock line gives is no sign; half of the smaller side: the
+    # same eval run on more questions is still this one
+    return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
+
+
+def one_eval(first: Path, second: Path) -> bool:
+    """Whether two results files are rounds of one eval: `second` shares questions with
+    `first` as same_questions counts them. A file it can't read is never called another eval
+    (the command that reads it says why)."""
+    from judgekeeper import find, start
+    from judgekeeper.records import RecordsError
+
+    kind = find.classify_file(first)
+    if kind is None:
+        return True
+    if kind not in ("table", "inspect", *start.FILE_READERS):  # no reader to take questions with
+        return same_questions(second, kind, [])  # (judgekeeper.record() files, MLflow): by tool
+    try:
+        records = start._read(find.Result(kind, first, first.name, first.stat().st_size),
+                              _answers(first)).records
+    except (OSError, ValueError, TypeError, AttributeError, RecordsError, start.StartError,
+            *start.UNREADABLE):
+        return True
+    held = [{"input": r.input, "output": r.output} for r in records]
+    return same_questions(second, kind, held)
 
 
 def _forms(question, answer) -> set[str]:

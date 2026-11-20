@@ -1,4 +1,4 @@
-# judgekeeper credit run: RAGTruth question answers, one LLM-as-a-judge per run.
+# judgekeeper run: RAGTruth question answers, one LLM-as-a-judge per run.
 # Frozen 2026-10-30, before any result. The rule below is rule.txt word for word. It is the
 # news-summary rule of ../ragtruth/rule.txt with "answer" for "summary" and "passages" for "article";
 # nothing else in the wording changed.

@@ -124,7 +124,7 @@ def _reasoned(live: bool) -> str:
 def test_a_saved_reason_names_a_rule_part_by_its_number():
     for live in (True, False):
         html = _reasoned(live)
-        assert "Your reason: <b" in html and "it has a wrong fact; rule part 2</b>" in html
+        assert "Your reason: <b" in html and "It has a wrong fact; rule part 2</b>" in html
         assert "rule part 2 (" not in _text(html)
         assert PARTS[1] in html  # the whole part in a title
 
@@ -341,9 +341,9 @@ def test_every_website_page_loads_the_new_site_js_and_style_css():
     site = Path(__file__).resolve().parents[1] / "website"
     for page in [*site.glob("*.html"), site / "errors" / "404.html"]:
         refs = re.findall(r"assets/(?:style\.css|site\.js)\?v=(\d+)", page.read_text(encoding="utf-8"))
-        assert refs and set(refs) == {"31"}, (page.name, refs)
+        assert refs and set(refs) == {"33"}, (page.name, refs)
     # the browser check's script has its own version number
-    assert "assets/freecheck.js?v=19" in (site / "check.html").read_text(encoding="utf-8")
+    assert "assets/freecheck.js?v=20" in (site / "check.html").read_text(encoding="utf-8")
 
 
 def test_a_reason_ending_in_inspects_grade_line_is_shown_without_it():

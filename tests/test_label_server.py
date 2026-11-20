@@ -681,6 +681,17 @@ def test_a_browser_with_an_old_link_gets_a_page_and_a_script_gets_json(tmp_path,
     assert json.loads(payload) == {"error": "missing or wrong token"}  # only the page itself
 
 
+def test_a_result_tab_left_open_gets_the_old_link_page(tmp_path, serve):
+    """A run that started the page again gives it a new token: the result tab open before,
+    reloaded, says how to open the page again, as the marking page's old link does."""
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    resp, payload = client.request("GET", "/result?token=old", token=False,
+                                   headers={"Accept": "text/html,*/*"})
+    assert resp.status == 403 and "This link no longer works." in payload.decode()
+    resp, payload = client.request("GET", "/result?token=old", token=False)
+    assert json.loads(payload) == {"error": "missing or wrong token"}
+
+
 def test_the_favicon_is_no_content_and_needs_no_token(tmp_path, serve):
     """A browser asks for /favicon.ico without the token: a 403 there is two console errors on
     every page load."""

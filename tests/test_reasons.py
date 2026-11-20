@@ -601,8 +601,8 @@ def test_report_html_shows_reasons_read_only_with_no_input(here):
     html = _report(ws)
     assert not re.search(r"<(input|textarea)\b|<[^>]*\saria-pressed=", html)
     flat = _flat(html)
-    assert ("Your reason: it has a wrong fact; the rule doesn't say how to grade this; "
-            "“Wrong year”") in flat
+    assert ("Your reason: It has a wrong fact; The rule doesn't say how to grade this; "
+            "“Wrong year”") in flat  # each reason as its button says it
     assert "Add a reason" not in flat
     assert re.findall(r"<script>(.*?)</script>", html, re.DOTALL) == [report_page.SCRIPT]
 

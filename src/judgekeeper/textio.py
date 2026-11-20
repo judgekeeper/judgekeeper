@@ -964,9 +964,12 @@ def above_projects(folder) -> bool:
 
 def through_top(path) -> bool:
     """Whether `path`, typed from here, climbs through a top folder or a folder above the home
-    folder (shares_below_home): a printed command names it as from_here does instead."""
+    folder (shares_below_home): a printed command names it as from_here does instead. A link
+    is where it is typed, not where it leads: the command reads the same file through it."""
     try:
-        return _from_below_home(os.path.realpath(path), os.getcwd()) is None
+        typed = os.path.abspath(path)
+        real = os.path.join(os.path.realpath(os.path.dirname(typed)), os.path.basename(typed))
+        return _from_below_home(real, os.getcwd()) is None
     except OSError:
         return False
 

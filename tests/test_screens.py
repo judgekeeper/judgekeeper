@@ -278,7 +278,8 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         "Step 1 of 5: Find",
         "",
         "No eval results found in this folder (my-app). judgekeeper",
-        "looked 4 folders down (2 for CSV, TSV and JSONL files).",
+        "looked in this folder and up to 4 folders down (CSV, TSV and",
+        "JSONL files: up to 1 folder down).",
         "judgekeeper can read results from promptfoo, DeepEval,",
         "Inspect AI, MLflow, or a CSV, TSV or JSONL file with input and",
         "output columns, and a verdict column if an LLM-as-a-judge graded",
@@ -322,7 +323,7 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:24] == [
+    assert lines[:25] == [
         "Check your LLM-as-a-judge in 5 steps.",
         "",
         "  1. Find      judgekeeper          finds your eval results and the",
@@ -342,13 +343,14 @@ def test_screen_8_help(capsys):
         "judgekeeper can read results from promptfoo, DeepEval, Inspect AI,",
         "MLflow, or a CSV, TSV or JSONL file with these columns:",
         "  input, output, and verdict if an LLM-as-a-judge graded them",
+        "  (input and output alone work too: you mark each answer Pass or Fail)",
         "",
         "usage: judgekeeper [PATH] [options]",
         "",
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[24:28] == [
+    assert lines[25:29] == [
         "  fix     show where your LLM-as-a-judge goes wrong, help you write a better",
         "          rule and test it on marks kept aside",
         "  check   re-check your LLM-as-a-judge on your marks after a change",

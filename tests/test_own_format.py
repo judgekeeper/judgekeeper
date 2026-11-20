@@ -91,3 +91,13 @@ def test_the_most_recently_changed_file_is_named(tmp_path):
 # What start says ------------------------------------------------------------------------------
 
 
+
+
+def test_a_results_folder_is_looked_in_before_many_other_files(tmp_path):
+    """The search's file limit goes to folders named like results first (as find's walk), so
+    300 data files in an earlier folder never hide the judged file."""
+    for i in range(own_format.MAX_FILES + 10):
+        _write(tmp_path / "aaa" / f"doc{i:04}.json", json.dumps({"text": "a document"}))
+    _write(tmp_path / "results" / "judged.csv", "prompt,response,score\nq,a,0.4\n")
+    found = own_format.search(tmp_path)
+    assert found is not None and found.rel == "results/judged.csv"

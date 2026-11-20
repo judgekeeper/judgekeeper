@@ -235,10 +235,11 @@ def test_the_page_is_one_screen_on_a_laptop_and_the_answer_always_has_room():
     short = mark_page.STYLE.split("@media (min-width: 761px) and (max-height: 800px) {", 1)[1]
     assert ".actions { padding-top: 12px; padding-bottom: 8px; }" in short and ".btn { height: 44px; }" in short
     page = mark_page.label_page("bot", "judgekeeper mark")
-    assert ('<div class="label">Answer</div><p class="run" id="a-run" hidden></p>'
+    assert ('<div class="label">Answer</div><p class="again-note" id="a-again" hidden>'
+            f'{mark_page.AGAIN}</p><p class="run" id="a-run" hidden></p>'
             '<div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p>'
             "</div>") in page
-    assert ".row-a > .graded, .row-a > .label, .row-a > .run { flex: none; }" in laptop
+    assert ".row-a > .graded, .row-a > .label, .row-a > .run, .row-a > .again-note { flex: none; }" in laptop
 
 
 def test_a_short_heading_has_room_for_one_line():
@@ -537,7 +538,9 @@ def test_a_saved_reason_shows_in_one_line_with_change():
     html = _html([_with_reason(why)], live=True, parts=["Be polite", "Never promise refunds"])
     line = re.search(r'<p class="why-line">.*?</p>', html)[0]
     text = re.sub(r"<[^>]+>", "", line)
-    assert text == "ChangeYour reason: it has a wrong fact; rule part 2; “Wrong year”Show more"
+    assert text == "ChangeYour reason: It has a wrong fact; rule part 2; “Wrong year”Show more"
+    chip = re.search(r'<button type="button" class="chip"[^>]*data-reason="wrong_fact"[^>]*>', html)
+    assert 'data-said="It has a wrong fact"' in chip[0]  # what the line says once it is tapped
     assert "Add a reason" not in line
 
 

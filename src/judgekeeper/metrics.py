@@ -3,9 +3,9 @@
 A verdict of None means the judge output could not be parsed. It is kept as its own category
 ("invalid") and is always counted as wrong against the human label.
 
-A verdict of "error" (ERROR) means a custom or imported judge raised, returned nothing or
-returned something unparseable. Errors are not verdicts: they are left out of every agreement
-metric and counted separately.
+A verdict of "error" (ERROR) means an imported judge's grade was no decision (a failed call
+saved as "error", "n/a" and the like). Errors are not verdicts: they are left out of every
+agreement metric and counted separately.
 """
 
 from __future__ import annotations

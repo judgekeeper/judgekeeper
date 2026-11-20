@@ -501,10 +501,12 @@ def test_a_damaged_results_file_in_check_ends_with_one_stop(here, capsys):
 def test_the_table_depth_is_said_alike_in_the_terminal_and_the_reference():
     from judgekeeper import find
 
-    said = find.looked(ROOT)
-    assert "(2 for CSV, TSV and JSONL files)" in said and "1 folder down" not in said
+    said = find.looked(ROOT.name)
+    assert "up to 4 folders down" in said, said
+    assert "(CSV, TSV and JSONL files: up to 1 folder down)" in said, said
     ref = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
-    assert "A CSV, TSV or JSONL file at most two folders deep" in ref
+    assert "up to four folders down" in ref
+    assert "A CSV, TSV or JSONL file in the project folder or up to one folder down" in ref
 
 
 def test_one_damaged_row_is_its_only_row():

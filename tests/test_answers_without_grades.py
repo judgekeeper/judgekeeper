@@ -338,7 +338,10 @@ def test_check_and_fix_say_there_is_no_llm_as_a_judge(here, capsys, pages, comma
     assert code == 3, said
     assert "Your answers have no grades, so there is no LLM-as-a-judge to" in said
     assert "Traceback" not in said and "error:" not in said
-    assert "Your marks are kept." in said
+    if command == "fix":  # no LLM-as-a-judge: the result's step, never a verdict column
+        assert "verdict column" not in said and "Next: add more answers" in said, said
+    else:
+        assert "Your marks are kept." in said
 
 
 def test_labels_brought_with_labels_count_as_marks(here, capsys, pages):
@@ -363,13 +366,13 @@ def test_every_answer_marked_under_ten_asks_for_more_answers(here, capsys, pages
     done = page.summary()["status"]["done"]
     line = ("Next: add more answers to results.csv (at least 10 in all), then run "
             "`judgekeeper` again.")
-    assert done[1] == line
+    assert done[1] == line  # the page's: as it was started
     code, out, _ = run(capsys, "--no-browser")
     said = flat(out)
     assert code == 3
     assert ("You've marked every answer: 6 Pass, 3 Fail. Mark a few more answers to "
             "see your result.") in said
-    assert line in said
+    assert line.replace("`judgekeeper`", "`judgekeeper --no-browser`") in said  # the run's
     assert "your eval" not in said
 
 
@@ -382,7 +385,7 @@ def test_every_answer_marked_with_a_result_asks_for_more_for_a_surer_number(here
     _, out, _ = run(capsys, *argv, "--no-browser")
     said = flat(out)
     assert ("Next: add more answers to results.csv for a surer number, then run "
-            "`judgekeeper` again.") in said
+            "`judgekeeper --no-browser` again.") in said  # the run's flags, for this project
     assert "your eval" not in said
 
 
@@ -600,15 +603,17 @@ def test_a_deepeval_project_with_no_run_gives_the_deepeval_steps(here, capsys, p
     assert "Mark each one Pass or Fail" not in out
 
 
-def test_results_in_a_project_below_are_named_not_the_answers_here(here, capsys, pages):
+def test_answers_here_are_read_and_a_project_below_with_results_named(here, capsys, pages):
     below = here / "support-bot"
     below.mkdir()
     (below / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
     write_answers(below, 40, grades=["pass", "fail"] * 20)
     write_answers(here, 12, name="dataset")
-    assert [r.rel for r in find.search(here).readable("table")] == ["support-bot/results.csv"]
     _, out, _ = run(capsys, "--no-browser")
-    assert "support-bot" in out and "dataset.csv" not in out
+    said = flat(out)
+    assert "File: dataset.csv" in said and "support-bot/results.csv" not in said, said
+    assert ("The project in support-bot/ has results too: to check them, run "
+            "`judgekeeper support-bot --no-browser`.") in said, said
 
 
 def test_the_answers_here_are_read_and_the_hint_names_the_results_above(here, capsys,
@@ -642,8 +647,8 @@ def test_answers_alone_never_make_a_folder_hold_results(here):
 
 
 def test_new_answers_after_every_answer_was_marked_make_a_new_result(here, capsys, pages):
-    """All 12 marked, then 10 answers added to the file: the result counts the answers left,
-    so the terminal and the pages say to mark more, not to add answers or change a mark."""
+    """All 12 marked, then 10 answers added to the file: the marking page opens for them, and
+    the result after them counts them, so nothing says to add answers or change a mark."""
     write_answers(here, 12)
     run(capsys, "--no-browser")
     mark(here, ["pass"] * 8 + ["fail"] * 4)
@@ -653,13 +658,13 @@ def test_new_answers_after_every_answer_was_marked_make_a_new_result(here, capsy
     write_answers(here, 22)  # the same 12 and 10 more
     _, out, _ = run(capsys, "--no-browser")
     said = flat(out)
-    assert "You passed 8 of 12 answers." in said
-    assert "Next: run `judgekeeper mark --no-browser` to mark more answers." in said
-    assert "for a surer number, then run" not in said
-    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["left"] == 10
-    report = _report(here)
-    assert "Mark more answers for a surer number." in report and "Change a mark" not in report
-    assert f'<a href="{BACK}">Mark more answers for a surer number.</a>' in _live(here)
+    assert "Step 2 of 5: Mark" in said and "Found 10 new answers" in said, said
+    assert "You passed" not in said and "for a surer number, then run" not in said
+    assert "Change a mark" not in _report(here)
+    mark(here, ["pass"] * 8 + ["fail"] * 4 + ["pass"] * 10)
+    _, out, _ = run(capsys, "--no-browser")
+    assert "You passed 18 of 22 answers." in flat(out), out
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["left"] == 0
 
 
 GRADES_GONE = "results.csv needs input, output and a verdict or score column"

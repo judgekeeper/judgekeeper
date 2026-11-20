@@ -90,7 +90,8 @@ STEPS = """\
 READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV, TSV or JSONL file with these columns:
-  input, output, and verdict if an LLM-as-a-judge graded them"""
+  input, output, and verdict if an LLM-as-a-judge graded them
+  (input and output alone work too: you mark each answer Pass or Fail)"""
 FIX_HELP = ("show where your LLM-as-a-judge goes wrong, help you write a better rule and test "
             "it on marks kept aside")
 COMMANDS_HELP = (
@@ -490,6 +491,8 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
         _next(NEXT_REMOVED.replace("{command}", program()))
         raise SystemExit(EXIT_USAGE)
     if command in ("fix", "check") and (kept := _without_page_flags(args_list)) != args_list:
+        _say(f"judgekeeper {__version__}")  # the first line, as every run of `check` says it
+        _say("")
         print(NO_PAGE.format(command=command), file=sys.stderr)
         _next(f"run `{program(' '.join(textio.quote_arg(a) for a in kept))}`.")
         raise SystemExit(EXIT_USAGE)

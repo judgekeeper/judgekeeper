@@ -153,6 +153,7 @@ REASONS_SCRIPT = """
     function count(text) { return Array.from(text).length; }
     function each(list, f) { Array.prototype.forEach.call(list, f); }
     function on(b) { return b.getAttribute("aria-pressed") === "true"; }
+    var boxes = [];  // each box's own(list): the person's own buttons as the server has them
     each(document.querySelectorAll(".why"), function (box) {
       var saved = box.querySelector(".saved"), input = box.querySelector("input"),
           other = box.querySelector(".other"), mark = box.querySelector(".mark-part"),
@@ -218,6 +219,7 @@ REASONS_SCRIPT = """
               return r.json().then(function (b) {
                 var code = document.querySelector(".cmd.prompt code");
                 if (code && b.summary && b.summary.prompt) { code.textContent = b.summary.prompt; }
+                if (b.own) { boxes.forEach(function (x) { x(b.own); }); }
               }, function () {});
             }
             return r.json().then(function (e) {
@@ -257,9 +259,37 @@ REASONS_SCRIPT = """
         });
         clear.hidden = !spans.length;
       }
-      each(box.querySelectorAll("[aria-pressed]"), function (b) {
+      function tap(b) {
         b.addEventListener("click", function () {
           b.setAttribute("aria-pressed", String(!on(b))); send(true); });
+      }
+      each(box.querySelectorAll("[aria-pressed]"), tap);
+      // A reason typed in another answer's box: its button here at once, before "Other…";
+      // renamed as it is typed on; gone with it, unless it is tapped here.
+      boxes.push(function (list) {
+        var id = box.getAttribute("data-id"), changed = false, ids = {};
+        list.forEach(function (c) {
+          if (c.from === id) { return; }
+          ids[c.id] = true;
+          var b = Array.prototype.filter.call(box.querySelectorAll("[data-reason]"),
+            function (x) { return x.getAttribute("data-reason") === c.id; })[0],
+              said = "\u201c" + c.text + "\u201d";
+          if (!b) {
+            b = document.createElement("button");
+            b.type = "button"; b.className = "chip";
+            b.setAttribute("aria-pressed", "false"); b.setAttribute("data-reason", c.id);
+            var t = document.createElement("span"); t.className = "t";
+            b.appendChild(t); other.parentNode.insertBefore(b, other);
+            tap(b);
+          }
+          if (b.getAttribute("data-said") !== said) { changed = changed || on(b); }
+          b.querySelector(".t").textContent = c.text; b.setAttribute("data-said", said);
+          b.setAttribute("title", c.text); b.setAttribute("aria-label", c.text);
+        });
+        each(box.querySelectorAll('[data-reason^="own-"]'), function (b) {
+          if (!ids[b.getAttribute("data-reason")] && !on(b)) { b.remove(); }
+        });
+        if (changed) { line(); }
       });
       other.addEventListener("click", function () {
         var open = other.getAttribute("aria-expanded") !== "true";
@@ -988,8 +1018,8 @@ def _part_said(n: int, part: str, whole: bool = False) -> str:
 
 
 def _reason_said(k: str, own: dict[str, str]) -> str:
-    return (reasons.lower(reasons.REASONS[k][0]) if k in reasons.REASONS
-            else f"\u201c{own[k]}\u201d")
+    """A reason in "Your reason: ...": its button's own words, or the person's in quotes."""
+    return reasons.REASONS[k][0] if k in reasons.REASONS else f"\u201c{own[k]}\u201d"
 
 
 def _said_words(m: dict, parts: list[str], own: dict[str, str],
@@ -1042,7 +1072,7 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0,
          asked: list[str] | None = None) -> str:
     """The row foot and reason box of one disagreement on the live page (`left_out`: the
     rule's parts with no button): "Add a reason" (or "Change" and the reason saved), "Show
-    all" at the right; in the box, the everyday reasons first (`asked`, when not those
+    more" at the right; in the box, the everyday reasons first (`asked`, when not those
     reasons.offered gives for the judge's grade), then the rule's parts."""
     why = m.get("why") or {}
     taps, chosen = set(why.get("reasons") or []), set(why.get("rule_parts") or [])
@@ -1093,11 +1123,11 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0,
 def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
            left_out: int = 0, same: tuple = (), reasons_given: bool = True,
-           asked: list[str] | None = None, kept_for: str = "your fix") -> str:
-    """One group of disagreements: its title, how many more are kept aside (`kept`, to test
-    `kept_for`), the table (its REASON column only when an answer marked has a reason:
-    `reasons_given`), then "Show N more" under it past ROWS_SHOWN rows. Each row's cells
-    show 4 lines,
+           asked: list[str] | None = None, kept_said=None) -> str:
+    """One group of disagreements: its title, how many more are kept aside (`kept`, said by
+    `kept_said(kept)` when given: no_grades.kept_line), the table (its REASON column only
+    when an answer marked has a reason: `reasons_given`), then "Show N more" under it past
+    ROWS_SHOWN rows. Each row's cells show 4 lines,
     then the row's foot: on the live page (`live`) its reason button and box, the reason
     saved, and the row's own "Show more" (SCRIPT) at the right; in report.html the person's
     reasons, read-only. `asked`: the reason buttons, when not the judge's (_box)."""
@@ -1126,7 +1156,7 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
             f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="sec group" aria-labelledby="g-{key}"><div class="gh">'
-            f'<h2 id="g-{key}">{_colour(_term(said))}</h2>{_kept(kept, kept_for)}</div>'
+            f'<h2 id="g-{key}">{_colour(_term(said))}</h2>{_kept(kept, kept_said)}</div>'
             f'<table class="tbl{"" if reasons_given else " no-reason"}" id="t-{key}"><colgroup>'
             f'<col class="c1"><col class="c2">{third[0]}</colgroup><thead><tr>'
             f'<th scope="col">Question</th><th scope="col">Answer</th>{third[1]}</tr></thead>'
@@ -1144,13 +1174,15 @@ def kept_line(n: int, of_these: bool = False) -> str:
             "can be tested on answers you haven't looked at again.")
 
 
-def _kept(n: int, kept_for: str = "your fix") -> str:
+def _kept(n: int, kept_said=None) -> str:
     """Under a group's heading: how many more of it are kept aside, in fewer words than the
-    terminal's kept_line, or nothing. `kept_for`: what they test (no_grades.KEPT_FOR)."""
+    terminal's kept_line, or nothing. `kept_said`: the sentence for `n` (no_grades.kept_line,
+    which names the answers failed), else the LLM-as-a-judge page's."""
     if not n:
         return ""
-    return (f'<p class="kept">{n} more {"is" if n == 1 else "are"} kept aside to test '
-            f'{kept_for}.</p>')
+    said = kept_said(n) if kept_said else (
+        f'{n} more {"is" if n == 1 else "are"} kept aside to test your fix.')
+    return f'<p class="kept">{_e(said)}</p>'
 
 
 def _kept_after(n: int) -> str:
@@ -1408,7 +1440,8 @@ def _next(r: dict, back: str | None, extra: list[str]) -> str:
     Copy; when it is good enough, that there is nothing more to do; then, unless every answer
     is marked, how to mark more: on the page the marking server serves, a link back to the
     marking page (`back`, with its token) and the command for once it has closed; in
-    report.html the command only, so the token is never saved. `extra`: lines under the
+    report.html no link, so the token is never saved, and no line to mark more unless fix
+    needs more marks (fix.NOT_ENOUGH). `extra`: lines under the
     command (how to say why, STARTED_ELSE). NOTES marks where the notes go."""
     step = next_step(r)
     if step == "mark":
@@ -1607,7 +1640,12 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
     cmd = commands(r)
     mark = f"<code>{look.command(_e(cmd['mark']))}</code>"
     file = fixing.get("file")
-    more = (no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
+    since = fixing.get("since") or r.get("since")
+    asks = r["check"] == "result" and no_grades.questions_next(  # one step: new questions
+        since, _PATH if file else "your results file",
+        _PAGE_FLAGS.sub("", cmd["run"]), none_failed=not labels["wrong"])
+    more = asks or (
+        no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
         file=_PATH if file else "your results file", n=no_grades.MIN_MARKS,
         command=_PAGE_FLAGS.sub("", cmd["run"]))
     cnts = _own_counts(k, n - k)
@@ -1632,7 +1670,7 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
         names = tuple(x for x, _ in _same(rows))
         lists = (_group("fail", FAILED, rows, r.get("kept") or 0, live, [],
                         fixing.get("own") or [], 0, names, reasons_given=False,
-                        asked=no_grades.offered(), kept_for=no_grades.KEPT_FOR)
+                        asked=no_grades.offered(), kept_said=no_grades.kept_line)
                  if rows else "")
         if not rows and r.get("kept") and r["kept"] == n - k:  # every Fail is kept aside
             cnts = _own_counts(k, n - k, no_grades.ALL_KEPT[min(n - k, 2)])
@@ -1654,15 +1692,22 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
                    f'<div class="cmd prompt"><code>{_e(fixing["prompt"])}</code>'
                    '<button type="button" class="copy" data-copy aria-label="Copy the prompt">'
                    f"{COPY_ICONS}</button></div>"
-                   "<p>After you change the prompt, run your AI again, save the new answers, "
-                   f"and run <code>{look.command(_e(_PAGE_FLAGS.sub('', cmd['run'])))}</code> "
-                   "to mark them.</p>") + act
+                   + ("" if asks else  # the questions it asks for: the one step
+                      "<p>After you change the prompt, run your AI again on the same "
+                      "questions, save its new answers in "
+                      + (f"<code>{_e(file)}</code>" if file else "your results file")
+                      + " or a new file next to it, and run "
+                      f"<code>{look.command(_e(_PAGE_FLAGS.sub('', cmd['run'])))}</code> "
+                      "to mark them.</p>")
+                   # no kept-aside answer new: the change to test is the one step
+                   + ("" if not (asks or left) and no_grades.untested(since) else act))
         if started_else:
             act += ('<p class="small">' + _e(STARTED_ELSE).replace(
                 "`judgekeeper`", "<code>judgekeeper</code>") + "</p>")
-        from judgekeeper.start_label import link_lines, quick_lines
+        from judgekeeper.start_label import link_lines, quick_lines, repeat_lines
 
-        notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))]
+        notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))
+                 + repeat_lines((r.get("made") or {}).get("repeats"))]
         body = (f'<section class="verdict" aria-labelledby="verdict-h"><h1 id="verdict-h" '
                 f'class="plain">{head}</h1></section>{_since(fixing)}'
                 '<section class="sec score" aria-labelledby="nums-h"><div class="sh">'

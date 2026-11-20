@@ -9,14 +9,17 @@ textContent. The server fills in __DATA__ (start_label.StartSession.state), __TO
 __NONCE__.
 
 So that each mark comes from a real look at the answer: Fail and Pass look the same but for
-their colour; after each mark the page ignores input for about 400 ms, and it ignores a held
-key and any key with Cmd, Ctrl or Alt. Focus goes to the answer, never to a button. The
-progress bar follows how close the result is (Pass and Fail marks, each counted up to ROUGH;
-a skipped answer counts for nothing), never full before the result is ready, and no number on
-the page is a target. When the result becomes ready while the page is open, a box says so,
-once. In an answer or a question only `**bold**` and "- " lines are formatted, built with
-createElement and createTextNode. Skipped answers come back at the end. On a phone (760px and
-narrower) the card comes first, then the list.
+their colour; a mark or skip within FRESH_MS (250 ms) of an answer showing does nothing, an
+undo waits LOCK_MS (400 ms) after the one before, and the page ignores a held key and any key
+with Cmd, Ctrl or Alt. A Pass, Fail or Skip, by click or key, made while a mark saves is held
+for the answer on screen when it was made: it counts only if that answer is still showing when
+the save ends, else the page says it was not marked. Focus goes to the answer, never to a
+button. The progress bar follows how close the result is (Pass and Fail marks, each counted up
+to ROUGH; a skipped answer counts for nothing), never full before the first numbers
+(status.first), and no number on the page is a target. When the result becomes ready while
+the page is open, a box says so, once. In an answer or a question only `**bold**` and "- "
+lines are formatted, built with createElement and createTextNode. Skipped answers come back at
+the end. On a phone (760px and narrower) the card comes first, then the list.
 """
 
 from __future__ import annotations
@@ -111,7 +114,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .state .said { font-weight: 600; }
 .state .said.pass { color: var(--green); }
 .state .said.fail { color: var(--red); }
-.run { margin: -4px 0 12px; font-size: 13px; color: var(--muted); }
+.run, .again-note { margin: -4px 0 12px; font-size: 13px; color: var(--muted); }
 .question { font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   margin: 0; max-width: 28ch; white-space: pre-wrap; overflow-wrap: anywhere; }
 .question .field-name { display: block; font-size: 11px; font-weight: 600; letter-spacing: .1em;
@@ -131,11 +134,11 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .answer { font-size: 20px; line-height: 1.6; margin: 0; max-width: 60ch; white-space: pre-wrap;
   overflow-wrap: anywhere; }
 .answer:dir(rtl), .question:dir(rtl) { margin-left: auto; }
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }
+.actions { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }
 .btn { height: 50px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
   gap: 10px; font-size: 16px; font-weight: 700; color: #fff; transition: filter 100ms ease; }
 .btn:active { filter: brightness(.9); }
-.btn:disabled { cursor: default; }
+.btn.saving { cursor: default; }
 .btn-ico { width: 15px; height: 15px; }
 .btn-ico path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: square; }
 .btn kbd { font-family: var(--sans); font-size: 13px; font-weight: 400; margin-left: 8px; }
@@ -147,8 +150,11 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .quiet { padding: 8px 20px; font-size: 14px; color: var(--muted); }
 .quiet:hover { color: var(--text); background: var(--hover); }
 .quiet kbd { font-family: var(--mono); font-size: 12px; color: var(--text); margin-left: 8px; }
-.status { margin: 0; padding: 0 40px 10px; text-align: center; font-size: 13px; font-weight: 600;
-  color: var(--red); }
+/* The line is out of the layout, at the foot of the answer: a line that shows or goes never
+   moves a button, so a click aimed at one lands. */
+.status { position: absolute; left: 0; right: 0; bottom: calc(100% + 1px); margin: 0; padding: 0 40px 10px;
+  text-align: center; font-size: 13px; font-weight: 600; color: var(--red); background: var(--bg);
+  pointer-events: none; }
 .status:empty { display: none; }
 .status.calm { color: var(--muted); font-weight: 400; }
 .end { padding: 56px 28px; display: flex; flex-direction: column; align-items: center; gap: 24px;
@@ -157,6 +163,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .end h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   max-width: 32ch; }
 .end .note { margin: 0; color: var(--muted); font-size: 15px; }
+/* Undo on the end card is where it was on the answer: the same row at the card's foot, with
+   Skip's room kept (unseen), so a click aimed at Undo lands. */
+.end .sub { align-self: stretch; margin: auto -28px -56px; }
+.ghost { visibility: hidden; }
 .go { font-weight: 700; border-radius: 4px; color: #fff; background: var(--green-fill);
   height: 50px; padding: 0 28px; font-size: 16px; text-decoration: none; display: inline-flex;
   align-items: center; justify-content: center; transition: filter 100ms ease; }
@@ -221,7 +231,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .row-a { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 + 65px); display: flex;
     flex-direction: column; overflow: hidden; padding-top: 26px; padding-bottom: 0; }
   .card:has(.rule:not([hidden])) .row-q { flex-shrink: 0; }  /* the rule gives way, not the question */
-  .row-a > .graded, .row-a > .label, .row-a > .run { flex: none; }
+  .row-a > .graded, .row-a > .label, .row-a > .run, .row-a > .again-note { flex: none; }
   .a-scroll { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 - 30px); overflow: auto;
     overscroll-behavior: contain; margin: 0 -40px; padding: 0 40px 32px; }
   .a-scroll.fits { flex: 0 0 auto; min-height: 0; }
@@ -312,17 +322,18 @@ __TOP__
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
     <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text" dir="auto"></h1><button type="button" class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" hidden>Show all</button></div><div class="state" id="ans-status" aria-live="polite"></div></div>
-    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="run" id="a-run" hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
+    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="again-note" id="a-again" hidden>__AGAIN__</p><p class="run" id="a-run" hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
       <button type="button" class="btn pass" id="pass" aria-pressed="false" aria-keyshortcuts="ArrowRight">__TICK__<span>Pass</span><kbd>→</kbd></button>
+      <p class="status" id="status" role="status"></p>
     </div>
     <div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S"><span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>
-    <p class="status" id="status" role="status"></p>
     <p class="sr" id="done" role="status"></p>
   </section>
   <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
+    <div class="sub" id="end-sub" hidden><button type="button" class="quiet ghost" tabindex="-1" aria-hidden="true" disabled><span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" id="end-undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>
     <button type="button" class="go" id="again" hidden>Go back to them</button></section>
   <p class="foot">To come back: <code>__COMMAND__</code>__HELD__</p>
 </main>
@@ -359,7 +370,10 @@ __TOP__
   // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
   // nobody reads an answer that fast, so it was a second press meant for the one before.
   var FRESH_MS = 250, freshUntil = 0;
-  var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
+  // Pressed while a mark is saved, held in order until it ends: an undo ({run}) acts then; a
+  // Pass, Fail or Skip ({run, id}) acts only on the answer that was on screen when it was
+  // pressed (`id`), else the page says it was not marked.
+  var queued = [];
   // The result-ready box waits until no mark came for READY_WAIT_MS (`readyDue`: the server
   // said to show it), so it does not come mid-marking; it covers nothing. It opens only
   // while the result is still ready (an undo meanwhile can take it back); until it opens it
@@ -789,12 +803,13 @@ __TOP__
     setText("a-run", it.run ? "Run " + it.run[0] + " of " + it.run[1] +
       ": graded differently" : "");
     $("a-run").hidden = !it.run;
+    $("a-again").hidden = it.again == null;  // a marked answer back to check the marks: said
     showQuestion(it);
     showAnswer(it.output);
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));
     $("pass").setAttribute("aria-pressed", String(it.label === "pass"));
     renderQueue(); renderProgress();
-    busy = false; $("pass").disabled = false; $("fail").disabled = false;
+    busy = false; saving(false);
     shownAt = Date.now();
   }
 
@@ -832,13 +847,14 @@ __TOP__
   function finish(stay) {
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false; $("end").classList.remove("only");
+    $("end-sub").hidden = true;  // only while the result is about to open
     fitEnd();
     renderQueue(); renderProgress();
     var skipped = items.filter(function (it) { return it.skipped && it.again == null; }).length;
     if (!skipped) {
       setText("end-title", "You marked every answer.");
       $("again").hidden = true; $("end-note").hidden = false;
-      setText("end-note", "Opening your result\u2026");
+      setText("end-note", "Opening your result\u2026 Press Z to undo.");
       if (status.done) {
         setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
         focusCard(); return;
@@ -851,7 +867,13 @@ __TOP__
         setText("end-note", WORDS.change);
         focusCard(); return;
       }
-      window.location.href = url("/result");
+      $("end-sub").hidden = false;  // a click on its Undo is a Z
+      if (queued.length) {  // a key pressed while the last mark saved (Z, say) comes first;
+        // the result opens after it only when every answer is still marked
+        queued.push({run: function () { if (ended && !changing) { leave(); } }});
+        return;
+      }
+      leave();
       return;
     }
     $("end-note").hidden = true;
@@ -886,12 +908,12 @@ __TOP__
       e.preventDefault(); lookAgain(); }
   });
 
-  // An answer the server asks to show again, next, as any answer looks (never said); its
-  // mark is sent with its slot and never counts as a mark.
+  // An answer the server asks to show again, next; its card says it was seen before
+  // (AGAIN). Its mark is sent with its slot and never counts as a mark.
   function showAgain(again) {
     if (!again) { return; }
     var it = {id: again.id, input: again.input, output: again.output, label: null,
-              skipped: false, again: again.slot};
+              skipped: false, again: again.slot, first: again.first};
     if (again.run) { it.run = again.run; }
     items.splice(pos + 1, 0, it); total += 1;
   }
@@ -912,21 +934,22 @@ __TOP__
   // The list and counts again (/state), as a reload gives them, when someone else wrote marks
   // since this page last looked: the next answer is then one still to mark.
   function refresh(heard, popup) {
-    queued = [];
     fetch(url("/state"), {referrerPolicy: "same-origin"}).then(function (r) {
       return r.json();
     }).then(function (s) {
       items = s.items; total = s.total || items.length; counts = s.counts; status = s.status;
       version = s.version; history = []; walkingSkipped = false;
       if (nextIndex(0) !== null) { open(s.start); focusCard(); } else { finish(); }
-      hear(heard);
+      var lost = queued.some(function (q) { return q.id !== undefined; });
+      queued = [];
+      if (lost) { notMarked(heard); } else { hear(heard); }
       if (popup) { readyLater(); }
     }).catch(function () { window.location.reload(); });
   }
 
   function send(change, then, heard) {
     if (busy) { return false; }
-    busy = true; $("pass").disabled = true; $("fail").disabled = true;
+    busy = true; saving(true);
     change.id = items[pos].id;
     if (items[pos].again != null) { change.again = items[pos].again; }  // shown again: its slot
     change.seconds = Math.max(0, (Date.now() - shownAt) / 1000);
@@ -950,7 +973,7 @@ __TOP__
       then();
       if (res.body.summary.popup || readyOwed && !readyDue && status && status.ready) {
         readyLater(); }
-      while (queued.length && !busy) { queued.shift()(); }
+      drain(heard);
     }).catch(function () {
       clearTimeout(waited); queued = [];
       render();
@@ -962,8 +985,9 @@ __TOP__
   // An undo click waits LOCK_MS after the one before: a double click undoes one mark. A mark
   // or skip, by click or key, does nothing within FRESH_MS of its answer showing (fresh), so a
   // double click never marks an answer not yet read; any later click marks the answer on
-  // screen. A key pressed while a mark is saved waits for it (act); a key held down does
-  // nothing.
+  // screen. A Pass, Fail or Skip, by click or key, made while a mark is saved waits for it
+  // (press), for the answer on screen when it was made; an undo key waits for it too (act); a
+  // key held down does nothing.
   function locked(key) {
     var t = Date.now();
     if (t < lockUntil && !key) { return true; }
@@ -980,25 +1004,78 @@ __TOP__
     hearing = setTimeout(function () { setText("done", text); }, 100);
   }
 
-  function act(f) { if (busy) { queued.push(f); } else { f(); } }
+  function act(f) { if (busy) { queued.push({run: f}); } else { f(); } }
 
   function fresh() { return Date.now() < freshUntil; }
 
-  function mark(value) {
+  // The buttons stay clickable while a mark saves (a click on a disabled one is lost without a
+  // word); the cursor alone shows it.
+  function saving(on) {
+    $("pass").classList.toggle("saving", on); $("fail").classList.toggle("saving", on);
+  }
+
+  // The start of the question on screen, as the line below names the answer to mark.
+  function shownQuestion() {
+    var v = items[pos] ? question(items[pos]) : "";
+    if (Array.isArray(v)) { v = v.map(function (pair) { return pair[1]; }).join(" "); }
+    v = String(v).replace(/[ \\t\\r\\n]+/g, " ").trim();
+    if (!v) { return "the next answer"; }
+    return '"' + (v.length > 40 ? v.slice(0, 40).trim() + "..." : v) + '"';
+  }
+
+  // A held click or key that is not used: said on screen and aloud, never dropped in silence.
+  function notMarked(heard) {
+    var line = WORDS.notMarked.replace("{shown}", function () { return shownQuestion(); });
+    say(line);
+    hear((heard ? heard + " " : "") + line);
+  }
+
+  // After a save: what was held acts, in order, if its answer is the one on screen; else the
+  // page says so once.
+  function drain(heard) {
+    var lost = false;
+    while (queued.length && !busy) {
+      var held = queued.shift();
+      if (held.id === undefined || (!ended && items[pos] && items[pos].id === held.id)) {
+        held.run();
+      } else { lost = true; }
+    }
+    if (lost) { notMarked(heard); }
+  }
+
+  // A card shown again marked unlike its first mark: the words that the first mark still
+  // counts (the mark is kept only as a repeat). "" for any other mark.
+  function noteFirst(it, value) {
+    if (it.again == null || (it.first !== "pass" && it.first !== "fail") || it.first === value) {
+      return ""; }
+    return WORDS.firstCounts.replace("{mark}", it.first === "pass" ? "Pass" : "Fail");
+  }
+
+  // A Pass, Fail or Skip: nothing within FRESH_MS of an answer showing (a double click, on
+  // purpose without a word); while a mark saves it is held for the answer on screen now.
+  function press(run) {
     if (ended || fresh()) { return; }
+    if (busy) { queued.push({run: run, id: items[pos].id}); } else { run(); }
+  }
+
+  function mark(value) { press(function () { markNow(value); }); }
+
+  function markNow(value) {
     closeReady();  // marking goes on: the box goes
     if (readyDue) { readyLater(); }  // still marking: the box waits
     var it = items[pos];
-    var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
+    var noted = noteFirst(it, value);
+    var heard = noted || (value === "pass" ? "Marked Pass." : "Marked Fail.");
     var was = it.label;  // a mark changed: Z puts it back, and the result doesn't open
     if (was) { changing = true; }
     send({label: value}, function () {
       it.label = value; it.skipped = false; history.push({pos: pos, was: was});
-      next(); hear(heard); focusCard(); }, heard);
+      next(); hear(heard); if (noted) { say(noted, true); } focusCard(); }, heard);
   }
 
-  function skip() {
-    if (ended || fresh()) { return; }
+  function skip() { press(skipNow); }
+
+  function skipNow() {
     closeReady();
     if (readyDue) { readyLater(); }
     var it = items[pos], was = it.label;
@@ -1009,7 +1086,21 @@ __TOP__
 
   // Z: a first mark (or skip) is taken back; a changed mark goes back to the mark it had (an
   // ordinary mark line in marks.jsonl, so every step stays there).
+  // The result opening: nothing more is taken back behind it (it is made from the marks
+  // that stand when it opens), and the page says so.
+  // It opens OPEN_MS after the last mark, so a Z in that moment still takes the mark back (the
+  // end card says "Opening your result"); after that the page has left.
+  var leaving = false, leaveTimer = null, OPEN_MS = 1000;
+  function leave() {
+    leaving = true;
+    leaveTimer = setTimeout(function () {
+      leaveTimer = null; window.location.href = url("/result"); }, OPEN_MS);
+  }
+
   function undo(key) {
+    $("end-sub").hidden = true;  // the end card goes with the undo
+    if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null; leaving = false; }
+    if (leaving) { say(WORDS.opening, true); return; }
     if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked(key)) { return; }
     closeReady();  // an undo can take the result back below ready
@@ -1022,13 +1113,14 @@ __TOP__
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.
-  ["fail", "pass", "skip", "undo"].forEach(function (id) {
+  ["fail", "pass", "skip", "undo", "end-undo"].forEach(function (id) {
     $(id).addEventListener("mousedown", function (e) { e.preventDefault(); });
   });
   $("fail").addEventListener("click", function () { mark("fail"); });
   $("pass").addEventListener("click", function () { mark("pass"); });
   $("skip").addEventListener("click", function () { skip(); });
   $("undo").addEventListener("click", function () { undo(); });
+  $("end-undo").addEventListener("click", function () { act(function () { undo(true); }); });
 
   // The keys: → Pass and ← Fail (shown), 1 Pass and 2 Fail (an old habit, still working),
   // S skip, Z undo (U too). A held key or any key with Cmd, Ctrl or Alt does nothing.
@@ -1042,8 +1134,8 @@ __TOP__
     if (!ended && tag !== "BUTTON" && tag !== "A" && scrollAnswer(e, k)) {
       e.preventDefault(); return; }
     if (e.repeat) { return; }
-    if (KEYS[k]) { act(function () { mark(KEYS[k]); }); }
-    else if (k === "s") { act(function () { skip(); }); }
+    if (KEYS[k]) { mark(KEYS[k]); }
+    else if (k === "s") { skip(); }
     else if (k === "z" || k === "u") { act(function () { undo(true); }); }
     else { return; }
     e.preventDefault();
@@ -1108,12 +1200,14 @@ KEEP_GOING = "Keep going: your result appears once there are enough Pass and Fai
 FEW_ANSWERS = "A first result needs at least {n} answers. Your marks are kept for when more answers come."
 SEE_FIRST = "See the numbers so far"  # from the first numbers until a coloured verdict
 SEE_READY = "See your result"
+# On the card of a marked answer shown again to check the marks (start_label's repeats)
+AGAIN = "You saw this answer before. Mark it as you see it now."
 
 
 def _progress() -> str:
     """The top bar's right: the segments by how close the result is, the count of marks, and
-    the link to the result (hidden until one is ready); under them, hidden until it is
-    wanted, the line that says to keep going."""
+    the link to the numbers (hidden until the first numbers, status.first); under them,
+    hidden until it is wanted, the line that says to keep going."""
     return ('<div class="progress-box" id="progress-box"><div class="status-1"><div class="seg" id="progress" '
             'role="progressbar" aria-label="How close your first numbers are" aria-valuemin="0" '
             'aria-valuemax="100" '
@@ -1123,9 +1217,18 @@ def _progress() -> str:
             f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
 
 
+# Z while the result opens (every answer marked): nothing is taken back behind it
+OPENING = 'Your result is opening. To change a mark, click "Change a mark" on it.'
+# A card shown again marked differently: kept only as a repeat, so the first mark counts
+FIRST_COUNTS = "Noted. Your first mark ({mark}) still counts."
+
 # Gone, or no answer: the footer names the command, as typed where it ran (and NAME's lines)
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
              "the command at the bottom of this page. Your marks are kept.")
+# A click or key made while a mark was saving, for an answer no longer on screen: the page
+# puts in the answer now showing ({shown}: the start of its question)
+NOT_MARKED = ("Not marked: your last click or key came while a mark was saving. Showing now: "
+              "{shown}. Mark it again.")
 
 
 def _words() -> str:
@@ -1137,8 +1240,8 @@ def _words() -> str:
     from judgekeeper.start_label import FIRST_NUMBERS, ONLY_SKIPPED_CARD, only_skipped
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER,
-             "change": CHANGE_MARK,
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER, "notMarked": NOT_MARKED,
+             "change": CHANGE_MARK, "opening": OPENING, "firstCounts": FIRST_COUNTS,
              # the end card with only skipped answers left; the page puts in their number
              "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
              "skippedMany": only_skipped(2, ONLY_SKIPPED_CARD).replace("2", "{n}"),
@@ -1197,6 +1300,7 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
+            .replace("__AGAIN__", _text(AGAIN))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
             .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
             .replace("__OUTPUT_WORDS__", json.dumps(OUTPUT_WORDS))

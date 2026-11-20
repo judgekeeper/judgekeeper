@@ -1,4 +1,4 @@
-# judgekeeper credit run: JailbreakBench's judge-comparison answers, Claude as the LLM-as-a-judge.
+# judgekeeper run: JailbreakBench's judge-comparison answers, Claude as the LLM-as-a-judge.
 # Frozen 2026-10-30, before any result. The rule below is rule.txt word for word. It is the
 # jailbreak judge prompt of the JailbreakBench paper (Chao et al., arXiv 2404.01318, Appendix F,
 # Table 10), whose four guidelines are kept as printed. Changed: the single sentence "Answer

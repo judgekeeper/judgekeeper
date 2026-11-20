@@ -170,7 +170,7 @@ def line(batches: dict | None) -> str | None:
 
 def results_key(found) -> str:
     """The newest results (`found`) as start.json's `results_seen` keeps them: their files and
-    each answer's grade. Once said ("Your eval ran again") or added as a batch, the same
+    each answer's grade. Once said (front.RAN_AGAIN) or added as a batch, the same
     results are not said again."""
     import hashlib
 

@@ -699,6 +699,18 @@ def test_readme_links_the_website_and_its_guide():
     assert "(https://www.judgekeeper.com/start.html)" in readme
 
 
+def test_readme_has_only_full_links():
+    """PyPI shows the README as it is: a relative link opens a missing page there, and a
+    #anchor goes nowhere, since PyPI makes no heading anchors."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    links = (re.findall(r"\]\(\s*<?([^)\s>]*)", readme)  # [text](link), ![alt](image)
+             + re.findall(r"^\s*\[[^\]]+\]:\s*<?(\S*?)>?\s*$", readme,  # [name]: link
+                          re.MULTILINE)
+             + re.findall(r"""\b(?:href|src)\s*=\s*["']?([^"'\s>]*)""", readme))
+    assert links
+    assert [x for x in links if not x.startswith("https://")] == []
+
+
 def test_docs_do_not_point_at_the_unused_pages_address():
     assert "judgekeeper.github.io" not in (ROOT / "README.md").read_text(encoding="utf-8")
 

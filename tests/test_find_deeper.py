@@ -30,8 +30,8 @@ def test_a_table_too_deep_is_named_with_the_command_that_reads_it(here, capsys):
     table_project(here, split(16, 16), name="evals/2026/october/judged.csv")
     code, out, _ = run(capsys, "--no-browser")
     text = _flat(out)
-    assert ("No eval results found where judgekeeper looks: 4 folders down from support-bot "
-            "(2 for CSV, TSV and JSONL files).") in text
+    assert ("No eval results found where judgekeeper looks: support-bot and up to 4 folders "
+            "down from it (CSV, TSV and JSONL files: up to 1 folder down).") in text
     assert "evals/2026/october/judged.csv (3 folders down)" in out
     path = quote_arg("evals/2026/october/judged.csv")  # as the line above names it
     assert f"Next: if that file holds your results, run `judgekeeper {path} --no-browser`." in text
@@ -64,6 +64,19 @@ def test_a_linked_results_file_is_named(here, tmp_path, capsys):
     assert "copy the file it links to into your project" in nxt, nxt
 
 
+def test_a_link_to_nothing_is_named(here, capsys):
+    try:
+        (here / "results.json").symlink_to(here / "gone" / "results.json")
+    except OSError:
+        pytest.skip("symbolic links not allowed here")
+    code, out, _ = run(capsys, "--no-browser")
+    flat = _flat(out)
+    assert "results.json (a link to a file that is not there)" in flat, out
+    assert "No eval results found in this folder" not in flat and "run your eval" not in flat
+    assert "point the link at a file that is there, or save your results in its place" in flat
+    assert code == 3
+
+
 def test_results_in_the_project_folder_above_are_read(here, capsys, monkeypatch):
     (here / "pyproject.toml").write_text("[project]\nname = 'bot'\n", encoding="utf-8")
     table_project(here, split(16, 16))
@@ -92,8 +105,9 @@ def test_nothing_results_like_says_where_it_looked(here, capsys):
     (here / "README.md").write_text("hi\n", encoding="utf-8")
     code, out, _ = run(capsys, "--no-browser")
     text = _flat(out)
-    assert ("No eval results found in this folder (support-bot). judgekeeper looked 4 folders "
-            "down (2 for CSV, TSV and JSONL files).") in text
+    assert ("No eval results found in this folder (support-bot). judgekeeper looked in this "
+            "folder and up to 4 folders down (CSV, TSV and JSONL files: up to 1 folder "
+            "down).") in text
     assert text.endswith("Next: paste the prompt above into your coding agent, then run "
                          "`judgekeeper --no-browser` again.")  # the flags as typed
     assert code == 3

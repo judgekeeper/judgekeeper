@@ -1,6 +1,5 @@
-"""Tables: CSV, TSV or JSONL rows (or a list of dicts, or a pandas DataFrame) as dicts, the
-ids derived from them, a judge fingerprint from what is known, and the guard for cells a
-spreadsheet would run as a formula.
+"""Tables: the rows of a CSV, TSV or JSONL file as dicts, the ids derived from them, a judge
+fingerprint from what is known, and the guard for cells a spreadsheet would run as a formula.
 """
 
 from __future__ import annotations

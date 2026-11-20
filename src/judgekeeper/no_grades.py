@@ -110,6 +110,15 @@ def counts_line(k: int, n: int) -> str:
     return COUNTS.format(k=k, n=plural(n, "answer"))
 
 
+def rate_line(r: dict) -> str | None:
+    """The result page's pass rate, as it is written there: "Of the answers you marked, you
+    passed about 60%, between 39% and 78%."; None before a result."""
+    from judgekeeper.report_page import RATE
+
+    words = rate_words(r)
+    return f"{RATE} {words}." if words else None
+
+
 def rate_words(r: dict) -> str | None:
     """"about 60%, between 31% and 83%", as the result page's estimates are written
     (report_page.estimate); None before a result."""
@@ -472,13 +481,104 @@ def results_file(ws) -> str:
     return one_line(line_path(path))  # a name with a line break never starts a line
 
 
-def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
-    """MORE_ANSWERS (`surer`: SURER, with a result) for the run that opened the page or made
-    the marks (`run`), without the page's own flags (start_label.mark_command's)."""
-    from judgekeeper.start_label import _PAGE_FLAGS
+def fix_next(path) -> str:
+    """FIX_NEXT for the project of `path`, its results file named (results_file)."""
+    from judgekeeper.project import project_of
+    from judgekeeper.start_label import Workspace
     from judgekeeper.textio import program
 
-    command = _PAGE_FLAGS.sub("", run or program())
+    return FIX_NEXT.format(file=results_file(Workspace(project_of(Path(path)))),
+                           command=program())
+
+
+# the questions kept aside used up (NEW_SET), or too few of them failed for a clear answer
+# (clear_line): the one next step, the questions that line asks for
+USED_UP_NEXT = "{add} to {file}, then run `{command}` to mark their answers."
+CLEAR_ADD_NEXT = "Add about {extra} more questions"
+
+
+def questions_next(c: dict | None, file: str, command: str,
+                   none_failed: bool = False) -> str | None:
+    """USED_UP_NEXT once the questions kept aside are used up (compare's `c` after the last
+    change they test, or asking for a new set): the new questions new_set_line asks for; with
+    "Can't tell yet" and too few kept-aside Fails, the questions clear_line asks for; with no
+    answer failed (`none_failed`), none to keep aside: harder questions. Never more answers to
+    the same questions. None otherwise."""
+    if c and c.get("waiting"):
+        return None
+    if c and (c.get("last") or c.get("new_set")):
+        n = new_questions(c)
+        add = NEW_SET_HARDER if n is None or n > MOST_ASKED else NEW_SET_ADD.format(n=n)
+    elif c and c.get("kept") and not c.get("clear") and (more := _clear_more(c)) != 0:
+        add = NEW_SET_HARDER if more is None else CLEAR_ADD_NEXT.format(extra=more)
+    elif none_failed:
+        add = NEW_SET_HARDER
+    else:
+        return None
+    return USED_UP_NEXT.format(add=add[0].lower() + add[1:], file=file, command=command)
+
+
+_ONCE_FLAGS = re.compile(r" --(?:wait|yes)(?= |$)")  # for that run alone, never again
+
+
+def next_step(ws, r: dict, mark: str, run: str | None = None) -> str:
+    """The Next step of the result `r` with no grade, as the terminal, `fix` and the page say
+    it: mark the answers left (`mark`: the command), the step the result's own line asks for
+    (verdict_step), else more answers for a surer number (MORE_ANSWERS before a result)."""
+    from judgekeeper.front import NEXT_MARK_MORE
+
+    if r.get("left"):
+        return NEXT_MARK_MORE.format(command=mark)
+    if asked := verdict_step(ws, r, run):
+        return asked
+    return more_answers(ws, run, surer=r.get("check") == "result")
+
+
+def untested(c: dict | None) -> bool:
+    """compare's `c` says NO_KEPT: no question kept aside has a new answer."""
+    return bool(c) and not any(c.get(k) for k in ("waiting", "damaged", "new_set", "kept"))
+
+
+def verdict_step(ws, r: dict, run: str | None = None) -> str | None:
+    """The step the result `r`'s own line asks for, as next_step says it for the run `run`:
+    the questions it asks for (questions_next), or, when no question kept aside has a new
+    answer (untested) and answers failed to fix, the change to test (FIX_NEXT). None when
+    its line asks for neither."""
+    from judgekeeper.textio import program
+
+    if r.get("check") != "result":
+        return None
+    command = _ONCE_FLAGS.sub("", run or program())
+    if asked := questions_next(r.get("since"), results_file(ws), command,
+                               none_failed=not r["labels"]["wrong"]):
+        return asked
+    if untested(r.get("since")) and has_failed(ws):
+        return FIX_NEXT.format(file=results_file(ws), command=command)
+    return None
+
+
+def fix_step(path, failed: bool = False) -> str:
+    """The Next step `fix` gives with no grade, from the marks now: with answers failed to fix
+    (`failed`), the step the result's own line asks for (verdict_step: the questions a change
+    can't be measured without), else FIX_NEXT; with none, the result's (next_step)."""
+    from judgekeeper.project import project_of
+    from judgekeeper.start_label import StartSession, Workspace
+    from judgekeeper.textio import program
+
+    ws = Workspace(project_of(Path(path)))
+    r = compute(ws, StartSession(ws))
+    if failed:
+        return (not r.get("left") and verdict_step(ws, r)) or fix_next(path)
+    return next_step(ws, r, program("mark"))
+
+
+def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
+    """MORE_ANSWERS (`surer`: SURER, with a result) for the run that opened the page or made
+    the marks (`run`): its --port and --no-browser kept (the run is for this project), never
+    what it said once (_ONCE_FLAGS)."""
+    from judgekeeper.textio import program
+
+    command = _ONCE_FLAGS.sub("", run or program())
     return (SURER if surer else MORE_ANSWERS).format(file=results_file(ws), n=MIN_MARKS,
                                                      command=command)
 
@@ -509,8 +609,11 @@ FIX_PROMPT = ("Read {file}. It lists answers my AI gave that I marked Fail{with_
               "answers.")
 AGENT_LEAD = "Paste this into your coding agent (Claude Code, Cursor or Codex):"
 FAILED_SAVED = "Your failed answers are saved in {file}."
+DAMAGED_AGAIN = ("judgekeeper can't use {file}: {why}. The next result starts it again, with "
+                 "every answer you marked shown.")  # `fix`, before the run that makes it again
 FIX_NEXT = ("paste the prompt above into your coding agent. After it changes your AI's prompt, "
-            "save your AI's new answers and run `{command}` again.")  # `fix`, with the prompt
+            "save your AI's new answers in {file} or a new file next to it and run "
+            "`{command}` again.")  # `fix`, with the prompt: the file as the result page names it
 
 
 def question_key(text) -> str:
@@ -525,7 +628,8 @@ def question_key(text) -> str:
 
 
 class SplitUnknown(ValueError):
-    """fix/split-answers.json is there but can't be used: never replaced, never guessed."""
+    """fix/split-answers.json is there but can't be used: a link, never written through;
+    else damaged, made again by the next result (update_split, _started_again)."""
 
 
 @dataclass
@@ -673,14 +777,20 @@ def update_split(ws, session) -> AnswersSplit | None:
     Answers split before keep their side. A new answer to a question split before takes its
     side; new questions are split the same way (fix._top_up). A question with answers on
     both sides (an older split's "both") is shown whole (_one_side). Answers no longer in the
-    file are left out; their questions keep their side. Once the set is retired (retire), the
-    new questions wait (`pending`) until the set's `fresh` want of them are marked, then are
-    split as the first ones were, a new set. SplitUnknown as read_split."""
+    file are left out; their questions keep their side. Once fix.MAX_RULES changes are tested
+    on the set, or it is retired (retire), the new questions wait (`pending`) until the set's
+    `fresh` want of them (fix.FRESH) are marked, then the set is retired and they are split as
+    the first ones were, a new set. SplitUnknown as read_split."""
     marked = session.marked()
-    split = read_split(ws)
+    try:
+        split = read_split(ws)
+    except SplitUnknown as e:
+        if _split_path(ws).is_symlink():
+            raise
+        split = _started_again(marked, str(e))
     if split is None and len(marked) < MIN_MARKS:
         return None
-    from judgekeeper.fix import _cells, _top_up
+    from judgekeeper.fix import FRESH, MAX_RULES, _cells, _top_up
 
     m = _Marks(marked)
     key = {i: question_key((session.raw.get(i) or {}).get("input")) for i in session.by_id}
@@ -703,8 +813,12 @@ def update_split(ws, session) -> AnswersSplit | None:
                 split.seen.append(i)
             else:
                 rest.append(i)
-        if split.fresh:  # retired: a new set from enough new questions
+        used = len(split.tests) >= MAX_RULES  # used up, not retired yet (_record)
+        if used and not split.fresh and len(_whole(rest, key, marked)[0]) >= FRESH:
+            retire(split)
+        if used or split.fresh:  # new questions never join a used-up set
             split.pending = rest
+        if split.fresh:  # retired: a new set from enough new questions
             if len(_whole(rest, key, marked)[0]) >= split.fresh["want"]:
                 rng = random.Random(f"{split.seed}/{split.set + 1}")
                 seen, hidden = _split_whole(lambda ids: _cells(m, ids, rng), rest, key,
@@ -712,7 +826,7 @@ def update_split(ws, session) -> AnswersSplit | None:
                 split.seen += seen
                 split.hidden += hidden
                 split.set, split.tests, split.fresh, split.pending = split.set + 1, [], None, []
-        elif rest:
+        elif rest and not used:
             rng = random.Random(f"{split.seed}/{len(known)}")
             seen, hidden = _split_whole(
                 lambda ids: _top_up(m, ids, known & set(marked), split.hidden, rng), rest, key,
@@ -729,14 +843,24 @@ def update_split(ws, session) -> AnswersSplit | None:
     return split
 
 
+def _started_again(marked: dict[str, str], why: str) -> AnswersSplit:
+    """A damaged split made again, as a set used up (retire): no one can say which answers
+    were kept aside, so every answer marked is shown and the next new questions make a new
+    set; `why` it was damaged is kept with it, for new_set_line."""
+    from judgekeeper.fix import FRESH
+
+    return AnswersSplit(seed=secrets.randbelow(2 ** 31), seen=sorted(marked), hidden=[],
+                        made_at=utc_now(), fresh={"want": FRESH, "damaged": why})
+
+
 def retire(split: AnswersSplit) -> None:
     """After fix.MAX_RULES changes tested on the set: every question is shown from now on
-    (fix.retire), and the next new questions make a new set (update_split)."""
+    (fix.retire), and the next new questions make a new set (update_split), those already
+    waiting (`pending`) with them."""
     from judgekeeper.fix import retire as retire_set
 
     retire_set(split)
     split.questions = dict.fromkeys(split.questions, SHOWN)
-    split.pending = []
 
 
 def kept_aside(ws) -> set[str] | None:
@@ -751,6 +875,16 @@ def kept_aside(ws) -> set[str] | None:
 
 def failed_path(ws) -> Path:
     return ws.dir / "fix" / FAILED_FILE
+
+
+def listed_failed(ws) -> bool:
+    """Whether the last result saved (result.json) listed answers failed, as
+    failed-answers.md lists them."""
+    try:
+        r = loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(r, dict) and r.get("check") == "result" and bool(r.get("fails"))
 
 
 def failed_shown(ws, page: bool = False) -> str:
@@ -798,7 +932,9 @@ def fix_lines(path) -> list[str]:
         read_split(ws)
     except SplitUnknown as e:
         file = one_line(f"{shown_folder(ws)}/fix/{SPLIT_FILE}")
-        return ["", DAMAGED.format(file=file, why=e)]
+        if _split_path(ws).is_symlink():
+            return ["", DAMAGED.format(file=file, why=e)]
+        return ["", DAMAGED_AGAIN.format(file=file, why=e)]
     if not has_failed(ws):
         return []
     return ["", FAILED_SAVED.format(file=failed_shown(ws)), "", *agent_lines(ws)]
@@ -826,7 +962,7 @@ def failed_md(rows: list[dict], kept: int) -> str:
 
     count = f"You failed {plural(len(rows), 'answer')} here."
     if kept:
-        count += f" {kept} more {'is' if kept == 1 else 'are'} kept aside to test {KEPT_FOR}."
+        count += f" {kept_line(kept)}"
     parts = ["# Answers you failed", "", FIX_TASK, "", count, "", f"{FIX_WARNING} {MARKS}", ""]
     said = tally(rows)
     if said:
@@ -895,9 +1031,12 @@ def after_mark(ws, session) -> None:
 
 def write_failed(ws, session, r: dict) -> None:
     """fix/failed-answers.md written again from the result `r`; removed when it lists no
-    answer (under MIN_MARKS marks, no Fail, or a split that can't be used). A link in its
+    answer (under MIN_MARKS marks or no Fail); kept as it is when the split can't be used
+    (a link: _failed_rows can't say which are kept aside). A link in its
     place, or in the folders to it, is refused: nothing is written through it."""
     path = failed_path(ws)
+    if r.get("split_unknown"):  # a link: it can't say which are kept aside, so the file
+        return  # keeps the answers it listed (shown ones only), never removed
     rows = _failed_rows(ws, session, r)
     try:
         marks._refuse_links(path)
@@ -906,9 +1045,11 @@ def write_failed(ws, session, r: dict) -> None:
     if not rows:
         if path.is_file():
             path.unlink()
+            set_removed_unsaid(ws, True)  # the next run says so, however it went (a page mark)
         return
     make_private(path.parent)
     write_replacing(path, failed_md(rows, r.get("kept") or 0))
+    set_removed_unsaid(ws, False)
 
 
 # What changed since the last answers ------------------------------------------------------
@@ -920,6 +1061,8 @@ COMPARED = "On the {n} kept aside: fixed {fixed}, broke {broke}, same {same}."
 COUNTED = "Counted on the {n} kept aside, not the ones your fix was written from."
 WAIT_NEW = "Mark the new answers to see what changed."
 KEPT_FOR = "your next change"  # what the answers kept aside are for, in every line of them
+KEPT_LINE = {1: f"{{n}} more answer you failed is kept aside to test {KEPT_FOR}.",
+             2: f"{{n}} more answers you failed are kept aside to test {KEPT_FOR}."}
 ALL_KEPT = {1: f"It is kept aside to test {KEPT_FOR}.",
             2: f"They are kept aside to test {KEPT_FOR}."}  # after "You failed N answers."
 ALL_SHOWN = "The questions kept aside are all shown now."  # after NEW_SET, which says why
@@ -933,12 +1076,13 @@ WAITING = {1: "{n} new answer is waiting to be marked.",
 NO_KEPT = "No question kept aside has a new answer, so your change can't be tested yet."
 # "Can't tell yet": what a clear answer needs (clear_line)
 CLEAR_NEED = ("A clear answer needs at least {need} kept-aside questions to go from Fail to "
-              "Pass, with none breaking. About 2 in 3 failed questions get fixed, so that needs "
-              "about {target} kept-aside Fails; you have {kept_fails}.")
-CLEAR_ADD = CLEAR_NEED + " Add about {extra} more questions."
+              "Pass, with none breaking. If your change fixes about 2 in 3 of them, that needs "
+              "about {target} kept-aside questions that failed before your change; you had "
+              "{kept_fails}.")  # 2 in 3: clear_target's planning share, never measured
+CLEAR_ADD = CLEAR_NEED + f" {CLEAR_ADD_NEXT}."
 CLEAR_HARDER = CLEAR_NEED + " Add harder questions, ones your AI may get wrong, and mark their answers."
-CLEAR_ENOUGH = ("A clear answer needs at least {need} of your {kept_fails} kept-aside Fails to "
-                "pass, with none breaking.")
+CLEAR_ENOUGH = ("A clear answer needs at least {need} of the {kept_fails} kept-aside questions "
+                "that failed before your change to pass, with none breaking.")
 CHANGE = {  # the result, from targets.sign_p as `fix` says it of a new rule
     "helped": "Your change helped. A difference this large is unlikely to be a coincidence.",
     "worse": ("Your change made it worse. A difference this large is unlikely to be a "
@@ -950,6 +1094,9 @@ CHANGE = {  # the result, from targets.sign_p as `fix` says it of a new rule
 }
 NEW_SET = ("You have tested {n} changes on these questions kept aside, so they no longer give a "
            "fair test. {add} and mark their answers; half of them are kept aside as a new test.")
+NEW_SET_DAMAGED = ("{path} was damaged ({why}), so judgekeeper started it again, and the "
+                   "questions kept aside before no longer give a fair test. {add} and mark their "
+                   "answers; half of them are kept aside as a new test.")
 NEW_SET_ADD = "Add about {n} new questions"
 NEW_SET_HARDER = "Add harder questions, ones your AI may get wrong,"
 MOST_ASKED = 100  # more new questions than this: harder ones instead (new_set_line)
@@ -1009,13 +1156,14 @@ def read_before(ws) -> dict | None:
         return None
     got = d.get("round")
     if got is not None and not (isinstance(got, dict) and isinstance(got.get("stamp"), str)
-                                and _strings(got.get("new"))):
+                                and _strings(got.get("new")) and _strings(got.get("gone", []))):
         return None
     if d.get("sha256") != _sum(d):
         return None
     return {"questions": {k: [dict(x) for x in v] for k, v in d["questions"].items()},
-            "round": {"stamp": got["stamp"], "new": list(got["new"])} if got else None,
-            "repaired": d.get("repaired") is True}
+            "round": {"stamp": got["stamp"], "new": list(got["new"]),
+                      "gone": list(got.get("gone", []))} if got else None,
+            "repaired": d.get("repaired") is True, "removed_unsaid": d.get("removed_unsaid") is True}
 
 
 def _write_before(ws, before: dict) -> None:
@@ -1025,7 +1173,8 @@ def _write_before(ws, before: dict) -> None:
     make_private(path.parent)
     d = {"questions": before["questions"],
          **({"round": before["round"]} if before.get("round") else {}),
-         **({"repaired": True} if before.get("repaired") else {})}
+         **({"repaired": True} if before.get("repaired") else {}),
+         **({"removed_unsaid": True} if before.get("removed_unsaid") else {})}
     write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
 
 
@@ -1041,6 +1190,20 @@ def _before_or_new(ws) -> dict | None:
     if not path.exists():
         return {"questions": {}, "round": None}
     return read_before(ws) or {"questions": {}, "round": _round_now(ws), "repaired": True}
+
+
+def removed_unsaid(ws) -> bool:
+    """Whether failed-answers.md was removed (write_failed) and no run has said so yet."""
+    before = read_before(ws)
+    return bool(before and before["removed_unsaid"])
+
+
+def set_removed_unsaid(ws, on: bool) -> None:
+    """removed_unsaid kept in before.json; never written through a link."""
+    before = read_before(ws)
+    if before is None or before["removed_unsaid"] == on or _before_path(ws).is_symlink():
+        return
+    _write_before(ws, {**before, "removed_unsaid": on})
 
 
 def _round_now(ws) -> dict | None:
@@ -1103,14 +1266,25 @@ def results_stamp(ids) -> str:
 def new_round(ws, stamp: str, old: set[str], ids: list[str]) -> None:
     """New results (`stamp` changed): the answers in them that were not in the ones before
     (`old`) are the ones compared now (compare); an answer carried over is never compared
-    again. The same answers read again, or saved again, keep the round they had."""
+    again. The same answers read again, or saved again, keep the round they had. An answer
+    that is the newest one marked for its question is carried over too, whatever the results
+    in between held (`old`, read before any of them was marked)."""
     before = _before_or_new(ws)
     if before is None or (before["round"] or {}).get("stamp") == stamp:
         return
-    before["round"] = {"stamp": stamp, "new": sorted(i for i in ids if i not in old)}
-    if before["round"]["new"]:  # new answers: compared with the ones before them
-        before.pop("repaired", None)
-    _write_before(ws, before)
+    marked = {i for versions in before["questions"].values() if versions
+              for i in versions[-1]["ids"]}
+    gone = sorted(old - set(ids))  # a repeated question's answer removed: it changed too
+    before["round"] = {"stamp": stamp,
+                       "new": sorted(i for i in ids if i not in old and i not in marked),
+                       **({"gone": gone} if gone else {})}
+    _write_before(ws, before)  # a "repaired" one stays so until a result says it (_damage_said)
+
+
+def before_damaged(ws) -> bool:
+    """Whether before.json is there but can't be used (a run replaces it: _before_or_new)."""
+    path = _before_path(ws)
+    return path.is_file() and not path.is_symlink() and read_before(ws) is None
 
 
 def round_of(ws) -> dict | None:
@@ -1146,11 +1320,23 @@ def found_line(ws, n: int) -> str:
                             same=kept)
 
 
-def waiting_line(ws, session) -> str | None:
-    """How many answers the last new results brought are not marked yet; None for none."""
+def _waiting(ws, session, after: bool = False) -> int:
     now = round_of(ws)
     new = set(now["new"]) if now else set()
-    n = sum(1 for item in session.items if not item["label"] and item["id"] in new)
+    if after and all(item["id"] in new for item in session.items):
+        return 0  # the first answers read, nothing before them
+    return sum(1 for item in session.items if not item["label"] and item["id"] in new)
+
+
+def waiting(ws, session) -> int:
+    """How many answers new results brought after the ones before are not marked yet; 0 for
+    the first answers read."""
+    return _waiting(ws, session, after=True)
+
+
+def waiting_line(ws, session) -> str | None:
+    """How many answers the last new results brought are not marked yet; None for none."""
+    n = _waiting(ws, session)
     return WAITING[min(n, 2)].format(n=n) if n else None
 
 
@@ -1201,6 +1387,7 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
         return {"damaged": True}
     round_ = before["round"] if before else None
     new = set(round_["new"]) if round_ else set()
+    gone = set(round_["gone"]) if round_ else set()
     asked: dict[str, list[str]] = {}
     for i in session.by_id:
         asked.setdefault(question_key((session.raw.get(i) or {}).get("input")), []).append(i)
@@ -1210,7 +1397,8 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
         if not last:
             continue
         now = sorted(ids)
-        came = any(i in new for i in now)
+        lost = any(i in gone for v in last for i in v["ids"])  # one of its answers removed
+        came = lost or any(i in new for i in now)
         if came and last[-1]["ids"] != now and sorted(last[-1]["answers"]) == sorted(
                 _answer_key((session.raw.get(i) or {}).get("output")) for i in now):
             came = False  # the same answers (the question's spaces changed): no change
@@ -1237,7 +1425,9 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
     if split.fresh:  # with the share of questions that fail now (new_set_line)
         now = [[counted.get(i) for i in ids] for ids in asked.values()]
         now = [m for m in now if None not in m]
+        damaged = split.fresh.get("damaged")
         return {"new_set": True, "fails": sum("fail" in m for m in now), "marked": len(now),
+                **({"damaged_split": one_line(damaged)} if isinstance(damaged, str) else {}),
                 **out}
     if waiting:
         return {"waiting": True}
@@ -1253,7 +1443,7 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
     tested = [t["key"] for t in split.tests]
     test = tested.index(key) + 1 if key in tested else len(tested) + 1
     kind = change_kind(fixed, broke, len(kept), test)
-    was = _marks_before(asked, before, new, counted)
+    was = _marks_before(asked, before, new, counted, gone)
     return {"kept": len(kept), "fixed": fixed, "broke": broke,
             "same": len(kept) - fixed - broke, "kind": kind,
             "clear": kind in ("helped", "worse"), "test": test, "key": key,
@@ -1272,15 +1462,20 @@ def _broke(was: list[str], now: list[str]) -> bool:
 
 
 def _marks_before(asked: dict[str, list[str]], before: dict | None, new: set[str],
-                  counted: dict) -> dict[str, str]:
+                  counted: dict, gone: set[str] = frozenset()) -> dict[str, str]:
     """Each question's mark before this change (clear_line): its newest version of answers
-    marked before the ones that came new now (before.json), else its answers carried over;
-    a Fail if one of them is. A question with neither (new now) is left out."""
+    marked before the ones that came new now (before.json), or before one was removed
+    (`gone`), else its answers carried over; a Fail if one of them is. A question with
+    neither (new now) is left out."""
     last = before["questions"] if before else {}
     out = {}
     for key, ids in asked.items():
         mark = None
-        for v in reversed(last.get(key) or []):
+        versions = last.get(key) or []
+        lost = any(i in gone for v in versions for i in v["ids"])
+        for v in reversed(versions):
+            if lost and not any(i in gone for i in v["ids"]):
+                continue  # its answers now, after one was removed
             got = [counted.get(i) for i in v["ids"] if i not in new]
             if got and len(got) == len(v["ids"]) and all(m in ("pass", "fail") for m in got):
                 mark = "fail" if "fail" in got else "pass"
@@ -1318,6 +1513,11 @@ def new_set_line(c: dict) -> str:
 
     n = new_questions(c)
     add = NEW_SET_HARDER if n is None or n > MOST_ASKED else NEW_SET_ADD.format(n=n)
+    if c.get("damaged_split"):  # made again (_started_again), not used up by changes
+        from judgekeeper.start_label import FOLDER
+
+        return NEW_SET_DAMAGED.format(path=f"{FOLDER}/fix/{SPLIT_FILE}",
+                                      why=c["damaged_split"], add=add)
     return NEW_SET.format(n=MAX_RULES, add=add)
 
 
@@ -1337,6 +1537,12 @@ def damaged_line() -> str:
     from judgekeeper.start_label import FOLDER
 
     return BEFORE_DAMAGED.format(path=f"{FOLDER}/fix/{BEFORE_FILE}")
+
+
+def kept_line(n: int) -> str:
+    """The answers failed kept aside, after "You failed N answers here.": answers, as that
+    count is, never questions (a question asked twice is two answers)."""
+    return KEPT_LINE[min(n, 2)].format(n=n)
 
 
 def counted_line(c: dict) -> str:
@@ -1365,21 +1571,32 @@ def clear_line(c: dict) -> str | None:
     added with about half of their Fails kept aside (update_split), so the ones to add are
     twice the kept-aside Fails missing over the share of questions that failed; with none
     failed before the change, there is no share to work it out from, and past MOST_ASKED
-    questions: harder questions."""
+    questions: harder questions. None once the set is used up: never more of its questions
+    (new_set_line says what to add instead)."""
+    if c.get("last"):
+        return None
+    need = clear_need(c.get("test") or 1)
+    target, kept_fails = clear_target(need), c.get("kept_fails") or 0
+    more = _clear_more(c)
+    if more == 0:
+        return CLEAR_ENOUGH.format(need=need, kept_fails=kept_fails)
+    if more is None:
+        return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
+    return CLEAR_ADD.format(need=need, target=target, kept_fails=kept_fails, extra=more)
+
+
+def _clear_more(c: dict) -> int | None:
+    """clear_line's questions to add: 0 with kept-aside Fails enough, None for harder
+    questions."""
     fails, marked = c.get("fails") or 0, c.get("marked") or 0
     kept_fails = c.get("kept_fails") or 0
-    need = clear_need(c.get("test") or 1)
-    target = clear_target(need)
+    target = clear_target(clear_need(c.get("test") or 1))
     if kept_fails >= target:
-        return CLEAR_ENOUGH.format(need=need, kept_fails=kept_fails)
-    if c.get("last"):  # new_set_line says what to add, with its own number
-        return CLEAR_NEED.format(need=need, target=target, kept_fails=kept_fails)
+        return 0
     if not fails or not marked:
-        return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
+        return None
     extra = -(-2 * (target - kept_fails) * marked // fails)
-    if extra > MOST_ASKED:
-        return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
-    return CLEAR_ADD.format(need=need, target=target, kept_fails=kept_fails, extra=extra)
+    return None if extra > MOST_ASKED else extra
 
 
 def result_line(c: dict) -> str:

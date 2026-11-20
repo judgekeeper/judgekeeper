@@ -740,9 +740,9 @@ def test_an_outer_project_never_reads_a_nested_projects_results(tmp_path, capsys
     monkeypatch.chdir(outer)
     code, out = _jk(capsys, "--no-browser")
     assert code == 3, out
-    assert ("These results belong to the project in inner/. To check them, run `judgekeeper` "
-            "in inner/.") in flat(out)
-    assert _next(out) == "Next: run `judgekeeper` in inner/."
+    assert ("These results belong to the project in inner/. To check them, run `judgekeeper "
+            "--no-browser` in inner/.") in flat(out)
+    assert _next(out) == "Next: run `judgekeeper --no-browser` in inner/."
     assert "File:            inner/" not in out
     assert not (outer / ".judgekeeper" / "start.json").exists()
 
@@ -753,7 +753,8 @@ def test_outer_results_are_read_and_the_nested_ones_named(tmp_path, capsys, monk
     outer = tmp_path / "nest3"
     (outer / "inner").mkdir(parents=True)
     (outer / "pyproject.toml").write_text("[project]\nname = 'outer'\n", encoding="utf-8")
-    (outer / "inner" / ".judgekeeper").mkdir()
+    (outer / "inner" / ".judgekeeper").mkdir()  # a first run there that stopped before marking
+    (outer / "inner" / ".judgekeeper" / "judge.json").write_text("{}", encoding="utf-8")
     table_project(outer / "inner", split(30, 30), name="inner_results.csv")
     table_project(outer, split(20, 20), name="outer_results.csv")
     later = time.time() + 60
@@ -762,7 +763,9 @@ def test_outer_results_are_read_and_the_nested_ones_named(tmp_path, capsys, monk
     code, out = _jk(capsys, "--no-browser", "--port", "0")
     assert code == 0, out
     assert "File:            outer_results.csv" in out
-    assert "These results belong to the project in inner/." in flat(out)
+    assert ("The project in inner/ has results too: to check them, run "
+            "`judgekeeper inner --no-browser`."
+            in flat(out))
     _jk(capsys, "--stop")
 
 

@@ -285,9 +285,11 @@ def test_the_marking_page_words():
             'hidden>Show all</button></div>'
             '<div class="state" id="ans-status" aria-live="polite"></div></div>'
             ) in page  # the state: one quiet line at the top right of the question row
-    assert ('<div class="row row-a"><div class="label">Answer</div><p class="run" id="a-run" '
+    assert ('<div class="row row-a"><div class="label">Answer</div><p class="again-note" '
+            f'id="a-again" hidden>{mark_page.AGAIN}</p><p class="run" id="a-run" '
             'hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" '
-            'dir="auto">') in page  # the run line: only for a repeat graded differently
+            'dir="auto">') in page  # seen before: only on a repeat; the run line: only for a
+    # repeat graded differently
     assert "avatar" not in page and "ans-pos" not in page  # no icons, no "Answer 4" heading
     assert ('<div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S">'
             '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
@@ -322,8 +324,8 @@ def test_marking_page_layout():
         "border-left-color: var(--text); }" in style
     assert ".item:hover { background: var(--hover);" in style
     assert ".legend" not in style  # the list's tick and cross are the buttons' own
-    assert ".actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; " \
-        "padding: 20px 40px 16px; border-top: 1px solid var(--line); }" in style
+    assert ".actions { position: relative; display: grid; grid-template-columns: 1fr 1fr; " \
+        "gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }" in style
     assert ".foot { margin: 0; padding: 12px 40px; border-top: 1px solid var(--line); " \
         "font-size: 13px; color: var(--muted); text-align: center; }" in style
     assert ".foot code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }" in style
@@ -395,6 +397,11 @@ def test_the_end_card_is_one_centred_card_in_the_answers_place():
     assert ('<section class="card end" id="end" hidden aria-live="polite" tabindex="-1">'
             '<h2 id="end-title"></h2>'
             '\n    <p class="note" id="end-note" hidden>Opening your result…</p>'
+            '\n    <div class="sub" id="end-sub" hidden>'
+            '<button type="button" class="quiet ghost" tabindex="-1" aria-hidden="true" disabled>'
+            "<span>Skip this one</span><kbd>S</kbd></button>"
+            '<button type="button" class="quiet" id="end-undo" aria-keyshortcuts="Z">'
+            "<span>Undo</span><kbd>Z</kbd></button></div>"
             '\n    <button type="button" class="go" id="again" hidden>Go back to them</button>'
             "</section>") in page
     style = mark_page.STYLE

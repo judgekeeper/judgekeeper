@@ -193,7 +193,8 @@ def test_each_tool_has_its_traps_and_tested_versions(tool):
 def test_the_table_format_and_record_are_described():
     tools = _tools()
     table = _flat(tools["A CSV, TSV or JSONL file"])
-    for needed in ("`input`, `output` and `verdict`", "`judge_verdict`", "`judge`",
+    graded = "`input` and `output` columns, and a `verdict` column if an LLM-as-a-judge graded"
+    for needed in (graded, "`judge_verdict`", "`judge`",
                    "`judge_model`", "the columns it read"):
         assert needed in table, needed
     assert "judgekeeper.record()" in tools
