@@ -307,6 +307,9 @@ class Check:
         self.env = dict(os.environ)
         for name in ("VIRTUAL_ENV", "PYTHONHOME", "PYTHONPATH", "CONDA_PREFIX"):
             self.env.pop(name, None)
+        # judgekeeper opens no marking page in CI: run it as a person does, with none of these.
+        for name in ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "BUILDKITE", "TF_BUILD", "JENKINS_URL"):
+            self.env.pop(name, None)
         url = self.judge.url
         self.env.update({
             "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8", "NO_COLOR": "1",

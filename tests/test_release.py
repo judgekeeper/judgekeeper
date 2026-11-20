@@ -332,11 +332,13 @@ def test_practice_release_installs_from_testpypi_on_three_systems():
     assert "opens no marking page in CI" in steps and "page.json" in steps
 
 
-def test_install_check_clears_the_ci_variables_for_its_runs():
-    """scripts/install_check.py reads the marking link, which judgekeeper prints only outside CI."""
-    step = next(s for s in _workflow("install-check.yml")["jobs"]["install-check"]["steps"]
-                if "install_check.py" in s.get("run", ""))
-    assert step["env"]["CI"] == "" and step["env"]["GITHUB_ACTIONS"] == ""
+def test_install_check_runs_judgekeeper_as_a_person_not_as_ci():
+    """judgekeeper prints the marking link only outside CI, and the runner's own CI variable
+    can't be cleared from a step's env, so the script drops them from its runs' environment."""
+    text = (ROOT / "scripts" / "install_check.py").read_text(encoding="utf-8")
+    names = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "BUILDKITE", "TF_BUILD", "JENKINS_URL")
+    assert "for name in (" + ", ".join(f'"{n}"' for n in names) + "):\n" in text
+    assert "self.env.pop(name, None)" in text.split(f'"{names[-1]}"):', 1)[1][:80]
 
 
 def test_ci_builds_and_runs_the_installed_wheel_on_every_push():
