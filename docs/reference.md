@@ -85,6 +85,7 @@ With results that have grades (from an LLM-as-a-judge or from code), each plain 
 - Fixed: Fail before, Pass now. Broke: Pass before, Fail now. A question with several answers is fixed when one failed before and all pass now, and broke when all passed before and one fails now. The rest are the same.
 - After the usual output it says how many were fixed, broke and stayed the same, then "Your change helped", "Your change made it worse", or "Can't tell yet" with which way it leans: clear when the exact two-sided sign test on fixed against broke is under 5% ([How the numbers are worked out](#how-the-numbers-are-worked-out)). With fewer than 5 questions in both, it always says "Can't tell yet".
 - It exits 1 only on "Your change made it worse", so a pipeline fails only then.
+- In CI (one of `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE`, `TF_BUILD` or `JENKINS_URL` set to something other than empty, `false` or `0`), judgekeeper opens no page and no browser, and says so in one line where Step 2 would open it.
 - It keeps the last results in `.judgekeeper/last-graded.json` as hashes and grades only. Another LLM-as-a-judge or another setup of it (model, rule, pass mark, label map), or a file changed by hand, starts it again: those grades say nothing about a change to your AI.
 
 In GitHub Actions, upload your results as an artifact named `results` on `main`, then on a pull request:

@@ -3058,6 +3058,15 @@ def _port_taken(talk: FrontTalk, path: Path) -> Stop | None:
     return _port_stop(talk, port, talk.path, talk.options)
 
 
+def _no_page(talk: FrontTalk, saved: bool, subcommand: str = "") -> str:
+    """The one line said in CI instead of opening a page (page.in_ci): the run's command for
+    a person's own computer, so without --port and --no-browser."""
+    path, options = answered(talk, saved)
+    command = " ".join((program(subcommand), *start.repeated_flags(
+        path, **{**options, "port": DEFAULT_PORT, "no_browser": False})))
+    return page.NO_PAGE_IN_CI.format(command=command)
+
+
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
           result: bool = False) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown). `result`:
@@ -3111,6 +3120,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             _say_waits(talk, waits)
         talk.say()
         _say_head(talk, head)
+        if page.in_ci():
+            talk.para(_no_page(talk, saved, "mark"))
+            return EXIT_OK
         # disagreements the person can see: the result page, with its reason boxes (and its
         # link to change a mark); else the marking page, where a mark can always be changed
         if start_label.why_count(ws, start_label.compute(ws, session)):
@@ -3164,7 +3176,10 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         talk.say()
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page
-    if not first and not marking and not wait and not no_browser and n and is_open(ws.dir):
+    ci = page.in_ci()  # no page, and no Next line for this step
+    if ci:
+        talk.para(_no_page(talk, saved, "mark" if marking else ""))
+    elif not first and not marking and not wait and not no_browser and n and is_open(ws.dir):
         talk.para(f"The marking page is still open in your browser. {after}".rstrip())
     else:
         opened, shown = _open(talk, ws, wait, saved)
@@ -3174,7 +3189,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
                       if shown == page.BROWSER else after)
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
-    talk.say()
+    if not ci:
+        talk.say()
     next_step = NEXT_MORE if enough else NEXT_MARK
     out_of_reach = not enough and side_out_of_reach(**_each_kind(session))
     too_few = not enough and start_label.few_answers(session)
@@ -3193,8 +3209,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
         if getattr(opened.server, "stopped", False):  # --stop closed it: no link is open
             next_step, waits = NEXT_CONTINUE, None
-    talk.para(_wait_step(ws) if waits is not None
-              else "Next: " + next_step.format(command=command))
+    if not ci:
+        talk.para(_wait_step(ws) if waits is not None
+                  else "Next: " + next_step.format(command=command))
     return EXIT_QUESTION if few else EXIT_OK  # too few answers: as fix and check exit
 
 
@@ -3443,6 +3460,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif is_open(ws.dir):
         if ranges and not only:  # with no range shown, there is none to narrow
             talk.para(STILL_OPEN)
+    elif wait and page.in_ci():  # nothing waits for marks in CI
+        talk.para(_no_page(talk, saved, "mark"))
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
@@ -3636,6 +3655,9 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     if every:  # `mark` with a result: a mark can be changed, none is left to make
         talk.say(marked_all(n, "marked"))
         talk.say()
+        if page.in_ci():
+            talk.para(_no_page(talk, False, "mark"))
+            return EXIT_OK
         opened, shown = _open(talk, ws, wait, False)
         if _kept(talk, opened, shown, CHANGE_MARK) is None:
             talk.para(f"The marking page is open in your browser. {CHANGE_MARK}"
@@ -3664,6 +3686,9 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     after = PRECISE if enough else BAR if n else SHOWS_ANSWERS
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page
+    if page.in_ci():  # no page, and no Next line for this step
+        talk.para(_no_page(talk, False, "mark" if marking else ""))
+        return EXIT_OK
     if not first and not marking and not wait and not no_browser and n and is_open(ws.dir):
         talk.para(f"The marking page is still open in your browser. {after}".rstrip())
     else:
@@ -3727,7 +3752,10 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     talk.say(f"Full report: {report} (open it in your browser)")
     talk.say()
     opened = None
-    if wait and r["left"] and not is_open(ws.dir):
+    if wait and r["left"] and not is_open(ws.dir) and page.in_ci():
+        talk.para(_no_page(talk, False, "mark"))
+        talk.say()
+    elif wait and r["left"] and not is_open(ws.dir):
         opened, _ = _open(talk, ws, wait, False)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
         talk.say()
