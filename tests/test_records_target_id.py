@@ -100,7 +100,7 @@ def test_the_fixture_imports_its_labels_by_target_id(here, capsys):
     out = flat("".join(capsys.readouterr()))
     assert "Answers: 38 answers" in out, out
     assert ("Added 36 marks from your results (21 Pass, 15 Fail). Skipped 2 labels: "
-            "2 labels have no LLM-as-a-judge grade") in out, out
+            "2 labels are for answers that are not in your results") in out, out
     assert "the answer text must be the same" not in out
     assert "Step 3 of 5: Measure" in out  # the 36 imported marks give a first result
     assert code in (0, 3), out
@@ -112,13 +112,13 @@ def test_the_ten_cases_shape_adds_16_and_skips_2(tmp_path):
     plan = plan_of(path)
     assert len(plan.marks) == 16
     assert labels.skipped_lines(plan) == ["Skipped 2 labels:",
-                                          "  2 labels have no LLM-as-a-judge grade"]
+                                          "  2 labels are for answers that are not in your results"]
 
 
 def test_one_label_with_no_grade_is_said_in_the_singular(tmp_path):
     plan = plan_of(write(tmp_path / "r.jsonl", mst_lines(3, unknown={(2, 1)})))
     assert labels.skipped_lines(plan) == ["Skipped 1 label:",
-                                          "  1 label has no LLM-as-a-judge grade"]
+                                          "  1 label is for an answer that is not in your results"]
 
 
 def test_the_example_file_imports_its_labels():
@@ -148,7 +148,7 @@ def test_two_llm_lines_with_one_target_id_and_different_text_are_not_guessed(tmp
     plan = plan_of(tmp_path / "r.jsonl")
     assert len(plan.marks) == 3
     assert labels.skipped_lines(plan) == ["Skipped 1 label:",
-                                          "  1 label has no LLM-as-a-judge grade"]
+                                          "  1 label is for an answer that is not in your results"]
 
 
 def test_the_llm_line_with_the_same_name_is_taken_first(tmp_path):

@@ -527,6 +527,13 @@ class Pool:
     # (the judge's own label map). Never Inspect AI's edited scores: it
     # keeps a person's label only when they change a score, so they are almost all disagreements
     humans: list = field(default_factory=list)
+    # target id -> the ids of the answers it names (a label with only a target id finds its
+    # answer here, in whichever records file the grade is); `left` ones too
+    by_target: dict = field(default_factory=dict)
+    # human labels for another criterion than the judge's: {name: how many}
+    elsewhere: dict = field(default_factory=dict)
+    sole: bool = False  # the grades hold one criterion name: a label with no name is its
+    grade_names: list = field(default_factory=list)  # every criterion name the grades hold
     label_map: dict = field(default_factory=dict)
     # answers graded more than once with different grades, each repeat its own answer:
     # id -> (repeats, passes, fails)
@@ -599,6 +606,10 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
     counted; with `human_labels` they are also kept for --labels (Pool.humans)."""
     pool = Pool(label_map=dict(norm.label_map))
     chosen: dict[str, Answer] = {}
+    pending: list[tuple[str, object, str]] = []  # (target id, value, name): labels with no text
+    pool.grade_names = sorted({r.name for _, recs in files for r in recs
+                               if r.annotator_kind == LLM})
+    pool.sole = pool.grade_names == [metric]
     for source, records in files:
 
         def own(r, records=records) -> bool:
@@ -616,8 +627,17 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
         for r in records:
             if r.annotator_kind == HUMAN:
                 pool.n_human += 1
-                if human_labels and r.name in (metric, WHOLE_ANSWER):  # not another question's
-                    pool.humans.append((key_of(r), _verdict_value(r, None), r.name))
+                if not human_labels:
+                    continue
+                value = _verdict_value(r, None)
+                name = human_name(r.name, metric, pool.sole)
+                if name is None:  # another criterion's, or another question's
+                    if not _blank(value):
+                        pool.elsewhere[r.name] = pool.elsewhere.get(r.name, 0) + 1
+                elif not own(r) and text_free(r):  # its answer is in the grades, by target id
+                    pending.append((str(r.target_id), value, name))
+                else:
+                    pool.humans.append((key_of(r), value, name))
                 continue
             if r.annotator_kind != LLM or r.name != metric:
                 continue
@@ -637,6 +657,9 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                     kind = judge_check.ERROR_GRADE if word == ERROR else judge_check.EMPTY
             groups.setdefault(key_of(r), []).append((r, v, kind))
         for key, seen in groups.items():
+            for r, _, _ in seen:
+                if r.target_id:
+                    pool.by_target.setdefault(str(r.target_id), set()).add(key)
             judged = [(r, v) for r, v, kind in seen if kind is None]
             if key in chosen or key in pool.left:  # a newer file has this answer
                 pool.n_merged += len(judged)
@@ -664,7 +687,29 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                     source=source, agent=r.agent(), mark=r.mark, pass_mark=pass_mark,
                     pass_op=pass_op, case=str(r.target_id) if cases and r.target_id else None)
     pool.answers = list(chosen.values())
+    for target, value, name in pending:
+        keys = pool.by_target.get(target, ())
+        pool.humans.append((next(iter(keys)) if len(keys) == 1 else NO_TEXT_ID, value, name))
     return pool
+
+
+NO_TEXT_ID = derive_record_id(None, None, None)  # the id of a label with no answer text
+
+
+def human_name(name: str, metric: str, sole: bool) -> str | None:
+    """The name a human label is kept under, or None when it is not for the judge `metric`:
+    named like it, for the whole answer, or with no name (the default) when the grades hold
+    only that one criterion (`sole`)."""
+    if name in (metric, WHOLE_ANSWER):
+        return name
+    return metric if sole and name == DEFAULT_NAME else None
+
+
+def text_free(r: ScoreRecord) -> bool:
+    """A label that names its answer by `target_id` alone: no question, answer or steps, and an
+    id the file gave."""
+    return (r.target_id not in (None, NO_TEXT_ID) and _blank(r.input) and _blank(r.output)
+            and not r.trajectory)
 
 
 # Reading ---------------------------------------------------------------------------------
@@ -854,6 +899,12 @@ def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
 
 
 RECORDS_CAPPED = "Read the newest {n:,} records in {folder}; the older ones are left out."
+
+
+def _only_labels(records: RecordList) -> bool:
+    """A records file whose every line is a person's label (HUMAN): its grades are in another
+    file, found by `target_id`."""
+    return bool(records) and all(r.annotator_kind == HUMAN for r in records)
 
 
 def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
@@ -2407,6 +2458,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         results = _choose_folder(talk, results, store, kind)
     newest = results[0]
     description = None
+    label_files: list[Loaded] = []  # records files with only labels, read with the others
     if kind == "mlflow":
         read_older = iter(runs[1:])
         first = runs[0] if runs else None
@@ -2427,6 +2479,12 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                       else _read_mapped(results[0], saved, judge_model))
             if not loaded:
                 raise StartError("none of the records files could be read")
+            if kind == "records":  # a file of only labels is read with the grades beside it
+                label_files = [x for x in loaded if _only_labels(x.records)]
+                if len(label_files) < len(loaded):
+                    loaded = [x for x in loaded if not _only_labels(x.records)]
+                else:
+                    label_files = []
             every = Loaded(_folder_of(newest), RecordList(r for x in loaded for r in x.records))
             metric = _choose_metric(talk, every, metric, prefer)
             loaded = [x for x in loaded
@@ -2434,7 +2492,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             if not loaded:
                 raise StartError(f"no LLM-as-a-judge named {metric!r} in {_folder_of(newest)}")
             if kind == "records":
-                labels = [x.label for x in loaded]
+                labels = [x.label for x in (*loaded, *label_files)]
                 results = sorted((r for r in results if r.rel in labels),
                                  key=lambda r: labels.index(r.rel))
                 newest = results[0]
@@ -2497,6 +2555,9 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             used.append(older)
             pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids,
                               humans)
+    if label_files:
+        used.extend(label_files)
+        pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids, humans)
 
     records = [r for x in used for r in x.records
                if r.annotator_kind == LLM and r.name == metric]

@@ -116,9 +116,11 @@ After your first 10 marks, about 1 in 20 answers comes back a second time, so ju
 If you already have Pass/Fail labels, judgekeeper can use them as your marks, so you don't mark those answers again. Then mark more on the page if you need to.
 
 - `judgekeeper --labels your-labels.csv` reads them from a CSV, TSV or JSONL file.
-- `judgekeeper --labels` uses the labels people gave that are already in your results: promptfoo `human` ratings, MLflow assessments from a HUMAN source, a `human_label` or `label` column in your CSV, TSV or JSONL results file, and `record()` lines with `annotator_kind` `HUMAN`. Without the flag, judgekeeper says how many it found and never uses them. Scores edited in Inspect AI are not used: Inspect keeps a person's label only when they change a score, so those labels would be mostly disagreements and make your LLM-as-a-judge look worse than it is. Labels for another question (for example a Tone rating when your LLM-as-a-judge checks something else) are not used.
+- `judgekeeper --labels` uses the labels people gave that are already in your results: promptfoo `human` ratings, MLflow assessments from a HUMAN source, a `human_label` or `label` column in your CSV, TSV or JSONL results file, and `record()` lines with `annotator_kind` `HUMAN`, also when they are in a file of their own and name their answer by `target_id`. A `HUMAN` line with no `name` labels your LLM-as-a-judge when the grades hold only one name. Without the flag, judgekeeper says how many it found and never uses them. Scores edited in Inspect AI are not used: Inspect keeps a person's label only when they change a score, so those labels would be mostly disagreements and make your LLM-as-a-judge look worse than it is. Labels for another question (for example a Tone rating when your LLM-as-a-judge checks something else) are not used. When all your labels are for another name, judgekeeper says so and adds none.
 
 `judgekeeper mark` takes the flag too. Put your project folder first: `judgekeeper evals --labels your-labels.csv`.
+
+A records JSONL file given to `--labels` is read as records: its `HUMAN` lines find their answers by `target_id` among the grades in your results. A label for a `target_id` that no grade has is skipped.
 
 **The file's columns** (any case): the answer, `output`, `answer`, `response`, `completion` or `reply`; the label, `label` or `human_label`; and, if you have them, the question, `input`, `question` or `query`, and an `id`. Other columns are ignored. Two label columns (such as `label` and `human_label`), both `output` and `answer`, or both `input` and `question` stop it: it names both and asks you to keep one. So does a row with more filled cells than the header (a quote closed in the wrong place): it names the line. Your results file works too. Excel files are not read: save the sheet as CSV first.
 
@@ -325,7 +327,7 @@ judgekeeper never guesses: an unknown grade (`good`), or a score with no rule, s
 
 ## Records format
 
-judgekeeper's own format: one graded answer per JSONL line, written by you or by [`record()`](#record-save-your-own-llm-as-a-judges-verdicts-with-one-line). Every `.jsonl` file in `.judgekeeper/records/` is read this way, and any other whose lines hold `annotator_kind` or `schema_version`. Field names follow OpenInference annotations. Every field is optional:
+judgekeeper's own format: one graded answer per JSONL line, written by you or by [`record()`](#record-save-your-own-llm-as-a-judges-verdicts-with-one-line). Every `.jsonl` file in `.judgekeeper/records/` is read this way, and any other whose lines hold `annotator_kind` or `schema_version`. A file with only `HUMAN` lines is read this way too: its labels join the grades in the other files by `target_id` (`record()` writes one file per process, so grades and labels may be in different files). Field names follow OpenInference annotations. Every field is optional:
 
 ```
 {"name": "Safe wording", "input": "Do you ship to Canada?", "output": "Yes, in 5 to 8 working days.", "label": "pass"}
