@@ -2,6 +2,7 @@
 
 ## 1.3.0 (2026-11-20)
 
+- In CI, judgekeeper opens no marking page and no browser, and leaves no page running after the command ends. It says in one line that you can mark answers on your own computer. CI means one of `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE`, `TF_BUILD` or `JENKINS_URL` is set to something other than empty, `false` or `0`; having no terminal is not CI.
 - Did your change make it worse? On results with grades, `judgekeeper` now also compares the newest results with the last ones it read, question by question, using the grades in them, not your marks. It says how many were fixed, broke and stayed the same, then whether the change helped, made it worse, or can't tell yet, and exits 1 only when it made it worse. `--before FILE` compares with that file instead, such as the results from `main` in CI. A question is matched by its own test-case id where the results have one (an `id` column, promptfoo test descriptions, Inspect AI sample ids, DeepEval test case names, `judgekeeper.record()`'s `target_id`), else by its text. The last results are kept in `.judgekeeper/last-graded.json` as hashes and grades only.
 - A damaged or hand-edited file in `.judgekeeper/` (`fix/split-answers.json`, `fix/split.json`, `fix/before.json`, `result.json`) no longer stops every run: judgekeeper says it is damaged and starts it again, or makes the result again from your marks.
 - judgekeeper no longer writes `fix/before.json` when `.judgekeeper/fix/` is a link to another folder.
