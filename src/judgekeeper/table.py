@@ -373,7 +373,7 @@ def _open_quote(path: Path, lines, suffix: str, loose: bool, verdict_columns) ->
     delimiter = _delimiter(first, suffix)
     reader = csv.reader(itertools.chain([first], lines) if first else iter(()),
                         delimiter=delimiter, strict=True)
-    header, start, verdict = None, 1, None
+    header, start, verdict, words = None, 1, None, False
     try:
         for row in itertools.islice(reader, MAX_ROWS + 1):  # the rows read_table reads
             if header is None:
@@ -387,9 +387,12 @@ def _open_quote(path: Path, lines, suffix: str, loose: bool, verdict_columns) ->
                     verdict = next((i for i, c in enumerate(header)
                                     if column_name(c) in ("human_label", "label")), None)
             elif any(loose or (len(header) >= 3 and verdict is not None
-                               and _rows_inside(cell, delimiter, len(header), verdict) >= 2)
+                               and _rows_inside(cell, delimiter, len(header), verdict,
+                                                words) >= 2)
                      for cell in row if "\n" in cell):
                 return start
+            elif verdict is not None and verdict < len(row):
+                words = words or _grade_word(row[verdict])
             start = reader.line_num + 1
     except csv.Error as e:
         # loose: any quote out of place; else one that closes on a later line, on a line
@@ -515,13 +518,30 @@ def _line(path: Path, number: int) -> str:
         return next(itertools.islice(lines, number - 1, None), "")
 
 
-def _rows_inside(cell: str, delimiter: str, columns: int, verdict: int) -> int:
+def _grade_word(value: str) -> bool:
+    """A verdict written as a word (pass, fail, true, yes...), not as a number."""
+    from judgekeeper.mapper import _verdict_value, number
+
+    return number(value) is None and _verdict_value(value)
+
+
+_THOUSANDS = re.compile(r"(?<![\d,])\d{1,3}(?:,\d{3})+(?![\d,])")
+
+
+def _rows_inside(cell: str, delimiter: str, columns: int, verdict: int,
+                 words: bool = False) -> int:
     """How many lines of a cell read as a whole row of `columns` values, with a grade at
-    `verdict`."""
+    `verdict`. A thousands separator (50,000) does not split a value, and where the rows
+    hold grade words (`words`, or a line in the cell with one), a number is not a grade."""
     from judgekeeper.mapper import _verdict_value
 
-    rows = (next(csv.reader([line], delimiter=delimiter), []) for line in cell.split("\n"))
-    return sum(len(r) == columns and _verdict_value(r[verdict]) for r in rows)
+    lines = cell.split("\n")
+    if delimiter == ",":
+        lines = [_THOUSANDS.sub(lambda m: m.group().replace(",", ""), x) for x in lines]
+    rows = [next(csv.reader([line], delimiter=delimiter), []) for line in lines]
+    whole = [r for r in rows if len(r) == columns]
+    words = words or any(_grade_word(r[verdict]) for r in whole)
+    return sum(_grade_word(r[verdict]) if words else _verdict_value(r[verdict]) for r in whole)
 
 
 def kind_of(columns) -> str:
