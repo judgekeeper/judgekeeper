@@ -1,16 +1,18 @@
 # Changelog
 
-## 1.2.1 (unreleased)
+## 1.3.0 (unreleased)
 
 - A damaged or hand-edited file in `.judgekeeper/` (`fix/split-answers.json`, `fix/split.json`, `fix/before.json`, `result.json`) no longer stops every run: judgekeeper says it is damaged and starts it again, or makes the result again from your marks.
 - judgekeeper no longer writes `fix/before.json` when `.judgekeeper/fix/` is a link to another folder.
 - Files judgekeeper writes now also hide Stripe live keys, private key blocks, and a password after `password`, `passwd`, `pwd` or `secret` and `:` or `=` when it looks like one (8 characters or more, with a digit or a sign). Ordinary words after them stay as written, and so do a link, a domain or path, an email, a word in brackets, a menu path (`Settings>Account`), a version (`Python3.12`) and a word like `2-factor` or `8+characters`.
 
-## 1.2.0 (2026-11-13)
+## 1.2.0 (2026-11-16)
 
 - No LLM-as-a-judge? judgekeeper now reads a CSV, TSV or JSONL file with `input` and `output` columns and no grades, and you mark your AI's answers Pass or Fail. From 10 marks it shows how many passed, with a range.
 - The answers you fail that are not kept aside are saved in `.judgekeeper/fix/failed-answers.md` with your reasons, and judgekeeper prints a prompt for your coding agent to improve your AI's prompt. Half of the questions you marked Pass and half of those you marked Fail are kept aside, at random, to test the change.
+- With answers and no grades, after 3 changes, new questions you mark before the next result now make a new set of questions kept aside, instead of joining the used-up set.
 - After you change your AI and mark its new answers, judgekeeper counts how many were fixed, how many broke and how many stayed the same on the questions kept aside. It says whether the change helped, made it worse, or can't tell yet, and when it can't tell, how many more questions a clear answer needs.
+- With answers and no grades, a question asked more than once that loses its failed answer, with the rest Pass, now counts as fixed, and as failed before your change, as the first result counted it.
 - No answers yet? judgekeeper prints a prompt for your coding agent to write about 40 test questions and save your AI's answers.
 - Each run first says what it checks, your LLM-as-a-judge or your AI's answers, and why: whether your results file has LLM-as-a-judge grades. It also says how to switch.
 - Find's list of what judgekeeper reads, and `--help`, now say input and output, with a verdict column if an LLM-as-a-judge graded them.
@@ -18,27 +20,60 @@
 - Text in answers can no longer fake the markers that fence answers off in files written for a coding agent; this also covers mistakes.md.
 - The `inspect` extra keeps agent-client-protocol below 1, because Inspect AI 0.3.288 can't import with 1.0.0.
 - Quick Pass and Fail clicks count now: only a click in the first quarter second after an answer shows does nothing, so no answer is marked before you see it.
+- A Pass, Fail or Skip you click or press while the last mark is still saving is no longer lost without a word. It counts if its answer is still showing when the save ends; if not, the page says it was not marked and which answer is showing.
 - The "Your result is ready." box no longer blocks the card: a Pass or Fail click marks the answer and closes it.
 - Percentages round half up (23 of 40 is 58%).
 - A folder you name (`judgekeeper PATH`, `mark PATH`), or a folder with code in it, is always the project: judgekeeper no longer reads results in the folder above it instead. Lines saved with `judgekeeper.record()` still come from the project root, where it saves them. A folder with a `requirements*.txt` file is a project of its own, so a run in the folder above no longer reads its results. `judgekeeper.record()` also takes a folder with `package.json` as the project root, so in a repository with such subfolders it saves in that subfolder's `.judgekeeper/`, not at the repository root.
 - Run from the top of a repository, judgekeeper now also names the projects below whose answers have no grades. After reading results of its own there, it no longer says those results belong to a project below.
+- A plain folder inside a repository names every project below it that holds a session, as the repository top does, its results file a link or answers with no grade included. A results file that can't be read, in a project named from the folder above (`judgekeeper q`), is named from where you run it (`q/results.csv`).
 - Run from a folder above projects of their own, judgekeeper no longer mixes their results into one: it reads only the results that are in no project below, names the projects that hold the rest, and stops when every result is in one.
 - With your own CSV, TSV or JSONL file, `fix/marked-answers.csv` now uses your file's column names (such as `input` and `output`), not `question` and `answer`, so your grader runs on it as it is.
 - A marked answer that comes back to check your marks now says so on its card.
 - On the result page, the kept-aside lines now say what they count: answers you failed, or questions that failed before your change.
 - A metric, tool or experiment you pick when judgekeeper asks is now kept in the commands it prints, and judgekeeper no longer asks for it again or stops after a later question.
 - Run from the top of a repository or from a folder above several evals, judgekeeper no longer reads files inside a project below that has its own `.judgekeeper/` or project file, and no longer mixes results from two folders that share no questions into one count: it names them and stops. This also holds in a folder with its own results or a tool's config (such as `promptfooconfig.yaml`) and with `--tool`. A file you name inside such a project is checked there, and projects two levels down are named too. A project below's files never change how the folder above it is read: a folder whose only results are in a project below reads the project above it (or its own file in a format of its own), as it would with no project below, and names that project.
+- A run inside an Inspect AI logs folder, with no project above it, keeps its marks in the folder that holds the logs, as `judgekeeper logs` from there does (never in the home folder).
+- A run in a subfolder that climbs to judgekeeper.record() files at the project root, where a session reads other results, reads with that session's tool, as a run there does, instead of offering the record() files as a tool to check.
 - After reading the project folder above, the commands judgekeeper prints name that folder (`judgekeeper .. --tool deepeval`), so they work where you are. `--tool table` with no table found says "No CSV, TSV or JSONL results file found".
 - A folder with answers and no grades reads them even when a project below has results; that project is named, never read.
 - From an empty subfolder, judgekeeper no longer reads past the nearest project above.
 - A newer unrelated file in a subfolder no longer replaces the answers you marked: judgekeeper says it looks like another eval, as it does for one beside your results.
 - A project below with its own `.judgekeeper/` is named even when its results file is a link.
+- Run from the top of a repository, judgekeeper names every project below the same way, whatever the folders beside them hold: a project whose session reads a linked file, or answers with no grade, is no longer left out or named by the project inside it.
+- Run from the top of a repository with two folders of one eval and a project below that has results, judgekeeper no longer reads the two as one: it names all three and stops, as it does when their questions differ.
+- An older results file of other questions, beside the newest or in a folder below, no longer joins its count because the same LLM-as-a-judge graded both: judgekeeper names it. A CSV in a folder named `logs/` or `mlruns/` counts as a plain folder's results. If the file you marked is overwritten by another eval, judgekeeper says so and adds none of its answers. `INSPECT_LOG_DIR`, `DEEPEVAL_RESULTS_FOLDER` or an MLflow store that points into a project below is not read from the folder above. Lines saved with `judgekeeper.record()` at the project root no longer win over a session in a nearer folder. An empty or too-big file in a project below no longer stops the folder above or is offered there. After reading a session in the folder above, the commands judgekeeper prints name files from where you are.
+- A file of another eval, named from the folder above a project with a session, now says so at once, instead of sending you to that project to hear it.
+- `INSPECT_LOG_DIR` or `DEEPEVAL_RESULTS_FOLDER` naming a folder with no results in it no longer hides a file of answers with no grades: the answers are read, from where you are and from every command judgekeeper prints.
+- A results file too big to read, in a project you named (`judgekeeper p`), gets a command that reads it in that project's folder: the one before stopped with "These results belong to the project in p/".
+- A folder that holds a project below it no longer climbs to a folder above that only lists other folders' results: a plain run says what `judgekeeper .` says. A folder above with its own session or results file is still read.
+- The "Results in a folder above?" hint never names a folder past one that holds other projects' sessions.
+- After a result with no LLM-as-a-judge, the Next line keeps the run's `--port` and `--no-browser`.
+- `judgekeeper check --port N` says the version first, then that `check` takes no page flags; a first run's line about a project below now has a blank line after it.
+- A CSV saved in `mlruns/` is found, as one in `logs/` is. From an empty folder, the plain run stops where `judgekeeper ..` stops instead of reading the folder above, and a folder holding only a link to a results file says the file is a link instead of reading the folder above.
+- A folder with results of its own, below a folder whose first run stopped before marking, keeps its own run, as in 1.1.2: the results above are no longer called another eval. Files found beside the ones read ("Also found") are named from the folder you run in.
 - After `--stop`, the command it prints to carry on repeats the file you named. After "No saved ... results found", the Next line says what to run instead of repeating the same command.
 - After 3 changes, the result no longer asks for more of the questions kept aside: it says to add new questions.
 - With answers and no grades, `judgekeeper fix` names your results file in its Next line, as the result page does.
+- With answers and no grades, a result gives one next step everywhere, `fix` and the result page too: when too few kept-aside questions failed for a clear answer, the questions that "Can't tell yet" asks for, also with failed answers left to fix; with no answer failed, harder questions, instead of more answers to the same questions; and when no question kept aside has a new answer, the change to test.
 - A damaged `.judgekeeper/fix/split-answers.json` is said and started again: the questions kept aside before no longer count as a fair test, and your failed answers stay listed.
 - A CSV, TSV or JSONL file of answers under other column names, such as `question` and `answer`, with no grades: judgekeeper names its columns and says to rename them `input` and `output`, instead of asking for grades or printing the prompt that writes answers. With grades, the line on how to switch names the file's own grade column.
 - `--tool table` with no results now says "your CSV, TSV or JSONL results file".
+- `--tool table` reads a file of answers with no grades beside another tool's results, instead of saying it found no CSV, TSV or JSONL results file. `judgekeeper mark` on a port in use says to run `judgekeeper mark --port 0`, not `judgekeeper --port 0`.
+- A tool's output folder (Inspect logs, DeepEval results) is never a project of its own: `judgekeeper logs` keeps your marks in the project that holds it, so clearing old logs no longer deletes them. Your session's results file is always read, however many other files the project has, and judgekeeper says when it stopped looking. From a code folder in a project with marks, every command points to the project above. A run inside `.judgekeeper/` never reads its files. `Logs/` is found once on a disk that ignores case.
+- On the marking page, an Undo after your last mark makes your result again from the marks that stand. A different mark on an answer shown again now says "Noted. Your first mark (Pass) still counts.", since only the first mark counts. With answers and no grades, the result says when you marked a repeated answer differently, `fix` gives the result's next step instead of asking for grades, and once the questions kept aside are used up the result gives one next step: new questions.
+- After your last mark, the result opens a second later, so an Undo (Z) pressed at once takes that mark back instead of being lost when the result page opens.
+- In that second the card keeps the Undo button where it was, and a click on it takes the last mark back as Z does, instead of landing on nothing.
+- Every command judgekeeper prints for another folder now works when you paste it there. `judgekeeper rag` reads rag/'s file after you named it there. A file of other questions a folder away is named as another eval. A file left out inside a project below names that project. The project named is the nearest one that holds the results. `--tool` with results only in a project below names that project. A folder with results of its own reads them, even when the folder above has only a judge set up (`.judgekeeper/judge.json`).
+- Once you have marks, DeepEval's older run with other questions than the newest is named with a folder of its own to check it in, not a command that stops because it looks like another eval.
+- Commands printed for another project keep `--no-browser` and leave out `--port`, so they never ask for the port of a page that is open. A run whose `--port` is taken now stops before it writes `.judgekeeper/`.
+- When judgekeeper asks which LLM-as-a-judge, eval tool or MLflow experiment to check and there is no terminal, its Next line now prints one command per name that runs as printed (the first five, then "and N more"), instead of `--metric NAME`.
+- An Inspect logs folder named from a folder beside it (`judgekeeper ../runs/logs`) keeps its marks in the project that holds it, as one named from above does.
+- On Windows, a results file dated at or near 1970 (as the Nix store dates every file) no longer stops the run with an unexpected error: its date is shown in UTC.
+- A folder that `MLFLOW_TRACKING_URI` names counts as MLflow only when it holds an MLflow experiment, so results beside it are read without a choice of tool that would read nothing.
+- On the marking page, a line under the buttons (such as "Noted. Your first mark (Pass) still counts.") no longer moves Pass and Fail up, so a click at the buttons' lower edge still lands.
+- When `.judgekeeper/fix/before.json` is damaged and new answers come, the run says it can't compare with your last answers, and the result after you mark them says so too, instead of comparing on less without a word.
+- A table beside the results file it reads, newer than it and under other column names (such as `prompt`, `completion` and `label`), is now named, with the command that reads it, and no longer passed over without a word.
+- A results file that is a link to a file that is not there is now named as such, with a step you can do. Before, the run said nothing about it and read another file of the project in its place.
 
 ## 1.1.2 (2026-11-08)
 

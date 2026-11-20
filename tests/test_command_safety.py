@@ -469,7 +469,7 @@ def test_go_to_a_folder_names_the_program_as_typed_from_there(tmp_path, monkeypa
     out = " ".join("".join(capsys.readouterr()).split())
     assert code == 3, out
     assert ("Next: go to one of those folders (`cd dental`), then run "
-            "`../../venv/bin/judgekeeper` there.") in out, out
+            "`../../venv/bin/judgekeeper --no-browser` there.") in out, out
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="a venv's scripts are .exe files there")

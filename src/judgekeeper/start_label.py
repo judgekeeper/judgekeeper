@@ -1007,8 +1007,10 @@ class StartSession(LabelSession):
         return all(i["label"] in ("pass", "fail") for i in self.items)
 
     def _again(self, item_id: str) -> dict:
-        """An answer shown again, as the page shows any answer still to mark."""
-        return {**self._shown(self.by_id[item_id]), "label": None, "skipped": False}
+        """An answer shown again, as the page shows any answer still to mark, with the mark
+        that counts (`first`, never shown on the card)."""
+        return {**self._shown(self.by_id[item_id]), "label": None, "skipped": False,
+                "first": self.by_id[item_id]["label"]}
 
     def _repeat(self, item: dict, body: dict) -> None:
         """A mark on an answer shown again (`again`: its slot): a repeat line, never a mark. The
@@ -1655,6 +1657,14 @@ def write_report(ws: Workspace, worse: str | None = None) -> None:
     if isinstance(r, dict) and r.get("graded") is not False:
         write_replacing(ws.report_html, result_html(_scrubbed(_now(ws, r)), fixing=_fixing(ws, r),
                                                     worse=worse, last=_last_check(ws, worse)))
+
+
+def result_again(ws: Workspace, session: StartSession, flags: dict | None = None) -> None:
+    """A result saved before a mark was taken back (the page's undo or skip): made again
+    from the marks that stand (store_result), so result.json and report.html never keep a
+    mark that is gone; under a result's marks, they say so, as the terminal does."""
+    if ws.result_json.is_file():
+        store_result(ws, session, flags)
 
 
 def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,

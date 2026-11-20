@@ -64,6 +64,19 @@ def test_a_linked_results_file_is_named(here, tmp_path, capsys):
     assert "copy the file it links to into your project" in nxt, nxt
 
 
+def test_a_link_to_nothing_is_named(here, capsys):
+    try:
+        (here / "results.json").symlink_to(here / "gone" / "results.json")
+    except OSError:
+        pytest.skip("symbolic links not allowed here")
+    code, out, _ = run(capsys, "--no-browser")
+    flat = _flat(out)
+    assert "results.json (a link to a file that is not there)" in flat, out
+    assert "No eval results found in this folder" not in flat and "run your eval" not in flat
+    assert "point the link at a file that is there, or save your results in its place" in flat
+    assert code == 3
+
+
 def test_results_in_the_project_folder_above_are_read(here, capsys, monkeypatch):
     (here / "pyproject.toml").write_text("[project]\nname = 'bot'\n", encoding="utf-8")
     table_project(here, split(16, 16))

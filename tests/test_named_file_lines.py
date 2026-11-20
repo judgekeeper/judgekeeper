@@ -62,7 +62,7 @@ def test_the_top_folder_names_a_project_whose_results_file_is_a_link(linked, cap
     code, said = _run(capsys, monkeypatch, linked.parent)
     assert code == 3, said
     assert ("These results belong to the projects in bot/ and symlink-out/." in said
-            and "Next: run `judgekeeper` in bot/ or symlink-out/." in said), said
+            and "Next: run `judgekeeper --no-browser` in bot/ or symlink-out/." in said), said
     assert not (linked.parent / ".judgekeeper").exists(), said
 
 
@@ -93,7 +93,7 @@ def test_a_tool_found_only_in_a_project_below_names_it(repo, capsys, monkeypatch
     main(["--stop"])
     code, said = _run(capsys, monkeypatch, services, "--tool", "promptfoo")
     assert code == 2 and "No saved promptfoo results found in this folder." in said, said
-    assert said.endswith("Next: run `judgekeeper pf-bot --tool promptfoo --port 0 --no-browser` "
+    assert said.endswith("Next: run `judgekeeper pf-bot --tool promptfoo --no-browser` "
                          "to check the promptfoo results in pf-bot/."), said
     code, said = _run(capsys, monkeypatch, services, "pf-bot", "--tool", "promptfoo")
     main(["--stop"])

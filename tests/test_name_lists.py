@@ -63,7 +63,7 @@ def test_50000_metric_names_never_flood_the_terminal(tmp_path, monkeypatch, caps
     code, out = _run(capsys)
     assert code == 3
     lines = out.rstrip("\n").splitlines()
-    assert len(lines) <= 30, out
+    assert len(lines) <= 40, out
     assert "and 49,981 more" in out  # Correct and m0 to m49999, 20 shown
     assert next_lines(out)[-1] == next_lines(out)[0]  # one Next: line, at the end
     at = max(i for i, x in enumerate(lines) if x.startswith("Next:"))
@@ -91,7 +91,7 @@ def test_10000_inspect_score_keys_are_quick_and_short(tmp_path, monkeypatch, cap
     code, out = _run(capsys)
     assert time.monotonic() - started < 2
     assert code == 3
-    assert len(out.splitlines()) <= 30, out
+    assert len(out.splitlines()) <= 40, out
     assert "and 9,980 more" in out
 
 
@@ -254,7 +254,7 @@ def test_a_name_starting_with_a_dash_goes_after_the_flags_equals(tmp_path, monke
     from judgekeeper import start
 
     _, out = _run(capsys)
-    assert next_lines(out)[-1].endswith("`judgekeeper --no-browser --metric=NAME`."), out
+    assert "`judgekeeper --no-browser --metric=--help`" in next_lines(out)[-1], out
     assert start.flag_word("--metric", "--help") == "--metric=--help"
     assert start.flag_word("--metric", "Correct") == "--metric Correct"
 

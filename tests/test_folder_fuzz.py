@@ -2,15 +2,20 @@
 
 I7 a run never crashes (no exception, no "hit a problem it didn't expect");
 I8 every command a run prints, pasted where its line says, does what the line says: it parses,
-   any file or folder it names is there, and one that reads results finds results.
+   any file or folder it names is there, and one that reads results finds results;
+I9 and it works: pasted there, it reads results and never stops because they belong to another
+   project or look like another eval.
 
 Each seed makes one tree (depth up to 5, 2-8 folders). Each folder gets a kind (nothing, a
 project file, code, .git, a judge.json-only .judgekeeper/, a stray script), maybe results (CSV,
 JSONL, promptfoo, DeepEval, Inspect) or answers with no grade, maybe a link to a file or folder,
 maybe a session made by a real run (and then, maybe, a newer file of other questions). Results
-share questions with another folder's or not; every file gets its own time. Then judgekeeper
-runs once in a random folder (plain, `.`, a named file or `--tool X`) and every command it
-prints is run in turn.
+share questions with another folder's or not; every file gets its own time. From a second
+stream, so a seed's first tree stays as it was: an older file of another eval beside a folder's
+results or in its archive/2025/, a table in a folder named logs/ or mlruns/, judgekeeper.record()
+files, and INSPECT_LOG_DIR, DEEPEVAL_RESULTS_FOLDER or MLFLOW_TRACKING_URI naming a folder. Then
+judgekeeper runs once in a random folder (plain, `.`, a named file or `--tool X`) and every
+command it prints is run in turn.
 
 CI runs FIXED seeds. JK_FUZZ=5000 runs that many (JK_FUZZ_START sets the first; JK_FUZZ=seeds=
 3,7 runs those); each failure
@@ -28,6 +33,7 @@ import os
 import random
 import re
 import shlex
+import shutil
 import time
 import traceback
 from pathlib import Path
@@ -41,12 +47,15 @@ from tests.start_projects import (
     inspect_project,
     promptfoo_project,
     question,
+    records_project,
     split,
     table_project,
 )
 from tests.test_front import flat
 
-FIXED = (*range(13), 35, 100, 135, 201, 207, 5062, 10626, 15846, 17815, 35769, 41714)  # 12 and up: layouts once found here
+FIXED = (*range(13), 35, 45, 100, 105, 124, 135, 201, 207, 256, 410, 597, 1655, 2288, 4213,
+         4646, 5062, 10626, 15846, 17815, 20375, 21334, 22811, 23469, 31758, 34944, 35769,
+         35831, 37214, 41714, 50210, 52010, 54496)  # 12 and up: layouts once found here
 KINDS = ("plain", "plain", "file", "code", "git", "judged", "script")
 CONTENTS = ("none", "none", "csv", "jsonl", "promptfoo", "deepeval", "inspect", "answers")
 NAMES = ("a", "b", "c", "data", "evals", "proj", "sub", "runs", "my evals")
@@ -55,12 +64,13 @@ PROJECT_FILES = ("pyproject.toml", "package.json", "requirements.txt", "setup.py
 CODE_FILES = ("app.py", "index.js", "main.ts")
 CODE = (".py", ".js", ".ts")
 HAS_INSPECT = importlib.util.find_spec("inspect_ai") is not None
+EXTRA = 'pip install "judgekeeper['  # a pasted command that says to add an extra leads on
 NONE_FOUND = ("No eval results found", "No saved", "There is no file", "There is no folder")
 READS_ELSEWHERE = ("mark", "check", "fix", "measure")
+REFUSES = ("belong to the project", "looks like another eval", "shares few questions")
 STARTS_OVER = ("Starting a new project here? Run",  # each finds nothing until the step its
                "coding agent, then run",  # line asks for first is done
                "put it in a folder of its own and run")
-TOOLS_ = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 
 
 @dataclasses.dataclass
@@ -72,8 +82,12 @@ class Folder:
     rows: int = 12
     link: str = ""  # "file:<folder>", "dir:<folder>", "file:@out", "dir:@out"
     session: bool = False
+    named: bool = False  # the session's run named its file
     late: str = ""  # after the session: other.jsonl "beside" or in "more/"
     age: int = 0  # minutes before now
+    older: str = ""  # an older file of another eval: "beside" (old_results.csv) or "archive"
+    tool_named: str = ""  # a table of its own in a folder named "logs" or "mlruns"
+    records: bool = False  # judgekeeper.record()'s files in its .judgekeeper/records/
 
 
 @dataclasses.dataclass
@@ -81,6 +95,8 @@ class Tree:
     folders: list[Folder]
     run_in: str
     argv: tuple[str, ...]
+    env: tuple[str, str] | tuple[()] = ()  # (variable, the folder it names, below the top)
+    uri: str = ""  # the folder MLFLOW_TRACKING_URI names, below the top (a table in mlruns/)
 
 
 # The tree -----------------------------------------------------------------------------------
@@ -123,7 +139,33 @@ def generate(seed: int) -> Tree:
         if files:
             f = rng.choice(files)
             argv = (os.path.relpath(_file_of(f), run_in or ".").replace(os.sep, "/"),)
-    return Tree(folders, run_in, argv)
+    return _more(Tree(folders, run_in, argv), random.Random(seed * 1_000_003 + 7))
+
+
+VARS = {"inspect": ("INSPECT_LOG_DIR", "logs"), "deepeval": ("DEEPEVAL_RESULTS_FOLDER",
+                                                              ".deepeval")}
+
+
+def _more(tree: Tree, rng: random.Random) -> Tree:
+    """The layouts a second stream adds (the first one's tree as it was)."""
+    for f in tree.folders:
+        if f.content in ("csv", "jsonl") and rng.random() < 0.15:
+            f.older = rng.choice(("beside", "archive"))
+        if rng.random() < 0.08:
+            f.tool_named = rng.choice(("logs", "mlruns"))
+        if rng.random() < 0.06:
+            f.records = True
+    if rng.random() < 0.12:
+        f = rng.choice(tree.folders)
+        var, sub = VARS[f.content] if f.content in VARS else VARS[rng.choice(sorted(VARS))]
+        tree.env = (var, _join(f.path, sub))
+    if rng.random() < 0.08:  # the last draw, so the layouts above stay as they were
+        named = [f for f in tree.folders if f.tool_named == "mlruns"] or tree.folders
+        tree.uri = _join(rng.choice(named).path, "mlruns")
+    for f in tree.folders:  # after the draws above, so their layouts stay as they were
+        if f.session and rng.random() < 0.4:
+            f.named = True
+    return tree
 
 
 def _join(parent: str, name: str) -> str:
@@ -211,6 +253,13 @@ class World:
         self.monkeypatch.setattr("pathlib.Path.home", lambda: self.home)
         table_project(self.out / "data", split(20, 20), tag="out")
         self.tags[self.out / "data" / "results.csv"] = "out"
+        for var in ("INSPECT_LOG_DIR", "DEEPEVAL_RESULTS_FOLDER", "MLFLOW_TRACKING_URI"):
+            self.monkeypatch.delenv(var, raising=False)  # a smaller tree's: none of the last
+        if tree.env:
+            self.monkeypatch.setenv(tree.env[0], str(self.top / tree.env[1]))
+        if tree.uri:
+            self.monkeypatch.setenv("MLFLOW_TRACKING_URI", str(self.top / tree.uri))
+        older = []
         for f in tree.folders:
             folder = self.top / f.path
             folder.mkdir(parents=True, exist_ok=True)
@@ -218,14 +267,32 @@ class World:
             if f.content != "none":
                 _write_content(folder, f)
                 self.tags[self.top / _file_of(f)] = f.tag
+            if f.older:  # another eval's, older than the folder's results
+                at = folder if f.older == "beside" else folder / "archive" / "2025"
+                path = table_project(at, split(3, 3), tag=f"{f.tag}-old",
+                                     name="old_results.csv" if f.older == "beside"
+                                     else "results.csv")
+                self.tags[path] = f"{f.tag}-old"
+                older.append((path, f.age + 60))
+            if f.tool_named:
+                tag = f"{f.path or 'top'}-{f.tool_named}"
+                self.tags[table_project(folder / f.tool_named, split(3, 3), tag=tag)] = tag
+            if f.records:
+                tag = f"{f.path or 'top'}-records"
+                self.tags[records_project(folder, split(3, 3), tag=tag)] = tag
             _age(folder, f.age)
+        for path, minutes in older:
+            when = time.time() - minutes * 60
+            os.utime(path, (when, when))
         for f in tree.folders:
             if f.link:
                 self._link(tree, f)
         for f in tree.folders:  # a session started by a real run there
             if f.session and f.content != "none":
                 self.reads.clear()
-                code, _ = self.run(self.top / f.path, (), "session")
+                named = (Path(_file_of(f)).relative_to(f.path).as_posix(),) if f.named \
+                    else ()
+                code, _ = self.run(self.top / f.path, named, "session")
                 if code == 0 and self.reads:
                     self.sessions[(self.top / f.path)] = set(self.reads[-1][1])
                 if f.late:
@@ -309,6 +376,7 @@ class World:
         after = self.files()
         changed = sorted(p for p in set(before) | set(after) if before.get(p) != after.get(p))
         named = any(Path(a).suffix for a in argv if not a.startswith("-"))
+        chosen = named or "table" in argv  # `--tool table` asks for a table as naming one does
         if not self.reads:
             if changed:
                 broken.append(f"I4: read nothing, wrote {[self.rel(Path(p)) for p in changed]}")
@@ -322,22 +390,23 @@ class World:
                     break
                 inside = inside.parent
         tags = {self.tags.get(f) for f in files}
-        if not named:  # I2
-            subs = {f.relative_to(root).parts[0] for f in files
-                    if f.is_relative_to(root) and len(f.relative_to(root).parts) > 1}
-            if len(subs) > 1 and len(tags) > 1:
-                broken.append(f"I2: pooled {sorted(subs)} with other questions")
+        if not named and len(tags - {None}) > 1:  # I2: wherever the files are, the top too
+            broken.append(f"I2: pooled {sorted(self.rel(f) for f in files)}, other questions")
         if empty and not argv:  # I3
             above = _project_above(folder, self.home)
             if root not in (folder, above):
                 broken.append(f"I3: from an empty folder read {self.rel(root)}"
                               f" (project above: {self.rel(above) if above else None})")
-        jk = root / ".judgekeeper"
+        # the project read: never a tool's output folder that became the root; a table in a
+        # folder named logs/ or mlruns/ is a plain folder's
+        tool_folder = root.name in ("logs", "mlruns", ".deepeval") and not all(
+            f.suffix in (".csv", ".jsonl") for f in files)
+        jk = (root.parent if tool_folder else root) / ".judgekeeper"
         for p in changed:  # I4 (judgekeeper.toml: the answers saved, as asked, in its folder)
-            if not Path(p).is_relative_to(jk) and Path(p) != root / "judgekeeper.toml":
+            if not Path(p).is_relative_to(jk) and Path(p) != jk.parent / "judgekeeper.toml":
                 broken.append(f"I4: wrote {self.rel(Path(p))}, read {self.rel(root)}")
                 break
-        if root in self.sessions and not named and root == folder:  # I6
+        if root in self.sessions and not chosen and root == folder:  # I6
             kept = {self.tags.get(f) for f in self.sessions[root]}
             if tags - kept:
                 broken.append(f"I6: read {sorted(self.rel(f) for f in files)} beside the "
@@ -346,13 +415,20 @@ class World:
 
     # I8 -------------------------------------------------------------------------------------
 
-    def follow(self, folder: Path, argv: tuple, said: str) -> None:
-        """Run (or, for another step, parse) every command `said` prints. The command just run,
+    def follow(self, folder: Path, argv: tuple, said: str, seen: set | None = None) -> bool:
+        """Run (or, for another step, parse) every command `said` prints, and those a pasted
+        one prints when it reads nothing (a choice to make): True if `said` leads on. Each
+        is pasted in the tree as it was when `said` was printed (a choice of one, then
+        another: the first one's session never stops the second). A command already run,
         printed again, is left out: its line says what to do first."""
+        seen = {(folder, tuple(argv))} if seen is None else seen
+        on = False
         for where, args in commands(said):
             at = (folder / where).resolve() if where else folder
-            if at == folder and _without_page_flags(args) == tuple(argv):
+            if (at, _without_page_flags(args)) in seen:
                 continue
+            seen.add((at, _without_page_flags(args)))
+            on = True
             text = shlex.join(["judgekeeper", *args])
             if not at.is_dir():
                 self.note(folder, f"I8: `{text}` is to run in {where}, not a folder", said)
@@ -369,9 +445,31 @@ class World:
             if getattr(ns, "command", None) in READS_ELSEWHERE or \
                     any(getattr(ns, flag, False) for flag in ("stop", "wait")):
                 continue
-            _, said2 = self.run(at, _without_page_flags(args), f"pasted `{text}`")
+            kept = self.keep()
+            code, said2 = self.run(at, _without_page_flags(args), f"pasted `{text}`")
             if any(s in said2 for s in NONE_FOUND):
                 self.note(at, f"I8: `{text}` in {self.rel(at)} found nothing", said2)
+            elif code == 3 and any(s in said2 for s in REFUSES):
+                self.note(at, f"I9: `{text}` in {self.rel(at)} stops", said2)
+            elif not self.reads and EXTRA not in said2 and not self.follow(
+                    at, _without_page_flags(args), said2, seen):
+                self.note(at, f"I9: `{text}` in {self.rel(at)} reads nothing", said2)
+            self.back_to(kept)
+        return on
+
+    def keep(self) -> Path:
+        """A copy of the tree (links as links, times kept), for back_to."""
+        self.kept = getattr(self, "kept", 0) + 1
+        copy = self.base / "kept" / str(self.kept)
+        shutil.copytree(self.top, copy, symlinks=True)
+        return copy
+
+    def back_to(self, copy: Path) -> None:
+        """The tree as `copy` (keep) holds it."""
+        self.monkeypatch.chdir(self.base)
+        shutil.rmtree(self.top)
+        shutil.copytree(copy, self.top, symlinks=True)
+        shutil.rmtree(copy)
 
     def note(self, folder: Path, broken: str, said: str) -> None:
         self.runs.append({"why": "follow", "in": self.rel(folder), "argv": [], "code": None,
@@ -449,12 +547,6 @@ def commands(said: str) -> list[tuple[str, list[str]]]:
         elif i >= 2 and parts[i - 2].startswith("cd ") and parts[i - 1].strip() in (
                 "), then run", "), then"):
             where = shlex.split(parts[i - 2])[1]
-        if "--tool" in args and args[args.index("--tool") + 1:][:1] == ["NAME"]:
-            offered = before[before.rfind("(") + 1:]  # "(deepeval, table for a CSV ...)"
-            at = args.index("--tool") + 1
-            found += [(where, [*args[:at], t, *args[at + 1:]]) for t in TOOLS_
-                      if t in offered.replace(",", " ").split()]
-            continue
         found.append((where, args))
     return found
 
@@ -468,10 +560,21 @@ def listing(tree: Tree) -> str:
         if f.link:
             bits.append(f"link {f.link}")
         if f.session:
-            bits.append("session" + (f" + newer other.jsonl {f.late}" if f.late else ""))
+            bits.append("session" + (" (file named)" if f.named else "")
+                        + (f" + newer other.jsonl {f.late}" if f.late else ""))
+        if f.older:
+            bits.append(f"older other eval {f.older}")
+        if f.tool_named:
+            bits.append(f"table in {f.tool_named}/")
+        if f.records:
+            bits.append("record() files")
         bits.append(f"-{f.age}m")
         depth = f.path.count("/") + 1 if f.path else 0
         lines.append("  " * depth + (f.path.split("/")[-1] or "t") + "/  " + ", ".join(bits))
+    if tree.env:
+        lines.append(f"{tree.env[0]}=t/{tree.env[1]}")
+    if tree.uri:
+        lines.append(f"MLFLOW_TRACKING_URI=t/{tree.uri}")
     lines.append(f"run in t/{tree.run_in}: judgekeeper {shlex.join(tree.argv)}".rstrip())
     return "\n".join(lines)
 
@@ -523,12 +626,18 @@ def _smaller(tree: Tree):
             argv = tree.argv
             if any(a.startswith(f.path) or f"/{f.path}/" in f"/{a}" for a in argv):
                 continue
-            yield Tree([dataclasses.replace(o, link="" if o.link.split(":", 1)[-1] == f.path
-                                            else o.link) for o in keep], tree.run_in, argv)
+            yield dataclasses.replace(tree, folders=[dataclasses.replace(
+                o, link="" if o.link.split(":", 1)[-1] == f.path else o.link) for o in keep])
     if tree.argv and not any(a.endswith((".csv", ".json", ".jsonl")) for a in tree.argv):
-        yield Tree(tree.folders, tree.run_in, ())
+        yield dataclasses.replace(tree, argv=())
+    if tree.env:
+        yield dataclasses.replace(tree, env=())
+    if tree.uri:
+        yield dataclasses.replace(tree, uri="")
     for i, f in enumerate(tree.folders):
-        for change in ({"late": ""}, {"session": False, "late": ""}, {"link": ""},
+        for change in ({"older": ""}, {"tool_named": ""}, {"records": False},
+                       {"late": ""}, {"named": False}, {"session": False, "late": "",
+                                                          "named": False}, {"link": ""},
                        {"kind": "plain"}, {"rows": 6}, {"age": 0}, {"content": "none"},
                        {"content": "csv"}):
             if all(getattr(f, k) == v for k, v in change.items()) or \
@@ -540,7 +649,7 @@ def _smaller(tree: Tree):
                 continue
             folders = list(tree.folders)
             folders[i] = dataclasses.replace(f, **change)
-            yield Tree(folders, tree.run_in, tree.argv)
+            yield dataclasses.replace(tree, folders=folders)
 
 
 def _seeds():

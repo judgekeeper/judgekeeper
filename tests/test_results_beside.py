@@ -100,16 +100,21 @@ def test_results_in_a_folder_of_their_own_still_get_their_own_marks(here, capsys
     assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
 
 
-def _other_eval(file: str, marked: str) -> str:
+def _page(argv) -> str:
+    """What a printed command repeats of the run: _said adds --no-browser except to check and fix."""
+    return "" if list(argv[:1]) in (["check"], ["fix"]) else " --no-browser"
+
+
+def _other_eval(file: str, marked: str, away: str = " --no-browser") -> str:
     return (f"{file} shares few questions with the results you marked ({marked}), so it looks like "
-            "another eval. To mark it, put it in a folder of its own and run `judgekeeper` "
+            f"another eval. To mark it, put it in a folder of its own and run `judgekeeper{away}` "
             "there.")
 
 
-def _refused(file: str, marked: str) -> str:
+def _refused(file: str, marked: str, away: str = " --no-browser") -> str:
     """The same, for a command that stops at the file: what to do is its Next line."""
     return (f"{file} shares few questions with the results you marked ({marked}), so it looks like "
-            f"another eval. Next: put {file} in a folder of its own, then run `judgekeeper` "
+            f"another eval. Next: put {file} in a folder of its own, then run `judgekeeper{away}` "
             "there.")
 
 
@@ -137,7 +142,8 @@ def test_another_eval_beside_the_results_is_said_and_changes_nothing(here, capsy
     file = name if inside else f"sub2/{name}"
     code, said = _said(capsys, *command, file)
     assert code == 3, said
-    assert _refused(file, "results.csv" if inside else "sub2/results.csv") in said, said
+    assert _refused(file, "results.csv" if inside else "sub2/results.csv", _page(command)) in said, \
+        said
     assert "Start over" not in said and "changed since your marks" not in said, said
     assert "own marks" not in said, said
     assert not (here / "sub2" / ".judgekeeper").exists(), said
@@ -154,7 +160,7 @@ def test_the_other_eval_line_shows_a_typed_path_as_it_shows_the_marked_one(tmp_p
     monkeypatch.chdir(tmp_path)
     line = project.other_eval_line(Path("sub2") / "other.csv",
                                    tmp_path.resolve() / "sub2" / "results.csv")
-    assert _other_eval("sub2/other.csv", "sub2/results.csv") in line, line
+    assert _other_eval("sub2/other.csv", "sub2/results.csv", "") in line, line
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     assert textio.shown_in(Path("sub2") / "results.json", elsewhere) == "sub2/results.json"
@@ -200,7 +206,7 @@ def test_the_newest_file_being_another_eval_beside_never_moves_the_plain_run(her
         assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
     code, said = _said(capsys, "check")
     assert "second.csv" not in said.replace(_other_eval("evals/second.csv",
-                                                        "evals/results.csv"), ""), said
+                                                        "evals/results.csv", ""), ""), said
 
 
 @pytest.mark.parametrize("given", [True, False])
@@ -268,8 +274,8 @@ def test_results_of_one_tool_beside_join_when_they_share_questions(here, capsys,
         code, said = _said(capsys, *argv)
         assert "didn't expect" not in said, (argv, said)
         said_as = _refused if argv else _other_eval
-        line = (said_as(f"evals/{second}", f"evals/{first}") if folder == here
-                else said_as(second, first))
+        line = (said_as(f"evals/{second}", f"evals/{first}", _page(argv)) if folder == here
+                else said_as(second, first, _page(argv)))
         if same:  # check: 5 marks are too few for a re-check
             assert code == (3 if argv[:1] == ["check"] else 0), (argv, said)
             assert "another eval" not in said, (argv, said)
@@ -324,7 +330,8 @@ def test_a_file_beside_is_the_same_eval_only_when_it_shares_its_questions(here, 
         assert "didn't expect" not in said, (argv, said)
         if second == "other questions":
             assert code == (3 if argv else 0), (argv, said)
-            line = (_refused if argv else _other_eval)("evals/b.json", "evals/a.json")
+            line = (_refused if argv else _other_eval)("evals/b.json", "evals/a.json",
+                                                       _page(argv))
             assert line in said, (argv, said)
             assert (here / ".judgekeeper" / "pool.jsonl").read_bytes() == pool, (argv, said)
         else:

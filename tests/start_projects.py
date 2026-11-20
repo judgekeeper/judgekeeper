@@ -139,7 +139,8 @@ def inspect_project(root: Path, verdicts, name: str = "logs/2026-10-02_support.j
 
 
 def table_project(root: Path, verdicts, name: str = "results.csv", model: str | None = None,
-                  verdict_column: str = "verdict", tag: str = "", extra=None) -> Path:
+                  verdict_column: str = "verdict", tag: str = "", extra=None,
+                  outputs: list[str] | None = None) -> Path:
     path = root / name
     path.parent.mkdir(parents=True, exist_ok=True)
     columns = ["input", "output", verdict_column] + (["model"] if model else [])
@@ -149,7 +150,8 @@ def table_project(root: Path, verdicts, name: str = "results.csv", model: str | 
         w.writerow(columns)
         for i, v in enumerate(verdicts):
             cell = "pass" if v is True else "fail" if v is False else ("" if v is None else v)
-            row = [question(i, tag), answer(i, tag), cell] + ([model] if model else [])
+            row = [question(i, tag), answer(i, tag) if outputs is None else outputs[i], cell]
+            row += [model] if model else []
             row += [values[i] for values in (extra or {}).values()]
             w.writerow(row)
     return path

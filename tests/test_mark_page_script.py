@@ -10,6 +10,7 @@ node is not installed (CI's runners have it).
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -69,6 +70,7 @@ El.prototype.querySelector = function () { return null; };
 El.prototype.closest = function (sel) {
   var e = this; while (e && e.tagName !== sel.toUpperCase()) { e = e.parentNode; } return e; };
 El.prototype.fire = function (type, extra) {
+  if (type === "click" && this.disabled) { return {type: type, defaultPrevented: false}; }  // as a browser
   var e = Object.assign({type: type, target: this, defaultPrevented: false,
     preventDefault: function () { this.defaultPrevented = true; }}, extra || {});
   (this.listeners[type] || []).slice().forEach(function (f) { f(e); });
@@ -120,6 +122,8 @@ function settle() { return new Promise(function (r) { setImmediate(r); }); }
 function later(ms) { NOW += ms; }
 // The result-ready box opens after a pause with no mark (READY_WAIT_MS, real time)
 function pause() { return new Promise(function (r) { setTimeout(r, 1300); }); }
+// The result opens OPEN_MS (1000, real time) after the last mark, if no Z takes it back
+function opened() { return new Promise(function (r) { setTimeout(r, 1100); }); }
 // The page's elements, placed as the page has them.
 var card = document.getElementById("answer-card");
 main.appendChild(section); section.appendChild(card);
@@ -155,6 +159,8 @@ def _run(scenario: str, data: dict | None = None, seen_intro: bool = True,
     the welcome box (state()'s `intro`)."""
     node = shutil.which("node")
     if node is None:
+        if os.environ.get("JUDGEKEEPER_NEEDS_NODE"):  # CI installs node: no silent skip there
+            pytest.fail("node is missing: the page's script must run here")
         pytest.skip("needs node to run the page's script")
     data = {**(data or _data()), **({} if seen_intro else {"intro": True})}
     code = (f"var DATA = {json.dumps(data)};\n{DOM}\n" + before
@@ -370,6 +376,7 @@ def test_end_card_focus_and_enter():
 def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
     got = _run("""
       for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      await opened();
       console.log(JSON.stringify({end: ids["end"].hidden, card: ids["answer-card"].hidden,
         title: ids["end-title"].textContent, note: ids["end-note"].hidden,
         again: ids["again"].hidden, href: window.location.href}));""", data=_data(3))
@@ -1242,3 +1249,227 @@ def test_a_named_part_equal_to_the_answer_shows_unless_it_is_the_answer():
     text = shown([["question", "What is 38 - 15?"], ["i", "23"]])
     assert text == "questionWhat is 38 - 15?i23", text  # each name above its value
     assert shown([["question", "What is 38 - 15?"], ["answer", "23"]]) == "What is 38 - 15?"
+
+
+# Clicks and keys while a mark is saving -------------------------------------------------------
+
+NOT_MARKED = ("Not marked: your last click or key came while a mark was saving. Showing now: "
+              '"{shown}". Mark it again.')
+
+# A save that takes SAVE_MS of the page's clock: `tick(ms)` moves the clock, and a save answers
+# once the clock reaches its time. `pending` lists the saves not answered yet.
+SLOW_SAVES = r"""
+var SAVE_MS = %d, pending = [], seq = 0, answered = {}, lastAnswer = -1e9;
+var realFetch = fetch;
+fetch = function (url, opts) {
+  var r = realFetch(url, opts), mine = {n: seq++, due: NOW + SAVE_MS};
+  return new Promise(function (ok) { mine.ok = function () { ok(r); }; pending.push(mine); });
+};
+async function tick(ms) {
+  var end = NOW + ms;
+  for (;;) {
+    var due = pending.filter(function (p) { return p.due <= end; })
+      .sort(function (a, b) { return a.due - b.due; })[0];
+    if (!due) { break; }
+    NOW = Math.max(NOW, due.due); pending.splice(pending.indexOf(due), 1); due.ok();
+    for (var n = 0; n < 6; n++) { await settle(); }
+    answered[due.n] = {at: NOW, status: document.getElementById("status").textContent,
+                       shown: document.getElementById("q-text").textContent}; lastAnswer = NOW;
+  }
+  NOW = end; await settle();
+}
+"""
+
+
+@pytest.mark.parametrize("gap, save", [(150, 600), (500, 600), (1000, 1200)])
+def test_clicks_while_a_mark_saves_land_on_the_answer_clicked_or_say_they_did_not(gap, save):
+    """40 answers, Pass and Fail clicked `gap` ms apart on whatever is on screen, each save
+    taking `save` ms. A click while a save runs is held for the answer it was made on: when
+    the save ends that answer is gone, so it is not marked and the page says which answer
+    is showing. Every other
+    click marks the answer on screen, in the order clicked. Only a click within 250 ms of an
+    answer showing does nothing without a word."""
+    got = _run(SLOW_SAVES % save + """
+      var GAP = __GAP__, clicks = [];
+      for (var i = 0; i < 40; i++) {
+        var on = ids["q-text"].textContent.replace("Question ", "a").replace("?", "");
+        var btn = i % 2 ? "fail" : "pass", saving = pending.length ? pending[0].n : null;
+        clicks.push({on: on, btn: btn, saving: saving,
+                     guarded: saving === null && NOW - lastAnswer < 250});
+        ids[btn].fire("click"); await settle();
+        await tick(GAP);
+      }
+      await tick(5000);
+      console.log(JSON.stringify({clicks: clicks, answered: answered,
+        buttons: [ids["pass"].disabled, ids["fail"].disabled],
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""".replace(
+                   "__GAP__", str(gap)), data=_data(45))
+    clicks, sent = got["clicks"], got["sent"]
+    # a click with no save running, on an answer shown 250 ms or more, lands: in order
+    direct = [[c["on"], c["btn"]] for c in clicks if c["saving"] is None and not c["guarded"]]
+    assert sent == direct and len(sent) > 5
+    assert len({i for i, _ in sent}) == len(sent)  # no answer marked twice
+    # a click made while a save ran: the end of that save says it was not used
+    held = {c["saving"] for c in clicks if c["saving"] is not None}
+    assert held
+    for save_n in held:
+        done = got["answered"][str(save_n)]
+        assert done["status"] == NOT_MARKED.format(shown=done["shown"]), (gap, save_n)
+    assert got["buttons"] == [False, False]
+
+
+def test_a_skip_click_and_keys_while_a_mark_saves_are_said_not_dropped():
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await settle();
+      later(300); ids["skip"].fire("click"); key("ArrowLeft"); key("s"); await settle();
+      var waiting = [sent.length, ids["q-text"].textContent, document.getElementById("status").textContent];
+      await tick(1000);
+      await new Promise(function (r) { setTimeout(r, 250); });  // the line read aloud comes a moment later
+      console.log(JSON.stringify({waiting: waiting, at: ids["q-text"].textContent,
+        status: document.getElementById("status").textContent,
+        heard: document.getElementById("done").textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label || "skip"]; })}));""")
+    assert got["waiting"] == [1, "Question 0?", ""]
+    assert got["sent"] == [["a0", "pass"]] and got["at"] == "Question 1?"
+    line = NOT_MARKED.format(shown="Question 1?")
+    assert got["status"] == line
+    assert got["heard"] == "Marked Pass. " + line  # said aloud, after the mark that was saved
+
+
+def test_a_pass_click_while_an_undo_saves_marks_the_answer_that_stayed_on_screen():
+    """Undo shows the answer again at once; a click made on it while the undo saves is for
+    it, and it is still on screen when the save ends: it marks it."""
+    got = _run("""
+      ids["pass"].fire("click"); await settle(); later(500);
+""" + SLOW_SAVES % 600 + """
+      ids["undo"].fire("click"); await settle();
+      var back = ids["q-text"].textContent;
+      later(300); ids["fail"].fire("click"); await settle();
+      await tick(1500);
+      console.log(JSON.stringify({back: back, at: ids["q-text"].textContent,
+        status: document.getElementById("status").textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""")
+    assert got["back"] == "Question 0?"
+    assert got["sent"] == [["a0", "pass"], ["a0", None], ["a0", "fail"]]
+    assert got["at"] == "Question 1?" and got["status"] == ""
+
+
+def test_an_undo_pressed_while_the_last_mark_saves_takes_it_back_and_no_result_opens():
+    """Pass on the last answer and Z at once: the undo waits for the save, takes the mark
+    back, and the result page never opens on a mark that no longer stands."""
+    got = _run("""
+      for (var i = 0; i < 2; i++) { key("ArrowRight"); await settle(); later(500); }
+      var answer = [], real = fetch;
+      fetch = function (url, opts) { var r = real(url, opts);
+        return new Promise(function (ok) { answer.push(function () { ok(r); }); }); };
+      key("ArrowRight"); key("z"); await settle();
+      while (answer.length) { answer.shift()(); for (var n = 0; n < 4; n++) { await settle(); } }
+      console.log(JSON.stringify({href: window.location.href, at: ids["q-text"].textContent,
+        card: ids["answer-card"].hidden,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(3))
+    assert got["sent"][-2:] == [["a2", "pass"], ["a2", None]]
+    assert got["href"] == ""
+    assert got["card"] is False and got["at"] == "Question 2?"
+
+
+def test_a_second_pass_pressed_while_the_last_mark_saves_still_opens_the_result():
+    """Pass twice at once on the last answer: the second, held while the mark saves, finds no
+    answer left to mark, and the result opens on the marks that stand."""
+    got = _run("""
+      for (var i = 0; i < 2; i++) { key("ArrowRight"); await settle(); later(500); }
+      var answer = [], real = fetch;
+      fetch = function (url, opts) { var r = real(url, opts);
+        return new Promise(function (ok) { answer.push(function () { ok(r); }); }); };
+      key("ArrowRight"); key("ArrowRight"); await settle();
+      while (answer.length) { answer.shift()(); for (var n = 0; n < 4; n++) { await settle(); } }
+      await opened();
+      console.log(JSON.stringify({href: window.location.href,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(3))
+    assert got["sent"][-1] == ["a2", "pass"] and len(got["sent"]) == 3
+    assert got["href"] == "/result?token=t0k"
+
+
+def test_a_z_soon_after_the_last_mark_saved_takes_it_back_and_no_result_opens():
+    """The save is done and the end card says the result is opening: for a moment a Z still
+    takes the last mark back, and the result opens only on marks that stand."""
+    got = _run("""
+      for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      var end = [ids["end"].hidden, ids["end-note"].textContent, window.location.href];
+      later(400); key("z"); await settle();
+      var back = [ids["q-text"].textContent, ids["answer-card"].hidden, ids["end"].hidden];
+      await opened();
+      console.log(JSON.stringify({end: end, back: back, href: window.location.href,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""", data=_data(3))
+    assert got["end"] == [False, UNDO_NOTE, ""]
+    assert got["sent"][-2:] == [["a2", "pass"], ["a2", None]]
+    assert got["back"] == ["Question 2?", False, True]
+    assert got["href"] == ""
+
+
+def test_the_result_opens_when_no_z_comes_and_a_z_after_that_says_so():
+    """Every answer marked and a moment gone: the result is opening. Z then takes nothing back
+    behind it; the page says the result is opening."""
+    got = _run("""
+      for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      var soon = window.location.href;
+      await opened();
+      var before = sent.length;
+      key("z"); await settle();
+      console.log(JSON.stringify({soon: soon, href: window.location.href, more: sent.length - before,
+        said: ids["status"].textContent}));""", data=_data(3))
+    assert got["soon"] == ""
+    assert got["href"] == "/result?token=t0k"
+    assert got["more"] == 0
+    assert got["said"] == mark_page.OPENING
+
+
+UNDO_NOTE = "Opening your result… Press Z to undo."
+
+
+def test_the_end_card_keeps_an_undo_button_while_the_result_is_about_to_open():
+    """In the moment after the last mark the card says the result is opening, and Undo is on it
+    (a click was lost there before); once the page has left, or on any other end card, it is not."""
+    got = _run("""
+      var shown = function () { var b = ids["end-sub"]; return b ? !b.hidden : null; };
+      for (var i = 0; i < 3; i++) { key("ArrowRight"); await settle(); later(500); }
+      var window_ = [shown(), ids["end-note"].textContent];
+      await opened();
+      console.log(JSON.stringify({window: window_, href: window.location.href}));""", data=_data(3))
+    assert got["window"] == [True, UNDO_NOTE]
+    assert got["href"] == "/result?token=t0k"
+
+
+def test_a_click_on_the_end_cards_undo_does_what_z_does():
+    """The same mark goes back, the same lines are saved, no result opens, and the button goes.
+    It works at once after the last mark, inside the clicks' short lock, as Z does."""
+    def after(how):
+        return _run(f"""
+          for (var i = 0; i < 3; i++) {{ key("ArrowRight"); await settle(); later(500); }}
+          later(10); {how}; await settle();
+          var b = ids["end-sub"];
+          var back = [ids["q-text"].textContent, ids["answer-card"].hidden, ids["end"].hidden,
+                      b ? b.hidden : null, ids["count"].textContent];
+          await opened();
+          console.log(JSON.stringify({{back: back, href: window.location.href,
+            sent: sent.map(function (s) {{ return [s.body.id, s.body.label]; }})}}));""",
+                    data=_data(3))
+    by_click = after('ids["end-undo"] && ids["end-undo"].fire("click")')
+    by_key = after('key("z")')
+    assert by_click == by_key
+    assert by_click["sent"][-2:] == [["a2", "pass"], ["a2", None]]
+    assert by_click["back"][:3] == ["Question 2?", False, True]
+    assert by_click["back"][3] is True  # the button is gone with the end card
+    assert by_click["href"] == ""
+
+
+def test_the_end_cards_undo_is_only_on_the_card_that_is_opening_the_result():
+    got = _run("""
+      var shown = function () { var b = ids["end-sub"]; return b ? !b.hidden : null; };
+      key("ArrowRight"); await settle(); later(500);
+      key("s"); await settle(); later(500);
+      key("ArrowRight"); await settle(); later(500);
+      console.log(JSON.stringify({skipped: [ids["end"].hidden, shown()],
+        note: ids["end-note"].hidden}));""", data=_data(3))
+    assert got["skipped"] == [False, False]  # some skipped: the look-again card, no Undo on it

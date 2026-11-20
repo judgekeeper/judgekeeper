@@ -178,10 +178,32 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
     if not mine:
         return False
     theirs = _theirs(store)
+    ws = Workspace(store)
+    if given is None and here != store and not ws.start.is_file() and not ws.labels.is_file():
+        # only a first run's judge.json above: the files nearest it are the ones it was made
+        # on; results here of that eval, or those files, use it, another eval keeps its own run
+        # (answers with no grade have no judge: their own run, as before; nor does another
+        # eval tool's, which the judge.json above is not of and the command here reads alone)
+        made_on = _nearest(theirs, store)
+        if any(t.is_relative_to(here) for t in made_on):
+            return False
+        graded = {r.path.resolve() for r in found.results.get(session_tool(store), [])} - {
+            Path(path).resolve() for path, _ in found.answers_only}
+        return not any(t.is_file() and one_eval(t, m) for t in made_on for m in graded)
+    if any(t.is_relative_to(here) for t in theirs):  # a folder holding a file it reads is
+        return False  # its own, the folders below too: another eval there is said so
     # a file beside one it reads is its own: new results of it join, another eval is said so
     # (other_eval) and never gets marks of its own
     return not all(any(m == t or m.is_relative_to(t) or not t.is_dir() and m.parent == t.parent
                        for t in theirs) for m in mine)
+
+
+def _nearest(paths: list[Path], store: Path) -> list[Path]:
+    """The `paths` (inside `store`) fewest folders down from it."""
+    depth = {p: len(p.relative_to(Path(store).resolve()).parts) for p in paths
+             if p.is_relative_to(Path(store).resolve())}
+    least = min(depth.values(), default=0)
+    return [p for p, d in depth.items() if d == least]
 
 
 def _theirs(store: Path) -> list[Path]:
@@ -223,6 +245,22 @@ OTHER_EVAL = ("{file} shares few questions with the results you marked ({marked}
               "like another eval.")
 TO_MARK_IT = "To mark it, put it in a folder of its own and run `{program}` there."
 OTHER_EVAL_NEXT = "put {file} in a folder of its own, then run `{program}` there."
+REWRITTEN = ("{file} now holds other questions than the answers you marked, so it looks like "
+             "another eval. Its answers are not added to the ones you mark.")
+
+
+def rewritten(store: Path, path: Path) -> bool:
+    """Whether the results file `path` the session in `store` reads now holds another eval
+    (written again with other questions: _same_eval says no). Its answers never join the
+    pool: two evals are never one (REWRITTEN says so)."""
+    path = Path(path).resolve()
+    if not Workspace(store).start.is_file() or not path.is_file():
+        return False
+    try:
+        stamps = (path.stat().st_mtime_ns, Workspace(store).pool.stat().st_mtime_ns)
+    except OSError:
+        stamps = (0, 0)
+    return not _same_eval_cached(path, Path(store).resolve(), stamps)
 
 
 def other_eval(store: Path, path: Path) -> Path | None:
@@ -288,19 +326,21 @@ def _answers(path: Path) -> bool:
         return False
 
 
-def other_eval_line(path: Path, marked: Path) -> str:
+def other_eval_line(path: Path, marked: Path, away: str = "") -> str:
     """The line for `path`, another eval beside `marked`: both named as every path line names
-    them (textio.line_path), a typed path too."""
-    return f"{_other_eval_said(path, marked)} {TO_MARK_IT.format(program=program_anywhere())}"
+    them (textio.line_path), a typed path too. `away`: what the command for that folder of
+    its own repeats (front.FrontTalk.away)."""
+    return (f"{_other_eval_said(path, marked)} "
+            f"{TO_MARK_IT.format(program=program_anywhere() + away)}")
 
 
-def other_eval_stop(path: Path, marked: Path) -> tuple[str, str]:
+def other_eval_stop(path: Path, marked: Path, away: str = "") -> tuple[str, str]:
     """(the line, the Next step) for a command that stops at `path`, another eval beside
     `marked`."""
     from judgekeeper import textio
 
     return _other_eval_said(path, marked), OTHER_EVAL_NEXT.format(
-        file=textio.line_path(path), program=program_anywhere())
+        file=textio.line_path(path), program=program_anywhere() + away)
 
 
 def _other_eval_said(path: Path, marked: Path) -> str:
@@ -373,14 +413,8 @@ def same_questions(path: Path, tool: str | None, held: list, answers: bool = Fal
     if not rows or len(rows) >= table.MAX_ROWS:  # none or only the first rows read
         return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
-    # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
-    ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
-            if f}
-    questions = set().union(*ours)
-    theirs = {frozenset(f) for f in (_forms(q, a) - {""} for q, a in rows) if f}
-    if questions and theirs:  # an answer a refusal or a stock line gives is no sign; half of
-        # the smaller side: the same eval run on more questions is still this one
-        return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
+    if (shared := shares_questions(held, rows)) is not None:
+        return shared
     ids = {str(a.get("id")) for a in held}
     if answers:  # each answer's id made as the marked ones' were (start._answers_only)
         return any(str(a.get("id")) in ids for a in records.answers)
@@ -388,6 +422,22 @@ def same_questions(path: Path, tool: str | None, held: list, answers: bool = Fal
         return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
     except (TypeError, ValueError):
         return True
+
+
+def shares_questions(held: list, rows: list) -> bool | None:
+    """Whether the answers `rows` ((question, answer) pairs) are of the eval of `held` (dicts
+    with input and output): they share half of the smaller side's distinct questions. None
+    when either side has no question to compare."""
+    # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
+    ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
+            if f}
+    questions = set().union(*ours)
+    theirs = {frozenset(f) for f in (_forms(q, a) - {""} for q, a in rows) if f}
+    if not (questions and theirs):
+        return None
+    # an answer a refusal or a stock line gives is no sign; half of the smaller side: the
+    # same eval run on more questions is still this one
+    return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
 
 
 def one_eval(first: Path, second: Path) -> bool:
@@ -400,6 +450,8 @@ def one_eval(first: Path, second: Path) -> bool:
     kind = find.classify_file(first)
     if kind is None:
         return True
+    if kind not in ("table", "inspect", *start.FILE_READERS):  # no reader to take questions with
+        return same_questions(second, kind, [])  # (judgekeeper.record() files, MLflow): by tool
     try:
         records = start._read(find.Result(kind, first, first.name, first.stat().st_size),
                               _answers(first)).records

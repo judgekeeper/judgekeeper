@@ -133,7 +133,7 @@ def test_several_verdict_columns_are_listed_as_judges_judge_first(here, capsys):
     assert out.index("judge_verdict (60 answers)") < out.index("check_verdict (60 answers)")
     assert out.index("check_verdict (60 answers)") < out.index("verdict (69 answers)")
     line = assert_one_next_at_the_end(out)
-    assert "--metric NAME" in line
+    assert "NAME" not in line and flat(line).endswith("or `judgekeeper --metric all`.")
     quote = '"' if sys.platform == "win32" else "'"  # quoted alike, as each shell reads
     assert ", ".join(f"{quote}{n}{quote}" for n in ("judge_verdict", "check_verdict",
                                                     "verdict", "all")) in flat(line)
@@ -770,7 +770,7 @@ def test_a_standard_csv_with_two_verdict_columns_asks_which_judge(here, capsys):
     assert "http://127.0.0.1" not in out
     assert out.index("judge_verdict (60 answers)") < out.index("verdict (60 answers)")
     line = assert_one_next_at_the_end(out)
-    assert "--metric NAME" in line
+    assert "NAME" not in line and "`judgekeeper --metric judge_verdict`" in line
     code, out = run(capsys, "--metric", "judge_verdict")
     assert code == 0, out
     assert "Your LLM-as-a-judge passed 40 answers and failed 20." in out
