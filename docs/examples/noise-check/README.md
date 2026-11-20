@@ -74,10 +74,10 @@ Some of the lines in the output files talk about an LLM-as-a-judge even for math
 
 You need Python 3.11 or newer and your own API key. The key is read from the environment and never printed or written.
 
-Install judgekeeper from this repository (`pip install -e .` in its top folder). The `--before` check this report uses may be newer than the release on PyPI.
+You need judgekeeper 1.3.0 or newer. The first line below installs it. For one-off runs of the command, `uvx judgekeeper` works too; the script calls the `judgekeeper` command, so install it with pip for that.
 
 ```
-pip install anthropic pyarrow
+pip install "judgekeeper>=1.3.0" anthropic pyarrow
 export ANTHROPIC_API_KEY=...          # your own key
 export NOISE_MODEL=...                # the AI to test
 export NOISE_OLDER_MODEL=...          # an older, cheaper AI
@@ -104,7 +104,7 @@ python3 -I dose_n.py
 python3 -I dose_n.py truthfulness worse-2 100,200,400,817
 ```
 
-`run_judgekeeper.sh` writes its output files into this folder's `judgekeeper-output/`, so copy this folder somewhere else first if you want to keep ours.
+`run_judgekeeper.sh` runs each pair with `CI=true` and `--no-browser`, so judgekeeper opens no marking page and no browser, and leaves nothing running. It writes its output files into this folder's `judgekeeper-output/`, so copy this folder somewhere else first if you want to keep ours.
 
 To count our own runs again without calling any AI, leave `NOISE_GRADES` unset: `pairs.py` and `dose_n.py` then read the grade files in this folder.
 

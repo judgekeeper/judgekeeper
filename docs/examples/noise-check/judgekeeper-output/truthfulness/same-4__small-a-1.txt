@@ -1,4 +1,4 @@
-judgekeeper 1.2.0
+judgekeeper 1.3.0
 
 Step 1 of 5: Find
 
@@ -27,14 +27,8 @@ A result needs at least 15 Pass and 15 Fail marks from you. It
 also needs 20 marks on answers your LLM-as-a-judge passed and 20
 on answers it failed (or all of them, if there are fewer).
 
-Opening the marking page in your browser…
-The marking page is open in your browser. It shows the answers
-one at a time. Mark each one Pass or Fail, the way you want your
-LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
-hidden.
-
-Next: mark answers on the page until a "See the numbers so far"
-link appears, then click it.
+judgekeeper opens no marking page in CI. To mark answers, run
+`judgekeeper now.csv` on your own computer.
 
 On the 817 questions in both results: fixed 33, broke 52, same
 732.

@@ -6,7 +6,8 @@
 # <rounds-folder> is $NOISE_WORK/rounds (math/, truthfulness/, multiple-choice/ with the graded
 # CSV runs the run_*.py scripts write). judgekeeper must be installed (pip install judgekeeper).
 # Each pair runs in its own empty folder, so no earlier baseline carries over, with
-# `judgekeeper now.csv --before before.csv --no-browser`. The output of each pair goes to
+# `CI=true judgekeeper now.csv --before before.csv --no-browser`. CI=true makes judgekeeper open
+# no marking page and leave no page running, so there is no link in the output. The output of each pair goes to
 # judgekeeper-output/<set>/<before>__<now>.txt, with "exit N" on its last line, and
 # judgekeeper-output/SUMMARY.txt lists them.
 set -u
@@ -22,13 +23,10 @@ pair() {  # set before now
     cp "$ROUNDS/$1/$2.csv" "$dir/before.csv"
     cp "$ROUNDS/$1/$3.csv" "$dir/now.csv"
     f="$OUT/$1/$2__$3.txt"
-    (cd "$dir" && judgekeeper now.csv --before before.csv --no-browser </dev/null > "$f" 2>&1
+    (cd "$dir" && CI=true judgekeeper now.csv --before before.csv --no-browser </dev/null > "$f" 2>&1
      echo "exit $?" >> "$f")
-    # A run with no terminal leaves its marking-page server running; stop it.
-    if [ -f "$dir/.judgekeeper/page.json" ]; then
-        pid=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('pid',''))" "$dir/.judgekeeper/page.json")
-        [ -n "$pid" ] && kill "$pid" 2>/dev/null
-    fi
+    # Safety: if a page was started anyway, stop it.
+    [ -f "$dir/.judgekeeper/page.json" ] && (cd "$dir" && judgekeeper --stop >/dev/null 2>&1)
 }
 
 for set in math truthfulness multiple-choice; do
