@@ -10,7 +10,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from judgekeeper import front, no_grades
+from judgekeeper import front, no_grades, start_label
 from judgekeeper.metrics import wilson
 from judgekeeper.report_page import estimate
 
@@ -43,6 +43,28 @@ def _last_marks() -> dict[str, str]:
     return {i: m for i, m in last.items() if m in ("pass", "fail")}
 
 
+def _page_text(path: Path) -> str:
+    return _flat(html.unescape(re.sub(r"<[^>]+>", " ", _text(path))))
+
+
+def _mark_lines() -> tuple[dict[str, str], list[tuple[str, str]]]:
+    """marks.jsonl read line by line, by what each line is: ({answer id: its first mark},
+    [(first mark, repeat mark)] for each answer shown again as a repeat). A line that only
+    adds reasons to a mark keeps that mark; any other line is not one the run makes."""
+    first: dict[str, str] = {}
+    repeats: dict[str, str] = {}
+    for n, line in enumerate(_text(EXAMPLE / "marks.jsonl").splitlines()[1:], start=2):
+        d = json.loads(line)
+        if d.get("repeat"):
+            repeats[d["id"]] = d["mark"]
+        elif d["id"] not in first:
+            first[d["id"]] = d["mark"]
+        else:
+            assert d["mark"] == first[d["id"]] and d.get("reasons") and \
+                d.get("seconds") is None, f"line {n}: not a reason added to its mark"
+    return first, [(first[i], m) for i, m in repeats.items()]
+
+
 def _between(k: int, n: int) -> str:
     w = wilson(k, n)
     return estimate(w["p"], [w["lo"], w["hi"]])[1]
@@ -61,6 +83,29 @@ def test_every_answer_was_marked_and_12_of_20_passed():
     marked = _last_marks()
     assert len(marked) == 20
     assert Counter(marked.values()) == {"pass": 12, "fail": 8}
+
+
+def test_the_marks_file_is_the_one_the_first_result_was_made_from():
+    """marks.jsonl, report.html and terminal-1.txt come from one run: the first marks give the
+    counts both say, and the repeats the line both give about them (none when none)."""
+    first, repeats = _mark_lines()
+    passed = sum(m == "pass" for m in first.values())
+    counts = f"You passed {passed} of {len(first)} answers."
+    said, page = _flat(_text(EXAMPLE / "terminal-1.txt")), _page_text(EXAMPLE / "report.html")
+    assert counts in said and counts in page
+    lines = start_label.repeat_lines({"seen": len(repeats),
+                                      "changed": sum(a != b for a, b in repeats)})
+    for line in lines:
+        assert line in said and line in page, line
+    if not lines:
+        assert "twice" not in said and "twice" not in page
+
+
+def test_the_recorded_files_name_no_folder_of_the_machine_they_were_made_on():
+    for path in sorted(EXAMPLE.iterdir()):
+        text = _text(path)
+        for local in ("/Users/", "/private/", "/home/", "scratchpad", "~/", "C:\\"):
+            assert local not in text, f"{path.name} names {local}"
 
 
 def test_the_ranges_the_docs_give():

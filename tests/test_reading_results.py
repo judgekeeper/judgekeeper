@@ -303,7 +303,7 @@ def test_other_promptfoo_files_are_named_before_any_mark(here, capsys):
     assert code == 0, out
     assert "File:            other.json" in out
     assert ("Also found results-regraded.json and results.json, with other questions. To check "
-            "one, put it in a folder of its own and run `judgekeeper` there.") in flat(out)
+            "one, put it in a folder of its own and run `judgekeeper --no-browser` there.") in flat(out)
 
 
 def test_other_inspect_logs_are_named_before_any_mark(here, capsys):
@@ -316,7 +316,7 @@ def test_other_inspect_logs_are_named_before_any_mark(here, capsys):
     read = re.search(r"File: +(\S+)", out)[1]
     other = ({"logs/a.json", "logs/b.json"} - {read}).pop()
     assert (f"Also found {other}, with other questions. To check it, put it in a folder of its "
-            "own and run `judgekeeper` there.") in flat(out)
+            "own and run `judgekeeper --no-browser` there.") in flat(out)
 
 
 def test_at_most_three_other_files_are_named(here, capsys):

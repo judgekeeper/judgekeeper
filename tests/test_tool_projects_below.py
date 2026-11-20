@@ -71,7 +71,7 @@ def test_tool_with_its_files_in_one_project_below_names_it_and_stops(services, c
     code, said = _run(capsys, monkeypatch, services, "--tool", tool)
     assert code == 3, said
     assert (f"These results belong to the project in {folder}/. To check them, run "
-            f"`judgekeeper` in {folder}/.") in said, said
+            f"`judgekeeper --no-browser` in {folder}/.") in said, said
     assert "Answers:" not in said, said
     assert not (services / ".judgekeeper").exists()
 
@@ -96,7 +96,7 @@ def test_files_in_no_project_are_read_and_the_projects_with_that_tools_files_nam
     code, said = _run(capsys, monkeypatch, top, "--tool", "table")
     assert code == 3, said  # 12 answers: too few
     assert "File: plain/results.csv" in said and "Answers: 12 answers" in said
-    assert ("The project in multi/ has results too: to check them, run `judgekeeper multi`."
+    assert ("The project in multi/ has results too: to check them, run `judgekeeper multi --no-browser`."
             in said), said
     assert "de-svc" not in said, said  # no CSV file there
 
@@ -120,7 +120,7 @@ def test_the_next_run_with_no_tool_keeps_to_the_same_files(repo, capsys, monkeyp
     assert code == 0, said
     assert "File: results.csv" in said and "Answers: 40 answers" in said, said
     assert ("The project in multi/ has results too: to check them, run `judgekeeper "
-            "multi`.") in said, said
+            "multi --no-browser`.") in said, said
     table_project(top / "multi", split(7, 3), name="results-v2.csv", tag="y")  # newer answers
     code, said = _run(capsys, monkeypatch, top)  # the tool kept in the session
     assert code == 0 and "new answers" not in said, said
@@ -129,7 +129,8 @@ def test_the_next_run_with_no_tool_keeps_to_the_same_files(repo, capsys, monkeyp
 
 # The plain run: one tool's results found ------------------------------------------------------
 
-MULTI_TOO = "The project in multi/ has results too: to check them, run `judgekeeper multi`."
+MULTI_TOO = ("The project in multi/ has results too: to check them, run "
+             "`judgekeeper multi --no-browser`.")
 
 
 def test_the_plain_run_reads_its_own_file_and_names_the_project_below(repo, capsys,  # noqa: F811
@@ -152,7 +153,7 @@ def test_the_plain_run_with_its_files_in_one_project_below_names_it_and_stops(
     code, said = _run(capsys, monkeypatch, top)
     assert code == 3, said
     assert ("These results belong to the project in de-svc/. To check them, run "
-            "`judgekeeper` in de-svc/.") in said, said
+            "`judgekeeper --no-browser` in de-svc/.") in said, said
     assert "Answers:" not in said and not (top / ".judgekeeper").exists(), said
 
 
@@ -190,7 +191,7 @@ def test_a_repository_top_reads_its_own_and_names_the_project_below_as_before(
     assert code == 3, said
     assert "File: own.csv" in said and "Answers: 12 answers" in said, said
     assert ("The project in services/multi/ has results too: to check them, run `judgekeeper "
-            "services/multi`.") in said, said
+            "services/multi --no-browser`.") in said, said
 
 
 def test_the_next_plain_run_keeps_to_its_own_file(repo, capsys, monkeypatch):  # noqa: F811

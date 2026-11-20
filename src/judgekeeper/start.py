@@ -101,6 +101,7 @@ NEW_HERE = "Starting a new project here? Run `{command}`."  # after reading the 
 TOOL_BELOW = "run `{command}` to check the {results} in {folder}/."
 TOOL_OTHERS = "run `{command}` to read the results found here."  # {command}: without --tool
 TOOL_ELSEWHERE = "run `{command}` in the folder that holds your {results}."
+TOOL_PROJECT = "run `{command}` in {folder}/ to read the results found there."  # without --tool
 TABLE_RESULTS = "CSV, TSV or JSONL results file"  # a table's results, in TOOL_* lines
 RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your LLM-as-a-judge's "
                  "decisions at the project root: reading them in {root}.")
@@ -325,6 +326,17 @@ def held_values(flags) -> list[str]:
     return list(dict.fromkeys(v for v in values if v != "." and textio.held_back(v)))
 
 
+def without_port(flags: tuple[str, ...]) -> tuple[str, ...]:
+    """`flags` without --port and its value."""
+    out, words = [], iter(flags)
+    for word in words:
+        if word == "--port":
+            next(words, None)
+        elif not word.startswith("--port="):
+            out.append(word)
+    return tuple(out)
+
+
 class Talk:
     """What finding the judge says, and the questions it asks when there is a person to
     answer. `flags` (repeated_flags) are what every printed command repeats."""
@@ -367,11 +379,15 @@ class Talk:
             path = Path(self.read_in) / where
         return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
 
-    def command_in(self, folder: str, *extra: str) -> str:
+    def command_in(self, folder: str, *extra: str, away: bool = False) -> str:
         """`command` run on `folder` (written as it goes on the line, from the folder the
         command runs in) in place of the person's path, where the command takes its path;
-        "" for none (the command run in that folder)."""
+        "" for none (the command run in that folder). `away`: another project's folder, so
+        without --port (this run's page, or the one that took it, holds that port; the
+        default moves to a free one)."""
         flags = self._flags_for(extra)
+        if away:
+            flags = without_port(flags)
         given = flags[:1] == (path_word(self.path),) and (self.path != "." or self.given)
         return " ".join((self.program, *([folder] if folder else []),
                          *(flags[1:] if given else flags), *extra))
@@ -1305,12 +1321,12 @@ def by_use(names: list[str], counts) -> list[str]:
     return names if len(names) <= LIST_LIMIT else sorted(names, key=lambda n: -counts[n])
 
 
-def some(items: list[str], last: str = "or") -> str:
-    """At most LIST_LIMIT of `items`, then how many more: a results file can name thousands
+def some(items: list[str], last: str = "or", limit: int = LIST_LIMIT) -> str:
+    """At most `limit` of `items`, then how many more: a results file can name thousands
     of judges, and a list must not push the Next: line off the screen."""
-    if len(items) <= LIST_LIMIT:
+    if len(items) <= limit:
         return _or(items) if last == "or" else ", ".join(items)
-    return f"{', '.join(items[:LIST_LIMIT])} {more(len(items) - LIST_LIMIT)}"
+    return f"{', '.join(items[:limit])} {more(len(items) - limit)}"
 
 
 def _and(items: list[str]) -> str:
@@ -1432,22 +1448,51 @@ def _read_above(root: Path, found: find.Search, tool: str | None,
     """("records" or "results", the project folder above `root`) when a run in `root` reads
     there: no results here, and record()'s records saved there (from any subfolder), or
     results in the project folder above (find.results_above) unless the run `stay`s. Results
-    in a project below never count here: they only name it."""
+    in a project below never count here: they only name it (results_above_past)."""
     available = [t for t in find.TOOLS
                  if any(find.owner(r.path, root) is None for r in found.readable(t))]
     if "records" not in available and (tool == "records" or tool is None and not available):
         above = find.records_above(root)
-        if above is not None:
+        if above is not None and kept_tool(above) in (None, "records"):  # else its session's
             return "records", above
     if stay:
         return None
     if not available and tool is None and not found.too_big() and not found.unreadable \
-            and not any(how == find.LINK for _, how in found.skipped):  # a linked results
+            and not any(how in find.LINKS for _, how in found.skipped):  # a linked results
         # file here is said, never read above by another path
-        above = find.results_above(root)
+        above = results_above_past(root)
         if above is not None:
             return "results", above
     return None
+
+
+def kept_tool(folder: Path) -> str | None:
+    """The eval tool of the session in `folder` (start.json's), when its results are still
+    there and no judgekeeper.toml says how to read them: a run there reads with it."""
+    try:
+        tool = json.loads((folder / textio.WORKSPACE / "start.json").read_text(
+            encoding="utf-8")).get("tool")
+    except (OSError, ValueError, AttributeError):
+        return None
+    if tool not in find.TOOLS or _saved(folder) is not None:
+        return None
+    return tool if find.search(folder).readable(tool) else None
+
+
+def results_above_past(root: Path) -> Path | None:
+    """find.results_above, from a folder that may hold a project of its own below: then only
+    a folder above with a session or a results file right in it is read. One whose results
+    are all in folders of their own would only list them, so the run says what
+    `judgekeeper .` says (the project below)."""
+    above = find.results_above(root)
+    if above is None or not find.projects_below(root):
+        return above
+    if (above / textio.WORKSPACE / "start.json").is_file():  # its session
+        return above
+    found = find.search(above)
+    files = [r.path for rs in found.results.values() for r in rs] + \
+        [path for path, _ in found.answers_only]
+    return above if any(Path(f).resolve().parent == above.resolve() for f in files) else None
 
 
 def reads_in(folder: Path, stay: bool = False) -> Path:
@@ -1508,7 +1553,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
         if kind is None and path.suffix.lower() in find.EXCEL:
             raise StartError(EXCEL.format(file=path.name),
                              f"save {path.name} as CSV UTF-8, then run "
-                             f"`{textio.program()} {quote_arg(path.with_suffix('.csv').name)}`.")
+                             f"`{talk.command_in(quote_arg(path.with_suffix('.csv').name))}`.")
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
@@ -1519,11 +1564,14 @@ def _locate(talk: Talk, path: Path, tool: str | None,
     root = path.resolve()
     talk.looking(root)
     found = find.search(root)
+    _older_runs_apart(found, root, getattr(talk, "away", ""))
+    if tool == "table":  # a file of answers with no grade counts, beside other results too
+        find.answers_as_table(found, root)
     for note in found.notes:
         _note(talk, note)
     keys.said(found.notes)
     for big in found.too_big():
-        talk.say(big.too_big_message(talk.command_at(big.rel, "--yes")))
+        talk.say(big.too_big_message(_anyway(talk, big)))
     available = [t for t in find.TOOLS if found.readable(t)]
     if found.unreadable and (available or found.too_big()):
         for rel, how in found.unreadable:
@@ -1542,9 +1590,9 @@ def _locate(talk: Talk, path: Path, tool: str | None,
         return _locate(talk, above[1], tool)
     if above is not None:  # run from a subfolder (src/, say) of the project
         _note(talk, f"No eval results in {root.name}. Reading the project folder above it "
-                    f"({above[1].name}). " + NEW_HERE.format(command=talk.command_in(".")))
+                    f"({above[1].name}). " + NEW_HERE.format(command=talk.command_in(".", away=True)))
         talk.say()
-        return _locate(talk, above[1], tool)
+        return _locate(talk, above[1], tool or kept_tool(above[1]))  # as a run there reads
     if tool is not None:
         if tool not in available:
             if any(r.tool == tool for r in found.too_big()):
@@ -1676,6 +1724,8 @@ def table_output(rel: str) -> Damaged:
 def _unreadable(found: find.Search) -> Damaged:
     """The results-like file judgekeeper found but could not read, when it found no other."""
     rel, how = found.unreadable[0]
+    path = Path(found.root) / rel
+    rel = textio.shown_in(path, found.root)  # from here, as File: names it
     if how == find.TABLE_OUTPUT:
         return table_output(rel)
     if how == find.TITLE_ROW:
@@ -1687,15 +1737,18 @@ def _unreadable(found: find.Search) -> Damaged:
     if how != "is empty":
         return Damaged(f"{rel} {how}.", f"give your user permission to read {rel}, then run "
                                         "`{command}` again.")
-    return empty_file(rel, "promptfoo" in found.signs)
+    return empty_file(rel, "promptfoo" in found.signs, path)
 
 
-def empty_file(rel: str, promptfoo: bool = False) -> Damaged:
+def empty_file(rel: str, promptfoo: bool = False, path: Path | None = None) -> Damaged:
     """`rel`, a results file with nothing in it, in the words of the website's free check
-    ("This file is empty."), the file named."""
+    ("This file is empty."), the file named. `path`: where it is, for the command that saves
+    to it (a command never holds %USERPROFILE%, which PowerShell doesn't read)."""
     if promptfoo and rel.endswith(".json"):
+        at = textio.runnable(str(path), labels=False) if path is not None else rel
+        at = rel if at in textio.ANOTHER_DRIVE else at  # no way to say it from here: as named
         return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
-                       f"save your promptfoo results to it with `promptfoo eval -o {rel}`, "
+                       f"save your promptfoo results to it with `promptfoo eval -o {at}`, "
                        "then run `{command}` again.")
     return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
                    f"save your results to {rel}, then run `{{command}}` again.")
@@ -1718,7 +1771,8 @@ def _saved_words(tool: str) -> str:
 
 def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     """Nothing found where judgekeeper looks, but results-like files elsewhere: name them
-    and the command that reads the first."""
+    and the command that reads the first (one in a project of its own below: that project's,
+    as a run from here never reads its files)."""
     _note(talk, f"No eval results found where judgekeeper looks: {find.looked(root.name)}. It "
                 "left out:")
     for rel, why in found.skipped[:5]:
@@ -1726,21 +1780,32 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     if len(found.skipped) > 5:
         talk.say(f"  and {len(found.skipped) - 5} more")
     which = "that file holds" if len(found.skipped) == 1 else "one of these holds"
-    readable = [(rel, why) for rel, why in found.skipped if why != find.LINK]
+    readable = [(rel, why) for rel, why in found.skipped if why not in find.LINKS]
     if not readable:  # never a command that reads a link: it leads anywhere
         it = "it links" if len(found.skipped) == 1 else "they link"
         next_step = (f"if {which} your results, copy the file {it} to into your project in its "
                      f"place, then run `{talk.command()}` again.")
+        if all(why == find.LINK_TO_NOTHING for _, why in found.skipped):  # nothing to copy
+            one = len(found.skipped) == 1
+            next_step = (f"point the {'link at a file that is' if one else 'links at files that are'}"
+                         f" there, or save your results in {'its' if one else 'their'} place, "
+                         f"then run `{talk.command()}` again.")
         if not getattr(talk, "screens", False):
             talk.say(f"Next: {next_step[0].upper()}{next_step[1:]}")
         return talk.stop(EXIT_USAGE, next_step)
     first, why = readable[0]
+    holder = find.holder_below(Path(root) / first, root)
+    holder = holder.relative_to(Path(root).resolve()).as_posix() if holder else None
+    command = talk.command_in(path_word(holder), away=True) if holder else \
+        talk.command_at(first)  # a project's own below: as another project's
+    again = " again" if holder is None else ""
     if why == find.NOT_UTF8:  # running it as it is would only say to save it as UTF-8
         which = "that file holds" if len(found.skipped) == 1 else f"{first} holds"
-        next_step = (f"if {which} your results, save it as UTF-8, then run "
-                     f"`{talk.command_at(first)}` again.")
+        next_step = f"if {which} your results, save it as UTF-8, then run `{command}`{again}."
     else:
-        next_step = f"if {which} your results, run `{talk.command_at(first)}`."
+        next_step = f"if {which} your results, run `{command}`."
+    if holder is not None:
+        next_step = f"{next_step[:-1]}: it is in the project in {holder}/, which checks it."
     if not getattr(talk, "screens", False):
         talk.say(f"Next: {next_step[0].upper()}{next_step[1:]}")
     return talk.stop(EXIT_USAGE, next_step)
@@ -1754,22 +1819,48 @@ def results_of(tool: str) -> str:
 def _tool_elsewhere(talk, found: find.Search, tool: str, available: list[str]) -> dict:
     """StartError's Next line when --tool `tool` found nothing here: the project below that
     holds its results (found.nested), else the results found here (`available`), read
-    without --tool, else where to run it."""
+    without --tool (those of a project of its own below: in that project), else where to run
+    it."""
+    from judgekeeper import project
+
     results = results_of(tool)
-    below = next((sub for sub in found.nested if find.search(sub).results.get(tool)), None)
+    below, other = None, None  # `other`: results of `tool` that are another eval of a session
+    for sub in found.nested:
+        theirs = find.search(sub).results.get(tool, [])
+        if any(project.other_eval(sub, r.path) is None for r in theirs):
+            below = sub
+            break
+        if theirs and other is None:
+            other = (sub, theirs[0].path)
+    if below is None and other is not None:  # a command there would only stop: say why
+        line, step = project.other_eval_stop(other[1], project.other_eval(*other))
+        raise StartError(line, step.replace("{", "{{").replace("}", "}}"))  # next_step is a format
     if below is not None:
         rel = Path(os.path.relpath(below, Path.cwd())).as_posix()
-        return {"next_step": TOOL_BELOW.format(command=talk.command_in(path_word(rel)),
+        return {"next_step": TOOL_BELOW.format(command=talk.command_in(path_word(rel),
+                                                                       away=True),
                                                results=results, folder=rel)}
-    if available:
+    holders = [find.holder_below(r.path, found.root) for t in available
+               for r in found.readable(t)]
+    if None in holders:
         return {"next_step": TOOL_OTHERS, "drop": "--tool"}
+    if holders:  # every one is a project's of its own below: read there
+        rel = textio.folder_from_here(min(holders))
+        command = textio.program_in(textio.folder_of(rel, Path.cwd())) + getattr(talk, "away", "")
+        return {"next_step": TOOL_PROJECT.format(command=command, folder=rel)}
     return {"next_step": TOOL_ELSEWHERE.format(command=talk.command_in(""), results=results)}
 
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:
     big = found.too_big()[0]
-    return talk.stop(EXIT_USAGE, f"to read {big.rel} anyway, run "
-                                 f"`{talk.command_at(big.rel, '--yes')}`.")
+    return talk.stop(EXIT_USAGE, f"to read {big.rel} anyway, {_anyway(talk, big)}.")
+
+
+def _anyway(talk: Talk, big: find.Result) -> str:
+    """"run `<command>`" that reads the file `big` anyway, where it runs: in the project of its
+    own below that holds it (front.FrontTalk.run_there), else here."""
+    there = getattr(talk, "run_there", None)
+    return (there and there(big.rel, "--yes")) or f"run `{talk.command_at(big.rel, '--yes')}`"
 
 
 def _read_anyway(talk: Talk, path: Path, given: tuple[str, ...] = ()) -> None:
@@ -2023,6 +2114,22 @@ def _stop_with(talk: Talk, text: str, next_step: str, code: int = EXIT_USAGE) ->
     return talk.stop(code, next_step)
 
 
+def _older_runs_apart(found: find.Search, root: Path, away: str = "") -> None:
+    """DeepEval's older run named by a note (find.NEWEST_RUN) that is another eval than the
+    one marked in this project (project.other_eval): typing it stops, so the note gives the
+    step that works, a folder of its own (find.NEWEST_RUN_APART)."""
+    if not found.older_runs:
+        return
+    from judgekeeper import project
+
+    store = project.project_of(root)
+    for i, note in enumerate(found.notes):
+        older = found.older_runs.get(note)
+        if older is not None and project.other_eval(store, older[0]) is not None:
+            found.notes[i] = find.NEWEST_RUN_APART.format(
+                **older[1], program=project.program_anywhere() + away)
+
+
 def _note(talk: Talk, text: str) -> None:
     """One line of the finder's, wrapped on `judgekeeper`'s screens."""
     getattr(talk, "para", talk.say)(text)
@@ -2219,7 +2326,7 @@ def _one_eval(first, older, kind: str) -> bool:
     return project.shares_questions(held, rows) is not False
 
 
-def _same_eval_only(path: Path, results: list) -> list:
+def _same_eval_only(path: Path, results: list, away: str = "") -> list:
     """`results` without another eval beside a file the marks were made on
     (project.other_eval): never read in their place. None left: why, in one line."""
     from judgekeeper import project
@@ -2228,7 +2335,8 @@ def _same_eval_only(path: Path, results: list) -> list:
     kept = [r for r in results if project.other_eval(store, r.path) is None]
     if kept:
         return kept
-    line, step = project.other_eval_stop(results[0].path, project.other_eval(store, results[0].path))
+    line, step = project.other_eval_stop(results[0].path, project.other_eval(
+        store, results[0].path), away)
     raise StartError(line, step.replace("{", "{{").replace("}", "}}"))  # next_step is a format
 
 
@@ -2271,7 +2379,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     if only:
         results = [r for r in results if r.rel in only] or results
     if Path(path).is_dir() and kind not in ("mlflow", "records") and results:
-        results = _same_eval_only(Path(path), results)
+        results = _same_eval_only(Path(path), results, getattr(talk, "away", ""))
     name = None
     if kind == "mlflow":
         with trash_removed_at_end():

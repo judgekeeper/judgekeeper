@@ -1640,7 +1640,12 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
     cmd = commands(r)
     mark = f"<code>{look.command(_e(cmd['mark']))}</code>"
     file = fixing.get("file")
-    more = (no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
+    since = fixing.get("since") or r.get("since")
+    asks = r["check"] == "result" and no_grades.questions_next(  # one step: new questions
+        since, _PATH if file else "your results file",
+        _PAGE_FLAGS.sub("", cmd["run"]), none_failed=not labels["wrong"])
+    more = asks or (
+        no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
         file=_PATH if file else "your results file", n=no_grades.MIN_MARKS,
         command=_PAGE_FLAGS.sub("", cmd["run"]))
     cnts = _own_counts(k, n - k)
@@ -1687,18 +1692,22 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
                    f'<div class="cmd prompt"><code>{_e(fixing["prompt"])}</code>'
                    '<button type="button" class="copy" data-copy aria-label="Copy the prompt">'
                    f"{COPY_ICONS}</button></div>"
-                   "<p>After you change the prompt, run your AI again on the same questions, "
-                   "save its new answers in "
-                   + (f"<code>{_e(file)}</code>" if file else "your results file")
-                   + " or a new file next to it, and run "
-                   f"<code>{look.command(_e(_PAGE_FLAGS.sub('', cmd['run'])))}</code> "
-                   "to mark them.</p>") + act
+                   + ("" if asks else  # the questions it asks for: the one step
+                      "<p>After you change the prompt, run your AI again on the same "
+                      "questions, save its new answers in "
+                      + (f"<code>{_e(file)}</code>" if file else "your results file")
+                      + " or a new file next to it, and run "
+                      f"<code>{look.command(_e(_PAGE_FLAGS.sub('', cmd['run'])))}</code> "
+                      "to mark them.</p>")
+                   # no kept-aside answer new: the change to test is the one step
+                   + ("" if not (asks or left) and no_grades.untested(since) else act))
         if started_else:
             act += ('<p class="small">' + _e(STARTED_ELSE).replace(
                 "`judgekeeper`", "<code>judgekeeper</code>") + "</p>")
-        from judgekeeper.start_label import link_lines, quick_lines
+        from judgekeeper.start_label import link_lines, quick_lines, repeat_lines
 
-        notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))]
+        notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))
+                 + repeat_lines((r.get("made") or {}).get("repeats"))]
         body = (f'<section class="verdict" aria-labelledby="verdict-h"><h1 id="verdict-h" '
                 f'class="plain">{head}</h1></section>{_since(fixing)}'
                 '<section class="sec score" aria-labelledby="nums-h"><div class="sh">'

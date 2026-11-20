@@ -22,12 +22,13 @@ import json
 import os
 import re
 import shlex
+import shutil
 import time
 from pathlib import Path
 
 import pytest
 
-from judgekeeper import front, project
+from judgekeeper import find, front, project
 from tests.start_projects import (
     answer,
     deepeval_project,
@@ -329,6 +330,27 @@ def test_the_chosen_inspect_logs_folder_keeps_the_session_in_the_project(
     assert "cd logs" not in flat(out + err), out + err
 
 
+def test_a_logs_folder_named_from_beside_keeps_the_session_in_the_project(
+        tmp_path, capsys, monkeypatch):
+    """From proj/data/, the choice of folders prints `judgekeeper ../runs/logs` (runs/ holds
+    code, no project file): pasted, it marks in proj/, never in proj/runs/logs/."""
+    from tests.start_projects import inspect_project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "git")
+    inspect_project(proj, split(6, 6), tag="a")
+    _kind(proj / "runs", "code")
+    inspect_project(proj / "runs", split(6, 6), tag="b")
+    (proj / "data").mkdir()
+    said = _say(capsys, monkeypatch, proj / "data", "..")[1]
+    assert "`judgekeeper ../runs/logs " in said, said
+    code, said = _say(capsys, monkeypatch, proj / "data", "../runs/logs", "--yes")
+    assert code in (0, 3) and "Answers:" in said, said
+    assert not (proj / "runs" / "logs" / ".judgekeeper").exists(), said
+    assert (proj / ".judgekeeper" / "judge.json").is_file(), said
+
+
 def test_a_named_deepeval_results_folder_keeps_the_session_in_the_project(
         tmp_path, capsys, monkeypatch):
     """DeepEval: a results folder named as PATH is no project of its own."""
@@ -541,6 +563,37 @@ def test_a_projects_own_results_never_pool_folders_of_other_questions(tmp_path, 
     up = "" if run_in == "." else "../"
     assert f"{up}c/ and {up}data/ hold eval results" in said, said
     assert not (top / ".judgekeeper").exists() and not (top / "sub" / ".judgekeeper").exists()
+
+
+@pytest.mark.parametrize("a_kind", ["file", "session"])
+@pytest.mark.parametrize("run_in, argv", [(".", ()), (".", (".",)), ("empty", ()),
+                                          ("empty", ("..",))])
+def test_rounds_of_one_eval_beside_a_project_below_are_named_not_pooled(
+        tmp_path, capsys, monkeypatch, reads, run_in, argv, a_kind):
+    """I2: a git top with b/ and c/, rounds of one eval (24 and 26 answers, the same
+    questions), a/ a project of its own with results (a project file, or a session) and
+    empty/. From the top, or from empty/ (plain or with `..`), a/, b/ and c/ are named and
+    none is read: a project below keeps its own results, so b/ and c/ are not one pool.
+    Nothing is written."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "repo"
+    _kind(top, "git")
+    table_project(top / "a", split(20, 20) if a_kind == "session" else split(10, 10), tag="a")
+    if a_kind == "file":
+        _kind(top / "a", "file")
+    else:
+        assert _say(capsys, monkeypatch, top / "a")[0] == 0  # a session: a page, 0 marks
+    table_project(top / "b", split(12, 12), tag="q")
+    table_project(top / "c", split(13, 13), tag="q")
+    (top / "empty").mkdir()
+    reads.clear()
+    code, said = _say(capsys, monkeypatch, top / run_in, *argv)
+    assert code == 3, said
+    assert not any(_read_below(reads, top, n) for n in "abc"), said
+    up = "../" if run_in == "empty" else ""
+    assert f"{up}a/, {up}b/ and {up}c/ hold eval results" in said, said
+    assert not (top / ".judgekeeper").exists(), said
+    assert not (top / "empty" / ".judgekeeper").exists(), said
 
 
 def test_a_tool_run_names_the_folder_above_only_when_that_tool_has_results_there(
@@ -791,7 +844,8 @@ def test_a_project_below_never_stops_a_folder_reading_the_project_above(
     _code, said = _say(capsys, monkeypatch, top / "sub")
     assert not _read_below(reads, top, "sub/q"), said
     assert reads and reads[-1][1] == [results.resolve()], said
-    assert "The project in q/ has results too: to check them, run `judgekeeper q`." in said, said
+    assert "The project in q/ has results too: to check them, run `judgekeeper q --no-browser`." \
+        in said, said
 
 
 @pytest.mark.parametrize("q_kind", ["file", "judged"])
@@ -1234,3 +1288,349 @@ def test_a_folder_holding_only_a_linked_file_says_it_is_a_link(tmp_path, capsys,
     assert "results.csv (a link: judgekeeper doesn't follow links)" in said, said
     assert not any(target.resolve() in files for _, files in reads), said
     assert not (repo / ".judgekeeper").exists(), said
+
+
+@pytest.mark.parametrize("kind", ["plain", "file"])
+def test_a_folder_holding_only_a_link_to_nothing_says_so(tmp_path, capsys, monkeypatch, reads,
+                                                          kind):
+    """The same, the link going nowhere (a mistyped path): said as a link to nothing, with a
+    step that can be done, and the repo top's own file is never read in its place."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    repo = tmp_path / "repo"
+    _kind(repo, "git")
+    other = table_project(repo / "other", split(20, 20), tag="r", name="graded.csv")
+    link = repo / "names" / "link"
+    _kind(link, kind)
+    try:
+        (link / "results.csv").symlink_to(Path("..") / "other" / "graded.csv")  # not names/other
+    except OSError:
+        pytest.skip("no symbolic links here")
+    said = _say(capsys, monkeypatch, link)[1]
+    assert "results.csv (a link to a file that is not there)" in said, said
+    assert "point the link at a file that is there" in " ".join(said.split()), said
+    assert "copy the file" not in said and "No eval results in link" not in said, said
+    assert not any(other.resolve() in files for _, files in reads), said
+    assert not (repo / ".judgekeeper").exists(), said
+
+
+# Every command a run prints works where its line says --------------------------------------
+
+
+def _every_command_works(capsys, monkeypatch, folder: Path, said: str) -> None:
+    """Each command `said` prints, pasted where its line says, reads results: it never stops
+    because they belong to another project or look like another eval (the fuzz's I9)."""
+    from tests.test_folder_fuzz import NONE_FOUND, READS_ELSEWHERE, REFUSES, commands
+
+    found = commands(said)
+    assert found, said
+    for where, args in found:
+        if args[:1] and args[0] in READS_ELSEWHERE:
+            continue
+        code, said2 = _say(capsys, monkeypatch, (folder / where).resolve(),
+                           *(a for a in args if a not in ("--no-browser", "--port", "0")))
+        assert not any(s in said2 for s in NONE_FOUND), (args, where, said, said2)
+        assert code != 3 or not any(s in said2 for s in REFUSES), (args, where, said, said2)
+
+
+def test_a_project_whose_file_was_named_is_read_by_its_folder_from_above(tmp_path, capsys,
+                                                                         monkeypatch, reads):
+    """services/ holds loose/ (graded results) and rag/ (code and answers.csv, no grade).
+    After `judgekeeper answers.csv` in rag/, the command the run in services/ prints for rag/
+    reads rag/'s answers."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    table_project(tmp_path / "services" / "loose", split(5, 5), tag="l")
+    rag = tmp_path / "services" / "rag"
+    _kind(rag, "code")
+    answers = _answers_csv(rag, 40, "r")
+    _say(capsys, monkeypatch, rag, "answers.csv")
+    assert (rag / ".judgekeeper" / "start.json").is_file()
+    said = _say(capsys, monkeypatch, rag.parent)[1]
+    assert "`judgekeeper rag" in said, said
+    _every_command_works(capsys, monkeypatch, rag.parent, said)
+    above = {p: p.stat().st_mtime_ns for p in (rag.parent / ".judgekeeper").rglob("*")}
+    reads.clear()
+    said = _say(capsys, monkeypatch, rag.parent, "rag")[1]
+    assert reads and reads[-1] == (rag.resolve(), [answers.resolve()]), said
+    assert above == {p: p.stat().st_mtime_ns for p in (rag.parent / ".judgekeeper").rglob("*")}
+
+
+@pytest.mark.parametrize("layout", ["logs", "old"])
+def test_another_eval_a_folder_away_is_named_as_one(tmp_path, capsys, monkeypatch, reads,
+                                                    layout):
+    """proj/ holds the newest results (in logs/, or at the top with an older file of other
+    questions in old/) and another eval's file a folder away. The first run says it has
+    other questions, as for one beside it, and prints no command that stops at it."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "plain")
+    if layout == "logs":
+        table_project(proj / "logs", split(5, 5), tag="a", name="graded.csv")
+        other = _older(table_project(proj, split(3, 3), tag="b", name="top.csv"))
+    else:
+        table_project(proj, split(5, 5), tag="a")
+        other = _older(table_project(proj / "old", split(3, 3), tag="b", name="other.csv"))
+    said = _say(capsys, monkeypatch, proj)[1]
+    rel = other.relative_to(proj).as_posix()
+    assert f"Also found {rel}, with other questions" in said, said
+    assert f"`judgekeeper {rel}" not in said, said
+
+
+def test_a_file_left_out_in_a_project_below_names_the_project(tmp_path, capsys, monkeypatch,
+                                                              reads):
+    """top/ (plain) holds q/ (a project file) with data/prompt_evals.jsonl, too deep to read
+    from top/. `judgekeeper .` in top/ names q/, and the command it prints reads the file."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    q = top / "q"
+    _kind(q, "file")
+    (q / "data").mkdir()
+    path = _jsonl(q / "data", 6, "q")
+    path = path.rename(q / "data" / "prompt_evals.jsonl")
+    said = _say(capsys, monkeypatch, top, ".")[1]
+    assert "q/data/prompt_evals.jsonl" in said, said
+    assert "`judgekeeper q/data/prompt_evals.jsonl" not in said, said
+    reads.clear()
+    _every_command_works(capsys, monkeypatch, top, said)
+    assert reads and reads[-1][1] == [path.resolve()]
+
+
+def test_a_judge_set_up_by_a_named_file_never_sends_runs_back_and_forth(tmp_path, capsys,
+                                                                       monkeypatch, reads):
+    """data/ holds results.csv, named once (too few answers: only its judge.json is written),
+    and a/ and data/ below it results of other questions. A run in data/ reads its own
+    folder, as a run in a/ reads a/ (a judge.json alone above never claims a folder with
+    results of its own), and every command either prints works."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    data = tmp_path / "t" / "data"
+    table_project(data, split(3, 3), tag="t0")
+    table_project(data / "a", split(3, 3), tag="t2")
+    table_project(data / "data", split(3, 3), tag="t2")
+    _say(capsys, monkeypatch, data, "results.csv")
+    assert (data / ".judgekeeper" / "judge.json").is_file()
+    assert not (data / ".judgekeeper" / "start.json").exists()
+    for folder in (data, data / "a"):
+        reads.clear()
+        said = _say(capsys, monkeypatch, folder)[1]
+        assert reads and reads[-1][0] == folder.resolve(), said
+        if "`judgekeeper" in said.replace("`judgekeeper mark", ""):
+            _every_command_works(capsys, monkeypatch, folder, said)
+
+
+def test_an_empty_folder_never_reads_a_named_file_past_a_nearer_project(tmp_path, capsys,
+                                                                         monkeypatch, reads):
+    """I3: t/ holds a session on answers.csv, named; t/b/ holds code. A run in the empty
+    t/b/runs/ never reads t/'s file past b/."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    _answers_csv(top, 6, "t0")
+    _say(capsys, monkeypatch, top, "answers.csv")
+    assert (top / ".judgekeeper" / "start.json").is_file()
+    _kind(top / "b", "code")
+    (top / "b" / "runs").mkdir()
+    reads.clear()
+    said = _say(capsys, monkeypatch, top / "b" / "runs")[1]
+    assert all(root != top.resolve() for root, _ in reads), said
+
+
+def test_a_folder_the_tracking_uri_names_is_mlflow_only_with_mlflow_in_it(tmp_path, capsys,
+                                                                         monkeypatch, reads):
+    """proj/ holds graded results and mlruns/ with no experiment in it, which
+    MLFLOW_TRACKING_URI names. The run reads the results: it never offers MLflow, whose
+    command would read nothing."""
+    proj = tmp_path / "proj"
+    results = table_project(proj, split(20, 20), tag="p")
+    (proj / "mlruns").mkdir()
+    (proj / "mlruns" / "notes.txt").write_text("not a run\n", encoding="utf-8")
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", str(proj / "mlruns"))
+    reads.clear()
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert "more than one eval tool" not in said and "--tool mlflow" not in said, said
+    assert reads and reads[-1] == (proj.resolve(), [results.resolve()]), said
+
+
+@pytest.mark.parametrize("sub", ["sub", "data"])
+def test_a_named_file_of_another_eval_below_a_session_says_so_from_above(tmp_path, capsys,
+                                                                        monkeypatch, reads,
+                                                                        sub):
+    """t/sub/ holds a session; t/sub/proj/results.jsonl is another eval. Named from t/, the
+    run says it is another eval there and then, never "run it in sub/" (which says so)."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    held = top / sub
+    table_project(held, split(20, 20), tag="s")
+    assert _say(capsys, monkeypatch, held)[0] == 0
+    (held / "proj").mkdir()
+    _older(_jsonl(held / "proj", 6, "p"))
+    before = _files(top)
+    reads.clear()
+    code, said = _say(capsys, monkeypatch, top, f"{sub}/proj/results.jsonl")
+    assert code == 3 and not reads, said
+    assert "looks like another eval" in said and "belong to the project" not in said, said
+    assert f"put {sub}/proj/results.jsonl in a folder of its own" in said, said
+    assert _files(top) == before, said
+
+
+@pytest.mark.parametrize("var", ["INSPECT_LOG_DIR", "DEEPEVAL_RESULTS_FOLDER"])
+@pytest.mark.parametrize("where", ["here", "below"])
+def test_a_results_variable_naming_no_results_never_hides_answers(tmp_path, capsys,
+                                                                  monkeypatch, reads, var,
+                                                                  where):
+    """answers.csv (no grades) in t/ (git) or in t/my evals/ (a judge.json only), and a results
+    variable naming a folder there with nothing in it: the run there reads the answers, and
+    every command a run from beside or above prints reads them too."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    if where == "here":
+        _kind(top, "git")
+        held, run_in = top, top / "my evals"
+        run_in.mkdir()
+    else:
+        held = run_in = top / "my evals"
+        _kind(held, "judged")
+        run_in = top
+    write_answers(held, 6, name="answers")
+    monkeypatch.setenv(var, str(held / ("logs" if var == "INSPECT_LOG_DIR" else ".deepeval")))
+    code, said = _say(capsys, monkeypatch, held)
+    assert code == 0 and reads and reads[-1][0] == held.resolve(), said
+    assert "no saved results yet" not in said, said
+    shutil.rmtree(held / ".judgekeeper")
+    if where == "below":
+        _kind(held, "judged")
+    said = _say(capsys, monkeypatch, run_in)[1]
+    _every_command_reads(capsys, monkeypatch, run_in, said)
+
+
+def test_a_file_too_big_in_a_project_named_is_read_with_a_command_that_runs(
+        tmp_path, capsys, monkeypatch, reads):
+    """v/ (its own results) above p/ (a project file and a results file too big to read):
+    `judgekeeper p` names the command that reads it anyway where it runs, in p/."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    v = tmp_path / "v"
+    table_project(v, split(6, 6), name="own.csv", tag="v")
+    p = v / "p"
+    table_project(p, split(6, 6), tag="p")
+    _kind(p, "file")
+    monkeypatch.setattr(find, "MAX_BYTES", 100)
+    code, said = _say(capsys, monkeypatch, v, "p")
+    assert code == 3 and "results.csv is 0 MB" in said, said
+    from tests.test_folder_fuzz import commands
+
+    pasted = commands(said)
+    assert pasted, said
+    for where, args in pasted:  # each where its line says, as printed: it reads the file
+        reads.clear()
+        said2 = _say(capsys, monkeypatch, (v / where).resolve(),
+                     *(a for a in args if a not in ("--no-browser", "--port", "0")))[1]
+        assert "belong to the project" not in said2, (args, where, said2)
+        assert reads and reads[-1][1] == [(p / "results.csv").resolve()], (args, where, said2)
+
+
+@pytest.mark.parametrize("below", ["inspect", "deepeval", "empty"])
+def test_a_folder_that_holds_a_project_never_reads_a_list_from_above(tmp_path, capsys,
+                                                                     monkeypatch, reads, below):
+    """repo/ (git, its results in ext/ only) holds f/ (a plain folder) above proj/ (a project
+    file and an Inspect AI log in mylogs/, a DeepEval run, or an empty results.csv). A plain
+    run in f/ says what `judgekeeper .` says, never reading ext/ or listing the repo. (A
+    folder above with results of its own is read: the next test.)"""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    repo = tmp_path / "repo"
+    _kind(repo, "git")
+    table_project(repo / "ext", split(6, 6), tag="e")
+    _kind(repo / "ext", "code")
+    proj = repo / "v" / "f" / "proj"
+    if below == "inspect":
+        inspect_project(proj, split(6, 6), name="mylogs/2026-10-02_support.json")
+    elif below == "deepeval":
+        deepeval_project(proj, split(6, 6), tag="d")
+    else:
+        proj.mkdir(parents=True)
+        (proj / "results.csv").write_text("", encoding="utf-8")
+    _kind(proj, "file")
+    before = _files(repo)
+    plain = _say(capsys, monkeypatch, proj.parent)
+    dot = _say(capsys, monkeypatch, proj.parent, ".")
+    assert not reads, plain
+    assert plain[0] == dot[0] == 3, (plain, dot)
+    first = (lambda s: s.split("Step 1 of 5: Find ")[1].split(". ")[0])
+    assert first(plain[1]) == first(dot[1]), (plain, dot)
+    assert "ext/" not in plain[1], plain
+    assert _files(repo) == before, plain
+
+
+def test_the_folder_above_hint_never_passes_a_folder_of_other_sessions(tmp_path, capsys,
+                                                                       monkeypatch, reads):
+    """top/ (git, results in other/) holds t/ (no project) with shop/ and g1/ below, each with
+    a session. In g1/ (answers with no grades) no hint names top/ (`../..`): t/ holds other
+    projects' sessions, and a run there reads nothing."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    _kind(top, "git")
+    table_project(top / "other", split(6, 6), tag="o")
+    t = top / "t"
+    table_project(t / "shop", split(20, 20), tag="s")
+    assert _say(capsys, monkeypatch, t / "shop")[0] == 0
+    (t / "g1").mkdir()
+    write_answers(t / "g1", 12, name="answers")
+    said = _say(capsys, monkeypatch, t / "g1")[1]
+    assert reads and reads[-1][0] == (t / "g1").resolve(), said
+    assert "../.." not in said, said
+
+
+@pytest.mark.parametrize("table,argv", [(False, ()), (True, ("--tool", "inspect"))])
+def test_a_run_in_an_inspect_logs_folder_keeps_its_marks_in_the_folder_that_holds_it(
+        tmp_path, capsys, monkeypatch, reads, table, argv):
+    """t/a/logs/ (Inspect AI's logs, and a table of other questions too), no project file
+    anywhere: a run in logs/ keeps its session in a/, as `judgekeeper logs` from a/ does, so
+    its marks stay when the logs are cleared."""
+    pytest.importorskip("inspect_ai")
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    a = tmp_path / "t" / "a"
+    inspect_project(a, split(3, 3), tag="i")
+    if table:
+        table_project(a / "logs", split(3, 3), tag="other")
+    _, said = _say(capsys, monkeypatch, a / "logs", *argv)
+    assert reads and reads[-1][1][0].suffix == ".json", said
+    assert (a / ".judgekeeper").is_dir(), said
+    assert not (a / "logs" / ".judgekeeper").exists(), said
+
+
+def test_a_run_in_an_inspect_logs_folder_in_the_home_folder_keeps_its_marks_there(
+        tmp_path, capsys, monkeypatch):
+    """~/logs/: never a session in the home folder itself."""
+    pytest.importorskip("inspect_ai")
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    inspect_project(tmp_path, split(3, 3), tag="i")
+    said = _say(capsys, monkeypatch, tmp_path / "logs")[1]
+    assert not (tmp_path / ".judgekeeper").exists(), said
+    assert (tmp_path / "logs" / ".judgekeeper").is_dir(), said
+
+
+def test_a_climb_to_record_files_beside_a_session_reads_with_the_session_tool(
+        tmp_path, capsys, monkeypatch, reads):
+    """t/ (git, a session on results.csv, and judgekeeper.record() files of other questions)
+    above runs/proj/ (a project below in proj/): a plain run in runs/proj/ reads t/ with the
+    session's tool, as a run in t/ does, never offering the record() files as a tool to
+    check; every command it prints, pasted, reads results.csv (or the project below's)."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    t = tmp_path / "t"
+    table_project(t, split(20, 20), tag="t")
+    _kind(t, "git")
+    assert _say(capsys, monkeypatch, t, "results.csv")[0] == 0  # the session, 0 marks
+    records_project(t, split(3, 3), tag="records")
+    inner = t / "runs" / "proj" / "proj"
+    table_project(inner, split(3, 3), tag="inner")
+    _kind(inner, "file")
+    here = t / "runs" / "proj"
+    reads.clear()
+    said = _say(capsys, monkeypatch, here)[1]
+    assert "more than one eval tool" not in said, said
+    assert reads and reads[-1][1] == [(t / "results.csv").resolve()], said
+    from tests.test_folder_fuzz import commands
+
+    for where, args in commands(said):  # each where its line says, as printed
+        reads.clear()
+        said2 = _say(capsys, monkeypatch, (here / where).resolve(),
+                     *(a for a in args if a not in ("--no-browser", "--port", "0")))[1]
+        assert "looks like another eval" not in said2, (args, where, said2)
+        assert reads and reads[-1][1] in ([(t / "results.csv").resolve()],
+                                          [(inner / "results.csv").resolve()]), (args, said2)

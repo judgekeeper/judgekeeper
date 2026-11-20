@@ -29,7 +29,7 @@ def _read(out: str) -> bool:
 def test_a_found_file_over_the_cap_is_listed_with_the_command_that_reads_it(here, capsys):
     code, out, _ = run(capsys)
     assert code == 3 and not _read(out), out
-    assert ("results.csv is 0 MB. Run judgekeeper results.csv --yes to read it anyway."
+    assert ("results.csv is 0 MB. To read it anyway, run `judgekeeper results.csv --yes`."
             in flat(out))
     assert assert_one_next_at_the_end(out) == ANYWAY
 

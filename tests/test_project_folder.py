@@ -214,8 +214,8 @@ def test_the_folder_above_a_projects_session_says_where_it_is(here, capsys, monk
     assert code == 3, out + err
     assert ("promptfoo/ already holds your judgekeeper session (6 marks): judgekeeper keeps a "
             "project's marks in its own folder.") in flat(out), out
-    assert _next(out) == ("Next: go to that folder (`cd promptfoo`), then run `judgekeeper` "
-                          "there.")
+    assert _next(out) == ("Next: go to that folder (`cd promptfoo`), then run "
+                          "`judgekeeper --no-browser` there.")
     assert not (here / ".judgekeeper").exists()
 
 
@@ -256,7 +256,7 @@ def test_a_folder_above_two_projects_never_run_says_to_go_to_one(here, capsys, c
     assert ("dental/ and gym/ hold eval results: judgekeeper keeps a project's marks in its "
             "own folder, so it checks one at a time.") in flat(out), out
     assert _next(out) == ("Next: go to one of those folders (`cd dental`), then run "
-                          "`judgekeeper` there.")
+                          "`judgekeeper --no-browser` there.")
     assert not (here / ".judgekeeper").exists()
     assert not list((here / "gym").glob(".judgekeeper*"))
 
@@ -362,7 +362,7 @@ def test_a_session_below_and_results_in_another_folder_are_two_projects(here, ca
     assert ("sub1/ and sub2/ hold eval results: judgekeeper keeps a project's marks in its "
             "own folder, so it checks one at a time.") in flat(out), out
     assert _next(out) == ("Next: go to one of those folders (`cd sub1`), then run "
-                          "`judgekeeper` there.")
+                          "`judgekeeper --no-browser` there.")
     assert not (here / ".judgekeeper").exists()
 
 
@@ -437,8 +437,8 @@ def test_one_project_below_and_none_here_is_checked_in_its_own_folder(here, caps
     code, out, err = run(capsys, "--no-browser", "--port", "0")
     run(capsys, "--stop")
     assert code == 3, out + err
-    assert ("These results belong to the project in p2/. To check them, run `judgekeeper` "
-            "in p2/.") in flat(out), out
+    assert ("These results belong to the project in p2/. To check them, run "
+            "`judgekeeper --no-browser` in p2/.") in flat(out), out
     assert not (here / ".judgekeeper").exists()
 
 
@@ -458,8 +458,8 @@ def test_one_project_below_a_folder_given_by_path_is_named_from_here(here, capsy
     run(capsys, "--stop")
     assert code == 3, out + err
     assert ("These results belong to the project in outer/p2/. To check them, run "
-            "`judgekeeper` in outer/p2/.") in flat(out), out
-    assert _next(out) == "Next: run `judgekeeper` in outer/p2/."
+            "`judgekeeper --no-browser` in outer/p2/.") in flat(out), out
+    assert _next(out) == "Next: run `judgekeeper --no-browser` in outer/p2/."
 
 
 def test_projects_below_a_folder_given_by_path_are_named_from_here(here, capsys, monkeypatch):
@@ -470,7 +470,7 @@ def test_projects_below_a_folder_given_by_path_are_named_from_here(here, capsys,
     assert code == 3, out + err
     assert "outer/a/ and outer/b/ hold eval results" in flat(out), out
     assert _next(out) == ("Next: go to one of those folders (`cd outer/a`), then run "
-                          "`judgekeeper` there.")
+                          "`judgekeeper --no-browser` there.")
 
 
 def test_a_session_below_a_folder_given_by_path_is_named_from_here(here, capsys, monkeypatch):
@@ -482,8 +482,8 @@ def test_a_session_below_a_folder_given_by_path_is_named_from_here(here, capsys,
     run(capsys, "--stop")
     assert code == 3, out + err
     assert "outer/sub1/ already holds your judgekeeper session (4 marks)" in flat(out), out
-    assert _next(out) == ("Next: go to that folder (`cd outer/sub1`), then run `judgekeeper` "
-                          "there.")
+    assert _next(out) == ("Next: go to that folder (`cd outer/sub1`), then run "
+                          "`judgekeeper --no-browser` there.")
 
 
 def test_results_in_one_plain_folder_below_still_start_here(here, capsys, monkeypatch):
