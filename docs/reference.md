@@ -62,7 +62,7 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 | `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first when you have marks; nothing is deleted). `history.jsonl`, `verdicts/`, `records/` and `.gitignore` stay where they are |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
 | `--stop` | Close the open page |
-| `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.2.0 is ready" and a `Next:` line; piped, only "judgekeeper 1.2.0" |
+| `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.3.0 is ready" and a `Next:` line; piped, only "judgekeeper 1.3.0" |
 | `--debug` | On an unexpected error, also print where it went wrong (files, lines and the error's type, never its text) |
 
 **The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name (the name of the LLM-as-a-judge in your results; promptfoo: the assertion's `metric:` or its type; none for your own file), and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. It shows the question and the answer, not the documents your LLM-as-a-judge was given, unless they are part of the question (such as a promptfoo var). For a faithfulness check, keep those documents open while you mark. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result. The page stops after 30 minutes with no use.
@@ -85,6 +85,7 @@ With results that have grades (from an LLM-as-a-judge or from code), each plain 
 - Fixed: Fail before, Pass now. Broke: Pass before, Fail now. A question with several answers is fixed when one failed before and all pass now, and broke when all passed before and one fails now. The rest are the same.
 - After the usual output it says how many were fixed, broke and stayed the same, then "Your change helped", "Your change made it worse", or "Can't tell yet" with which way it leans: clear when the exact two-sided sign test on fixed against broke is under 5% ([How the numbers are worked out](#how-the-numbers-are-worked-out)). With fewer than 5 questions in both, it always says "Can't tell yet".
 - It exits 1 only on "Your change made it worse", so a pipeline fails only then.
+- In CI (one of `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE`, `TF_BUILD` or `JENKINS_URL` set to something other than empty, `false` or `0`), judgekeeper opens no page and no browser, and says so in one line where Step 2 would open it.
 - It keeps the last results in `.judgekeeper/last-graded.json` as hashes and grades only. Another LLM-as-a-judge or another setup of it (model, rule, pass mark, label map), or a file changed by hand, starts it again: those grades say nothing about a change to your AI.
 
 In GitHub Actions, upload your results as an artifact named `results` on `main`, then on a pull request:

@@ -39,6 +39,17 @@ def no_browser(monkeypatch):
     return opened
 
 
+CI_VARIABLES = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "BUILDKITE", "TF_BUILD", "JENKINS_URL")
+
+
+@pytest.fixture(autouse=True)
+def not_in_ci(monkeypatch):
+    """No test runs as a CI job, whatever runs the tests (GitHub Actions sets CI=true): a
+    test that wants CI sets its variable itself."""
+    for name in CI_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture(autouse=True)
 def no_ctrl_c_left():
     """A Ctrl-C a test noted never reaches a later test: the Ctrl-C handler, the notes
