@@ -185,13 +185,49 @@ def test_labels_with_no_name_in_a_given_file_label_the_one_criterion(here, capsy
     assert "Added 40 marks from evals-human.jsonl (26 Pass, 14 Fail)." in out, out
 
 
-def test_labels_with_no_name_do_not_guess_when_the_grades_have_two_criteria(here, capsys):
+NO_NAME = ('Your 40 labels have no name, and your LLM-as-a-judge grades "Safe wording" and '
+           '"Tone", so judgekeeper can\'t tell which one they are for. Give each label line the '
+           "name of the grade it labels.")
+
+
+def test_labels_with_no_name_next_to_two_criteria_say_they_cannot_tell(here, capsys):
     both = grades() + grades(name="Tone")
     split_project(here, grade_lines=both, labels_lines=[human(i, name=None)
                                                          for i in range(40)])
     code, out = run(capsys, "--labels", "--metric", CRITERION)
     assert code == EXIT_QUESTION, out
-    assert "Added" not in out, out
+    assert NO_NAME in out, out
+    assert "Added" not in out and "No Pass/Fail labels found" not in out
+    assert '"LLM-as-a-judge"' not in out.replace("your LLM-as-a-judge grades", "")
+
+
+def test_labels_with_no_name_in_a_given_file_say_it_the_same_way(here, capsys):
+    both = grades() + grades(name="Tone")
+    _, labels_file = split_project(here, grade_lines=both,
+                                   labels_lines=[human(i, name=None) for i in range(40)])
+    code, out = run(capsys, "--labels", labels_file.name, "--metric", CRITERION)
+    assert code == EXIT_QUESTION, out
+    assert NO_NAME in out, out
+
+
+def test_one_label_with_no_name_is_said_in_the_singular(here, capsys):
+    both = grades() + grades(name="Tone")
+    split_project(here, grade_lines=both, labels_lines=[human(1, name=None)])
+    code, out = run(capsys, "--labels", "--metric", CRITERION)
+    assert code == EXIT_QUESTION, out
+    assert ('Your 1 label has no name, and your LLM-as-a-judge grades "Safe wording" and '
+            '"Tone", so judgekeeper can\'t tell which one it is for. Give each label line the '
+            "name of the grade it labels.") in out, out
+
+
+def test_more_than_five_grade_names_are_cut_to_five_and_a_count(here, capsys):
+    names = [f"Criterion {c}" for c in "ABCDEFG"]
+    many = [line for n in names for line in grades(name=n)]
+    split_project(here, grade_lines=many, labels_lines=[human(1, name=None)])
+    code, out = run(capsys, "--labels", "--metric", "Criterion A")
+    assert code == EXIT_QUESTION, out
+    assert ('grades "Criterion A", "Criterion B", "Criterion C", "Criterion D", "Criterion E" '
+            "and 2 more, so") in out, out
 
 
 LINE = ('Your 40 labels are for "Tone", but your LLM-as-a-judge grades "Safe wording", so none '

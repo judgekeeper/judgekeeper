@@ -35,7 +35,7 @@ from types import SimpleNamespace
 from judgekeeper import marks, textio
 from judgekeeper.mapper import OUTPUT_WORDS, QUESTION_WORDS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
-from judgekeeper.records import derive_record_id
+from judgekeeper.records import DEFAULT_NAME, derive_record_id
 from judgekeeper.redact import scrub
 from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
 
@@ -388,7 +388,7 @@ def in_results(pool, metric: str | None = None, command: Callable[..., str] | No
     Fail."""
     humans = list(pool.humans)
     if not humans:
-        if (line := _elsewhere(pool.elsewhere, metric)) is not None:
+        if (line := _elsewhere(pool, metric)) is not None:
             raise LabelsStop([line])
         raise LabelsStop([("No Pass/Fail labels found in your results. To use labels from a "
                            f"file, run `{_plain(command)('--labels', '<file>')}`.")])
@@ -408,20 +408,34 @@ def _read_humans(humans: list, pool, metric: str | None, name: str,
             if mark is not None]
 
 
-def _elsewhere(counts: dict, metric: str | None) -> str | None:
-    """"Your 40 labels are for "Tone", but your LLM-as-a-judge grades "Safe wording", so none
-    of them were added.": for labels that are all for another criterion. None when there are
-    none, or the LLM-as-a-judge is not known."""
-    if not counts or metric is None:
-        return None
-    n = sum(counts.values())
-    shown = [f'"{_word(name)}"' for name in sorted(counts)]
+def _quoted(names) -> str:
+    """"A", "A" and "B", "A", "B" and "C": the names, at most WORDS_SHOWN, then a count."""
+    shown = [f'"{_word(name)}"' for name in sorted(names)]
     if len(shown) > WORDS_SHOWN:
         shown = [*shown[:WORDS_SHOWN], f"{len(shown) - WORDS_SHOWN} more"]
-    said = shown[0] if len(shown) == 1 else f"{', '.join(shown[:-1])} and {shown[-1]}"
-    ending = "it was not added" if n == 1 else "none of them were added"
-    return (f'Your {plural(n, "label", "labels")} {"is" if n == 1 else "are"} for {said}, but '
-            f'your LLM-as-a-judge grades "{_word(metric)}", so {ending}.')
+    return shown[0] if len(shown) == 1 else f"{', '.join(shown[:-1])} and {shown[-1]}"
+
+
+def _elsewhere(pool, metric: str | None) -> str | None:
+    """The line for labels that are not for the LLM-as-a-judge (exit 3): "Your 40 labels are
+    for "Tone", but your LLM-as-a-judge grades "Safe wording", so none of them were added.";
+    or, for labels with no name beside several named grades, that it can't tell which they
+    are for. None when there are none, or the LLM-as-a-judge is not known."""
+    counts = pool.elsewhere
+    if not counts or metric is None:
+        return None
+    named = {name: k for name, k in counts.items() if name != DEFAULT_NAME}
+    if named:
+        n = sum(named.values())
+        ending = "it was not added" if n == 1 else "none of them were added"
+        return (f'Your {plural(n, "label", "labels")} {"is" if n == 1 else "are"} for '
+                f'{_quoted(named)}, but your LLM-as-a-judge grades "{_word(metric)}", so '
+                f"{ending}.")
+    n = counts[DEFAULT_NAME]
+    return (f'Your {plural(n, "label", "labels")} {"has" if n == 1 else "have"} no name, and '
+            f"your LLM-as-a-judge grades {_quoted(pool.grade_names)}, so judgekeeper can't "
+            f'tell which one {"it is" if n == 1 else "they are"} for. Give each label line '
+            "the name of the grade it labels.")
 
 
 def read_records_file(path: Path, pool, metric: str | None,
@@ -458,7 +472,8 @@ def read_records_file(path: Path, pool, metric: str | None,
         else:
             humans.append((derive_record_id(r.input, r.output, r.trajectory), value, label_name))
     if not humans:
-        raise LabelsStop([_elsewhere(elsewhere, metric) or f"{name} has no labels."])
+        found = SimpleNamespace(elsewhere=elsewhere, grade_names=pool.grade_names)
+        raise LabelsStop([_elsewhere(found, metric) or f"{name} has no labels."])
     return _read_humans(humans, pool, metric, name, mine, command, given)
 
 

@@ -533,6 +533,7 @@ class Pool:
     # human labels for another criterion than the judge's: {name: how many}
     elsewhere: dict = field(default_factory=dict)
     sole: bool = False  # the grades hold one criterion name: a label with no name is its
+    grade_names: list = field(default_factory=list)  # every criterion name the grades hold
     label_map: dict = field(default_factory=dict)
     # answers graded more than once with different grades, each repeat its own answer:
     # id -> (repeats, passes, fails)
@@ -606,7 +607,9 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
     pool = Pool(label_map=dict(norm.label_map))
     chosen: dict[str, Answer] = {}
     pending: list[tuple[str, object, str]] = []  # (target id, value, name): labels with no text
-    pool.sole = {r.name for _, recs in files for r in recs if r.annotator_kind == LLM} == {metric}
+    pool.grade_names = sorted({r.name for _, recs in files for r in recs
+                               if r.annotator_kind == LLM})
+    pool.sole = pool.grade_names == [metric]
     for source, records in files:
 
         def own(r, records=records) -> bool:
