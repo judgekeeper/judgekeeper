@@ -332,6 +332,22 @@ def test_a_question_asked_twice_with_the_same_grade_is_one_question(here, capsys
     assert counts(0, 40, 0) in flat(out)
 
 
+def test_amounts_with_thousands_separators_are_compared(here, capsys):
+    """A CSV whose questions and answers hold amounts like "$50,000 = $200,000" is read and
+    compared like any other."""
+    def money(verdicts):
+        return [(f"Is ${i},000 x 4 = ${4 * i},000?", f"Yes: ${i},000 = ${4 * i},000 / 4.", v)
+                for i, v in enumerate(verdicts, 50)]
+
+    path = rows_csv(here / "results.csv", money(ALL_PASS))
+    said(capsys, path)
+    rows_csv(path, money(MADE_WORSE))
+    code, out = said(capsys, path)
+    assert code == 1, out
+    assert counts(0, 12, 28) in flat(out)
+    assert "$50,000" not in out
+
+
 def test_a_question_is_the_same_when_only_its_spaces_differ(here, capsys):
     """no_grades.question_key: runs of spaces and line breaks read as one space."""
     before = rows_csv(here / "results.csv", qs(0, 40, True))
