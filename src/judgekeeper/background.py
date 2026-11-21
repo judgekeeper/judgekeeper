@@ -34,9 +34,11 @@ LOG = "page.log"
 _started: list[subprocess.Popen] = []  # kept, so no page process is collected while it runs
 
 
-def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> str | None:
+def start(folder: Path, settings: dict, token: str, timeout: float = WAIT,
+          code: str | None = None) -> str | None:
     """Start the page for the project whose .judgekeeper/ is `folder`, with `settings` (see
-    page.main) and `token`; its link once it answers to the token, else None."""
+    page.main), `token` and the one-time `code` (label.LabelServer.take_code), both on its
+    input; its link once it answers to the token, else None."""
     folder = Path(folder)
     flags = {"stdin": subprocess.PIPE, "stdout": subprocess.DEVNULL, "close_fds": True}
     if os.name == "nt":
@@ -54,7 +56,8 @@ def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> st
         return None
     _started.append(proc)
     try:
-        proc.stdin.write((json.dumps({**settings, "token": token}) + "\n").encode("utf-8"))
+        given = {**settings, "token": token, "code": code}
+        proc.stdin.write((json.dumps(given) + "\n").encode("utf-8"))
         proc.stdin.close()
     except OSError:
         proc.kill()

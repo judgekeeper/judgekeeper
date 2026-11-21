@@ -156,7 +156,7 @@ def test_the_marking_page_names_the_program_from_the_project(home, monkeypatch, 
     tool = _started(monkeypatch, home)
     sent = {}
     monkeypatch.setattr(page.background, "start",
-                        lambda folder, settings, token: sent.update(settings))
+                        lambda folder, settings, token, code=None: sent.update(settings))
     assert page.open_new(Workspace(proj), 0, {}) is None  # none started: what it is given
     assert _program_in(sent["program"], proj, home) == tool, sent["program"]
     assert page.DONE.endswith("in your project folder.")

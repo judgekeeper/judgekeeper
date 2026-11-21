@@ -36,6 +36,9 @@ def no_browser(monkeypatch):
     monkeypatch.delenv("BROWSER", raising=False)
     opened = []
     monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: opened.append(url) or True)
+    # the link itself is what the fake browser gets, whatever browser this machine has; a test
+    # of the one-time code (test_page_open_code.py) says otherwise
+    monkeypatch.setattr("judgekeeper.page.hands_url_to_program", lambda: False)
     return opened
 
 
@@ -130,12 +133,12 @@ def pages(request, monkeypatch):
     started, servers = [], []
     state = {"fail": False}
 
-    def fake_start(folder, settings, token, timeout=background.WAIT):
+    def fake_start(folder, settings, token, timeout=background.WAIT, code=None):
         started.append(dict(settings))
         if state["fail"]:
             return None
         ws = start_label.Workspace(Path(folder).parent)
-        server = page.server_for(ws, {**settings, "port": 0}, token)
+        server = page.server_for(ws, {**settings, "port": 0}, token, code)
         thread = threading.Thread(target=server.serve, daemon=True)
         thread.start()
         servers.append((server, thread))

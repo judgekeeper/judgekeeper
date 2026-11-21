@@ -15,6 +15,7 @@
 - A `%`, `#` or `?` in a folder name no longer changes which MLflow store judgekeeper reads, and no longer makes it create a file outside your project.
 - To name its own command, judgekeeper no longer starts a `python3` that sits in your project folder, however your PATH reaches it.
 - `judgekeeper.record()` now writes `.judgekeeper/.gitignore` when it makes the folder, so `git add .` does not take your records, and it no longer writes to a records file that has a second name.
+- On a machine with other users, the link to your marking page is no longer in the command line that starts your browser: where the browser would get it as an argument (the program in `BROWSER`, `xdg-open` on Linux), it gets a link with a one-time code instead. The page takes the code once, within 2 minutes, and sends the browser on to the page. The link printed in the terminal is the same.
 
 ## 1.2.0 (2026-11-16)
 

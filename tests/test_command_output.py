@@ -816,12 +816,12 @@ def test_a_picked_port_lost_to_another_run_gets_the_next_free_one(here, capsys, 
     fake = background.start
     lost = set()
 
-    def start(folder, settings, token, timeout=background.WAIT):
+    def start(folder, settings, token, timeout=background.WAIT, code=None):
         if not lost:  # another run took the port between the check and the bind
             lost.add(settings["port"])
             started.append(dict(settings))
             return None
-        return fake(folder, settings, token, timeout)
+        return fake(folder, settings, token, timeout, code)
 
     monkeypatch.setattr(background, "start", start)
     real_free = page.port_free
