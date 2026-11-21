@@ -427,7 +427,7 @@ def test_result_counts_and_left_out_line(tmp_path,
     html = ws.report_html.read_text(encoding="utf-8")
     assert ('<li>Your <span class="term">LLM-as-a-judge</span> gave no Pass '
             "or Fail on 1 answer. It is left out.</li>") in html
-    assert judge_check.TITLE not in html  # the full findings: the terminal and the CSV file
+    assert "Did your LLM-as-a-judge actually judge?" not in html  # the full findings: the terminal and the CSV file
 
 
 def test_a_clean_result_page_has_no_left_out_line(tmp_path, capsys):

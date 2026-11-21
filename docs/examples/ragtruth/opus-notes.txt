@@ -3,10 +3,10 @@
 # Subset: dataset/response.jsonl and source_info.jsonl, split test, task_type Summary
 # Grades: none: these are the notes of the Opus runs, not results
 # Holds: ids, grades and counts only; no article or summary
-# Notes for the Claude Opus 5.5 runs (credit run A). Numbers only.
+# Notes for the Claude Opus 5.5 runs. Numbers only.
 
 Date: 2026-10-30 (UTC). judgekeeper 1.0.0, commit bfc3606. promptfoo 0.124.0.
-Judge: anthropic:messages:claude-opus-5-5 (the alias; promptfoo does not save the model string the API returns).
+LLM-as-a-judge: anthropic:messages:claude-opus-5-5 (the alias; promptfoo does not save the model string the API returns).
 Sample: sample-ids.json, unchanged (checked identical before the first run). Rule: rule.txt. Config: promptfooconfig.yaml with the provider filled in.
 Temperature: 1 (the API default; Claude Opus 5.5 rejects any other value). Cache off (--no-cache). One smoke call first (1485 tokens).
 
@@ -28,4 +28,4 @@ run 2: 200 calls, 323661 input tokens, 89688 output tokens (of which 44927 reaso
 run 3: 200 calls, 323661 input tokens, 88399 output tokens (of which 44050 reasoning), errors 0, US$3.06
 Subtotal: 970983 input and 266973 output tokens, about US$9.22.
 
-Total for A: about US$19.10, plus under US$0.02 for the smoke call.
+Total for these runs: about US$19.10, plus under US$0.02 for the smoke call.

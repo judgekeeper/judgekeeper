@@ -244,4 +244,4 @@ The 5 steps: Find. Mark. Measure. Fix. Re-check. In your project folder, in its 
 - Removed since 0.1.3: every 0.1 command, the built-in runners that called an AI, the pytest plugin, the GitHub Action and the agent skill.
 - The license is now Apache-2.0 (was MIT).
 
-Earlier versions (0.1.0 to 1.0.0b1): see the PyPI release history.
+Earlier versions (0.1.0 to 1.0.0b1) are no longer on PyPI.

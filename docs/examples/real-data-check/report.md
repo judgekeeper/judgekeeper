@@ -2,7 +2,7 @@
 
 Made by `scripts/real_data_check.py`; do not edit by hand.
 
-Each LLM-as-a-judge below decided on every answer in a public dataset, and people labeled the same answers. So how often the LLM-as-a-judge agrees with the people is known: it is worked out from all of the dataset's human labels. Each check pretends a person labeled only a few answers, as many from the LLM-as-a-judge's passes as from its fails, and works out TPR (how often the LLM-as-a-judge passed answers people passed), TNR (how often it failed answers people failed) and the real pass rate with judgekeeper's own maths, each with a range. A range should hold the value from all labels about 96% of the time. No LLM-as-a-judge was called.
+Each LLM-as-a-judge below decided on every answer in a public dataset, and people labelled the same answers. So how often the LLM-as-a-judge agrees with the people is known: it is worked out from all of the dataset's human labels. Each check pretends a person labelled only a few answers, as many from the LLM-as-a-judge's passes as from its fails, and works out TPR (how often the LLM-as-a-judge passed answers people passed), TNR (how often it failed answers people failed) and the real pass rate with judgekeeper's own maths, each with a range. A range should hold the value from all labels about 96% of the time. No LLM-as-a-judge was called.
 
 ## The result
 
@@ -92,7 +92,7 @@ Each item became one yes/no question, fixed before looking at the results. Nothi
 
 The human labels are what each dataset has: LLMBar's gold labels written by its authors, MT-Bench's expert votes (often one per item), and one NIST assessor per passage in LLMJudge. Each check draws from the dataset without putting answers back, as a person labels; the ranges assume an endless pool, which makes them a little cautious on the smallest pool.
 
-## Data and licences
+## Data and licenses
 
 - **LLMBar** (MIT): <https://github.com/princeton-nlp/LLMBar>, revision `900616bff90b6c6c8e1681f7d079250637c55992`. Zeng et al. (2024), Evaluating Large Language Models at Evaluating Instruction Following, ICLR 2024. The LLM-as-a-judge verdicts are judgekeeper's own run of claude-haiku-4-5-20251001, kept in docs/examples/real-data-check/sources/llmbar-haiku.json.
 - **MT-Bench human judgments** (CC-BY-4.0): <https://huggingface.co/datasets/lmsys/mt_bench_human_judgments>, revision `f7d2896d2cc5d80f8b55c2bbc722613555233c25`. Zheng et al. (2023), Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena, NeurIPS 2023 Datasets and Benchmarks. Licensed CC-BY-4.0. Changed here: each item turned into one yes/no question as described in this report; no data is copied into this repository.

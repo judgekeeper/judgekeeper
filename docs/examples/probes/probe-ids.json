@@ -6,14 +6,14 @@
   "grades": "base answers: 10 the dataset's human labels call Pass and 10 Fail; probe verdicts: Claude Haiku 5.5 or Claude Sonnet 5.5 on answers changed by make_probes.py, each with a right verdict fixed in advance, 2026-10-17",
   "text": "ids, counts and hashes only; no article or summary"
  },
- "what": "judge probes on the RAGTruth launch-check judges; ids, counts and hashes only",
+ "what": "LLM-as-a-judge probes on the two RAGTruth LLM-as-a-judge setups; ids, counts and hashes only",
  "seed": 20261018,
  "method": "from ../ragtruth/sample-ids.json: per label, ids sorted by number, shuffled with random.Random(seed), Pass first then Fail, taken in order skipping an article already used. Fail bases: an Evident span and not only implicit_true. No base that is already a list.",
  "inputs_sha256": {
   "sample-ids.json": "96e5fca70c57d5afafca11176859bcb1ac838d1b612a91d2ebee66682bad40c5",
   "summary-test.jsonl": "8afff68d1745572c9b92731535d3711ffde1c6643fc32baa01cbdf4f0540053a",
   "rule.txt": "378f6d779093f54cb3ecb32aa6fd92a8c031f920882f49fabcecf7163cb53f5d",
-  "promptfooconfig.yaml": "66ec28d11237a4c88dcbd87a9faef83d32dfebf870227608516aaa3dc4e481a8"
+  "promptfooconfig.yaml": "171d17a069d953916f794e32d64899030843cd64e08581d47af5e0693a511341"
  },
  "bases": {
   "pass": [

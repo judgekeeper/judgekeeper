@@ -296,9 +296,10 @@ def _parser() -> argparse.ArgumentParser:
                         help=argparse.SUPPRESS)
     sub = p.add_subparsers(dest="command", metavar="command", parser_class=_Parser)
 
-    mk = sub.add_parser("mark", parents=[common],
+    mk = sub.add_parser("mark", parents=[common], description=COMMANDS_HELP[0][1],
                         help="open a page to mark answers Pass or Fail; with enough marks, "
                              "the result")
+    mk._positionals.title, mk._optionals.title = "Arguments", "Options"
     mk.add_argument("path", nargs="?", default=None, metavar="PATH",  # None: not given
                     help="your project folder (default: this folder), one results file, or "
                          "an MLflow store (mlflow.db or an mlruns/ folder)")
@@ -320,8 +321,9 @@ def _parser() -> argparse.ArgumentParser:
     _page_args(mk)
 
     p.commands = {"mark": mk}  # each command's parser: an unknown flag shows its own usage
-    ck = sub.add_parser("check", parents=[common],
+    ck = sub.add_parser("check", parents=[common], description=COMMANDS_HELP[2][1],
                         help="when your LLM-as-a-judge changed, re-check it on your marks")
+    ck._positionals.title, ck._optionals.title = "Arguments", "Options"
     ck.add_argument("path", nargs="?", default=".", metavar="PATH",
                     help="a new results file or MLflow store (mlflow.db or an mlruns/ "
                          "folder), or your project folder (default: this folder, with its "
@@ -331,8 +333,8 @@ def _parser() -> argparse.ArgumentParser:
                          "one fix suggests), e.g. 'score>=0.7', instead of the one in use")
     p.commands["check"] = ck
 
-    fx = sub.add_parser("fix", parents=[common],
-                        help=FIX_HELP)
+    fx = sub.add_parser("fix", parents=[common], description=FIX_HELP, help=FIX_HELP)
+    fx._positionals.title, fx._optionals.title = "Arguments", "Options"
     fx.add_argument("path", nargs="?", default=".", metavar="PATH",
                     help="the results of grading your marked answers again with a new rule "
                          "(for MLflow, the store: mlflow.db or an mlruns/ folder, read at its "

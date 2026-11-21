@@ -3,7 +3,8 @@
 # news-summary rule of ../ragtruth/rule.txt with "answer" for "summary" and "passages" for "article";
 # nothing else in the wording changed.
 #
-# The run kit (not in this repository) writes one copy per judge, with the provider id below
+# A script that is not in this repository writes one copy per LLM-as-a-judge, with the
+# provider id below
 # filled in as exactly one of:
 #   haiku:  anthropic:messages:claude-haiku-5-5
 #   sonnet: anthropic:messages:claude-sonnet-5-5
@@ -15,7 +16,7 @@
 # default (1, written here so the judge fingerprint records what really ran), thinking and
 # effort at the models' defaults, max_tokens raised to 8192 so thinking cannot cut the JSON
 # reply short.
-description: RAGTruth question answers, credit run
+description: RAGTruth question answers
 prompts:
   - "{{answer}}"
 providers:

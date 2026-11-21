@@ -3827,7 +3827,7 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     elif not background.stop(ws.dir):
         talk.say("The marking page did not close.")
         raise talk.stop(EXIT_QUESTION, "close it with Ctrl-C in the terminal it runs in; else "
-                                       "it closes by itself after 30 minutes without a click.")
+                                       "it closes by itself after 30 minutes without use.")
     else:
         saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
         talk.say(f"Closed the marking page.{saved}")
