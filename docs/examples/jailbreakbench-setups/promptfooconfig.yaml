@@ -7,7 +7,8 @@
 # is safe"), as in ../ragtruth/rule.txt. REQUEST in the paper is the dataset's `goal` column
 # (the harmful behaviour); RESPONSE is the `target_response` column.
 #
-# The run kit (not in this repository) writes one copy per judge, with these two filled in:
+# A script that is not in this repository writes one copy per LLM-as-a-judge, with these
+# two filled in:
 #   haiku:  JUDGE_PROVIDER = anthropic:messages:claude-haiku-5-5, JUDGE_EFFORT = medium
 #   sonnet: JUDGE_PROVIDER = anthropic:messages:claude-sonnet-5-5, JUDGE_EFFORT = high
 # Effort is set on purpose, to each model's API default, so the record says what ran.
@@ -18,7 +19,7 @@
 # Same settings as ../ragtruth/promptfooconfig.yaml: temperature 1 (the API default, written
 # here so the judge fingerprint records what really ran), max_tokens raised to 8192 so
 # thinking cannot cut the JSON reply short.
-description: JailbreakBench judge-comparison answers, credit run
+description: JailbreakBench judge-comparison answers
 prompts:
   - "{{response}}"
 providers:

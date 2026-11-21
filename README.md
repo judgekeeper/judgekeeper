@@ -52,7 +52,7 @@ For a chatbot, agent or any AI that answers questions. Save its answers in a CSV
 1. **Find:** run `judgekeeper` in your project folder. It finds your answers.
 2. **Mark:** mark each answer Pass or Fail. On the result page, add a reason to the failed ones.
 3. **Measure:** from 10 marks, see how many passed, with a range.
-4. **Fix:** judgekeeper saves the failed answers, apart from a few kept aside, in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
+4. **Fix:** judgekeeper saves the failed answers, apart from the half kept aside, in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
 5. **Re-check:** run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.
 
 [An example run](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md).

@@ -3,7 +3,7 @@
     "dataset": "JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team",
     "revision": "886acc352a31533ffbcf4ef22c744658688086fc",
     "subset": "config judge_comparison, split test (data/judge-comparison.csv, 300 rows)",
-    "grades": "judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)",
+    "grades": "LLM-as-a-judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)",
     "text": "ids, grades and counts only; no prompt or response"
   },
   "judge_model": "openai:gpt-4-0613",

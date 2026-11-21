@@ -1,7 +1,7 @@
 # Source: JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team
 # Revision: 886acc352a31533ffbcf4ef22c744658688086fc
 # Subset: config judge_comparison, split test (data/judge-comparison.csv, 300 rows)
-# Grades: judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)
+# Grades: LLM-as-a-judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)
 # Holds: ids, grades and counts only; no prompt or response
 draw,verdict_level,disagreements,tpr,tpr_low,tpr_high,true_tpr_inside,tnr,tnr_low,tnr_high,true_tnr_inside,kappa,kappa_low,kappa_high,true_kappa_inside,screen_text_pieces,report_text_pieces,report_rows_not_matched
 d01,check,12,0.8882,0.821,0.9408,True,0.8999,0.7711,0.9715,True,0.7717,0.6119,0.8707,True,0,0,0

@@ -179,7 +179,7 @@ jobs:
           uvx --index-url "$INDEX" "judgekeeper==$VERSION" --version | tee version.txt
           grep -q "^judgekeeper $VERSION" version.txt
           uvx --index-url "$INDEX" "judgekeeper==$VERSION" --help
-      - name: Find the judge of a 40-row CSV in an empty folder (no AI call)
+      - name: Find the LLM-as-a-judge of a 40-row CSV in an empty folder (no AI call)
         working-directory: ${{ runner.temp }}
         env:
           UV_PYTHON: ${{ steps.python.outputs.python-path }}

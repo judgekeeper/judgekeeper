@@ -237,7 +237,7 @@ def build(rows: list[dict]) -> tuple[list[dict], dict]:
         sys.exit("test names repeat; stop.")
     out = {
         "source": SOURCE,
-        "what": "judge probes on the RAGTruth launch-check judges; ids, counts and hashes only",
+        "what": "LLM-as-a-judge probes on the two RAGTruth LLM-as-a-judge setups; ids, counts and hashes only",
         "seed": SEED,
         "method": ("from ../ragtruth/sample-ids.json: per label, ids sorted by number, shuffled "
                    "with random.Random(seed), Pass first then Fail, taken in order skipping an "

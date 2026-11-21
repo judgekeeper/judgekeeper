@@ -38,10 +38,11 @@ INDEX = """<!doctype html>
 {header}
 <main id="main" class="g solo"><div class="wrap"><div class="g-main">
 <h1>judgekeeper example reports</h1>
-<p>Reports committed under <code>docs/examples/</code> in the repository. All come
+<p>Reports committed under <code>docs/examples/</code> in the repository. Most come
 from real runs on public datasets (of judgekeeper, or of a check script that uses its
-maths), except <code>site-example</code>: the made-up project the home page shows, and
-<code>kept-aside</code>: what <code>fix</code> says on simulated new rules.</p>
+maths). Four do not: <code>site-example</code>, <code>pictures</code> and
+<code>ai-check</code> are made-up projects, and <code>kept-aside</code> shows what
+<code>fix</code> says on simulated new rules.</p>
 <ul>
 {items}
 </ul>
@@ -56,7 +57,9 @@ TITLE_WORDS = {"judge-comparison": "LLM-as-a-judge comparison"}
 NOTES = {"jailbreakbench": "The marks are JailbreakBench's three-expert majority labels, "
                             "entered by a script through the marking page's own calls. So the "
                             "report pages note that the marks came through a link printed with "
-                            "no terminal."}
+                            "no terminal. The report page was made with judgekeeper 1.0.0. On "
+                            "the same 200 marks, judgekeeper 1.1.1 and later say \"too early to "
+                            "tell\" (the written report says why)."}
 LOCAL = re.compile(r'(href|src)="(?![a-z]+:|#|/)')  # a link to a file of the site
 
 
@@ -103,7 +106,7 @@ def _describe(folder: Path) -> str:
     for name in ("README.md", "report.md"):
         if (folder / name).is_file():
             title = (folder / name).read_text(encoding="utf-8").splitlines()[0].lstrip("# ")
-            title = title.strip()
+            title = title.replace("`", "").strip()
             for old, new in TITLE_WORDS.items():
                 title = title.replace(old, new)
             break

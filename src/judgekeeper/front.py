@@ -61,6 +61,7 @@ from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
 from judgekeeper.textio import (
+    held_lines,
     kept_at,
     kept_path,
     old_hook,
@@ -430,13 +431,17 @@ class FrontTalk(start.Talk):
         if there == textio.ANYWHERE:
             return None
         inner = Path(os.path.relpath(path.resolve(), Path(there).resolve())).as_posix()
-        command = self.command_in(textio.quote_arg(inner), *extra, away=True)
+        command = self.command_in(textio.path_arg(inner), *extra, away=True)
         return f"run `{_program_there([owner], Path.cwd())}{command[len(self.program):]}` in " \
                f"{owner}/"
 
     def para(self, text: str = "", indent: str = "") -> None:
-        """Say `text` wrapped (textio.wrap)."""
+        """Say `text` wrapped (textio.wrap); a value it shows as NAME is said as data once
+        the whole paragraph is, never between its lines."""
+        held = held_lines(text)
         for line in wrap(text, indent=indent):
+            self.say(line)
+        for line in held:
             self.say(line)
 
     def stop(self, code: int, next_step: str | None = None, as_given: bool = False) -> Stop:
@@ -521,7 +526,7 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     if (holder := _holder_of_kept(path)) is not None:  # never its own files as answers
         where = Path(os.path.relpath(holder, Path.cwd())).as_posix()
         talk.para(KEPT_HERE.format(folder=f"{textio.WORKSPACE}/"))
-        raise talk.stop(EXIT_QUESTION, f"run `{talk.command_in('' if where == '.' else where)}`.")
+        raise talk.stop(EXIT_QUESTION, f"run `{talk.command_in('' if where == '.' else textio.path_arg(where))}`.")
     talk.marking = marking  # `mark`: the commands that open its page run `mark`
     if (busy := _port_taken(talk, path)) is not None:  # a run that can't show its page
         raise busy  # writes nothing
@@ -670,7 +675,7 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
             talk.labels_read = labels_mod.in_results(found.pool, found.metric, command, mine)
             talk.labels_from = marks.FROM_RESULTS
         else:
-            start._read_anyway(talk, path, ("--labels", textio.quote_arg(talk.labels)))
+            start._read_anyway(talk, path, ("--labels", textio.path_arg(talk.labels)))
             talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine,
                                                     command, talk.labels, found.pool,
                                                     found.metric)
@@ -1335,7 +1340,7 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "
                   f"{'is' if saved == 1 else 'are'} saved in the project above, in "
                   f"{where}/{FOLDER}/.")
-        return talk.stop(EXIT_QUESTION, f"run `{talk.command_in(where)}`.")
+        return talk.stop(EXIT_QUESTION, f"run `{talk.command_in(textio.path_arg(where))}`.")
     if saved:  # the results file is gone, the marks are not
         talk.say_step()
         talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "
@@ -1392,7 +1397,7 @@ def above_line(talk: FrontTalk, root: Path) -> str | None:
         return None
     path = Path(os.path.relpath(up, Path.cwd())).as_posix()
     said = FOLDERS_ABOVE if len(Path(path).parts) > 1 else FOLDER_ABOVE
-    return said.format(command=talk.command_in(path, away=True))
+    return said.format(command=talk.command_in(textio.path_arg(path), away=True))
 
 
 def _questions_prompt(talk: FrontTalk) -> None:
@@ -1743,7 +1748,7 @@ def _file_there(talk: FrontTalk, owner: str, path: Path) -> str:
     there = textio.folder_of(owner, Path.cwd())
     there = Path(there) if there != textio.ANYWHERE else path.resolve().parent
     rel = Path(os.path.relpath(path.resolve(), there.resolve())).as_posix()
-    command = talk.command_in(textio.quote_arg(rel), *(("--yes",) if talk.yes else ()),
+    command = talk.command_in(textio.path_arg(rel), *(("--yes",) if talk.yes else ()),
                               away=True)
     return _program_there([owner], Path.cwd()) + command[len(talk.program):]
 
@@ -1901,7 +1906,7 @@ def _results_too(others: list[str], away: str = "") -> str:
     (`away`: what it repeats, FrontTalk.away)."""
     one = len(others) == 1
     named = start._and([f"{p}/" for p in others])
-    commands = start._or([f"`{program()} {quote_arg(p)}{away}`" for p in others])
+    commands = start._or([f"`{program()} {textio.path_arg(p)}{away}`" for p in others])
     return (f"The {'project' if one else 'projects'} in {named} {'has' if one else 'have'} "
             f"results too: to check them, run {commands}.")
 
@@ -2868,7 +2873,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         if project.numbered_ids_kept(ws.root, read):  # the same questions, or another eval
             talk.para(before_after.NUMBERED_IDS)
             raise talk.stop(EXIT_QUESTION, before_after.NUMBERED_IDS_NEXT.format(
-                command=f"{textio.program()} {textio.quote_arg(textio.line_path(read))}",
+                command=f"{textio.program()} {textio.path_arg(textio.line_path(read))}",
                 file=textio.line_path(read)))
         raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
             file=textio.line_path(read), program=project.program_anywhere() + talk.away))
@@ -3827,7 +3832,7 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     elif not background.stop(ws.dir):
         talk.say("The marking page did not close.")
         raise talk.stop(EXIT_QUESTION, "close it with Ctrl-C in the terminal it runs in; else "
-                                       "it closes by itself after 30 minutes without a click.")
+                                       "it closes by itself after 30 minutes without use.")
     else:
         saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
         talk.say(f"Closed the marking page.{saved}")

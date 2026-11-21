@@ -40,6 +40,8 @@ def marked(folder: Path) -> bool:
     REQUIREMENTS. The command line takes a project folder by the same files."""
     return any((folder / m).exists() for m in MARKERS) or next(
         folder.glob(REQUIREMENTS), None) is not None
+GITIGNORE = ("# judgekeeper's files hold your answers. Commit them only if your data "
+             "may live here.\n*\n!.gitignore\n!judge.json\n!history.jsonl\n")  # start_label's
 OFF = frozenset({"0", "false", "off", "no"})
 DEFAULT_NAME = "LLM-as-a-judge"
 _UNSAFE = re.compile(r"[^A-Za-z0-9._]+")
@@ -80,6 +82,8 @@ def record(input=None, output=None, *, verdict=None, score=None, pass_mark=None,
             for folder in (path.parent.parent, path.parent):  # .judgekeeper/records/
                 if not folder.is_dir():
                     folder.mkdir(mode=0o700, exist_ok=True)  # its owner's only
+                    if folder == path.parent.parent:
+                        _keep_out_of_git(folder)
             flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
             with os.fdopen(os.open(path, flags, 0o600), "a", encoding="utf-8",
                            newline="\n") as f:
@@ -88,12 +92,33 @@ def record(input=None, output=None, *, verdict=None, score=None, pass_mark=None,
         _warn(e)
 
 
+def _keep_out_of_git(folder: Path) -> None:
+    """The .gitignore a first run writes in .judgekeeper/ (start_label.GITIGNORE), made with
+    the folder: the records hold answers, and `git add .` must not take them. One that is
+    there, a link too, is left as it is."""
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+        with os.fdopen(os.open(folder / ".gitignore", flags, 0o600), "w", encoding="utf-8",
+                       newline="\n") as f:
+            f.write(GITIGNORE)
+    except FileExistsError:
+        pass
+
+
 def _refuse_links(path: Path) -> None:
     """Never write through a link: .judgekeeper, its records folder and the file itself must
-    not be one (a symlink, or on Windows a junction), as for marks (marks.py)."""
+    not be one (a symlink, or on Windows a junction), and the file not hard linked (a second
+    name elsewhere would be written too), as for marks (marks.py)."""
     for part in (path.parent.parent, path.parent, path):
         if part.is_symlink() or getattr(os.path, "isjunction", lambda _: False)(part):
             raise _RecordError(f"{part} is a link. judgekeeper does not write through links")
+    try:
+        hard = os.lstat(path).st_nlink > 1  # textio.hard_linked, which this does not import
+    except OSError:
+        hard = False
+    if hard:
+        raise _RecordError(f"{path} is linked to another file. judgekeeper does not write "
+                           "through links")
 
 
 def _is_bool(value) -> bool:

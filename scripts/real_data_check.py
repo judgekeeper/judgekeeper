@@ -415,9 +415,9 @@ def markdown(result: dict) -> str:
         "# Real-data check of judgekeeper's ranges", "",
         "Made by `scripts/real_data_check.py`; do not edit by hand.", "",
         ("Each LLM-as-a-judge below decided on every answer in a public dataset, and people "
-         "labeled the same answers. So how often the LLM-as-a-judge agrees with the people is "
+         "labelled the same answers. So how often the LLM-as-a-judge agrees with the people is "
          "known: it is worked out from all of the dataset's human labels. Each check pretends a "
-         "person labeled only a few answers, as many from "
+         "person labelled only a few answers, as many from "
          "the LLM-as-a-judge's passes as from its fails, and works out TPR (how often the "
          "LLM-as-a-judge passed answers people passed), TNR (how often it failed answers people "
          "failed) and the real pass rate with judgekeeper's own maths, each with a range. A "
@@ -520,7 +520,7 @@ def markdown(result: dict) -> str:
                    "assessor per passage in LLMJudge. Each check draws from the dataset without "
                    "putting answers back, as a person labels; the ranges assume an endless pool, "
                    "which makes them a little cautious on the smallest pool."), "",
-              "## Data and licences", ""]
+              "## Data and licenses", ""]
     for d in result["data"].values():
         lines.append(f"- **{d['name']}** ({d['licence']}): <{d['source']}>, revision "
                      f"`{d['revision']}`. {d['attribution']}")

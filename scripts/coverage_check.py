@@ -887,9 +887,9 @@ def markdown(result: dict) -> str:
              f"{', '.join(f'{x:.0%}' for x in SHARES)}; the chance an answer the LLM-as-a-judge "
              f"passed is marked Pass (a) {', '.join(map(str, CORRECT_IF_PASS))}; "
              f"the chance an answer it failed is marked Fail (w) {', '.join(map(str, WRONG_IF_FAIL))}; "
-             f"{', '.join(map(str, LABELS))} answers labeled in each group. {CHECKS:,} simulated "
+             f"{', '.join(map(str, LABELS))} answers labelled in each group. {CHECKS:,} simulated "
              f"checks per cell, fixed seed {SEED}. Jeffreys ranges: {result['draws']:,} draws, "
-             f"seed {result['seed']}. Checks where a number is unknown (TNR when every labeled "
+             f"seed {result['seed']}. Checks where a number is unknown (TNR when every labelled "
              "answer is marked Pass, say) are left out of that number's coverage and counted."), "",
              "## `judgekeeper`: the level", "",
              (f"Rule: the first of {', '.join(f'{x:.0%}' for x in CANDIDATES)} whose ranges hold "

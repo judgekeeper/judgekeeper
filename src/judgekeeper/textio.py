@@ -124,24 +124,57 @@ _imports: dict[str, bool] = {}
 IMPORTED = "import judgekeeper, os; print(os.path.realpath(judgekeeper.__file__))"
 
 
-def _in_this_folder(path: str) -> bool:
-    """Whether a program found on the PATH sits in the current folder, which Windows looks in
-    first: a results folder may hold a file of that name, and it is never started."""
+_work: list[str] = []  # folders (the project, the one given) no program found on the PATH sits in
+
+
+def keep_programs_out_of(*folders) -> None:
+    """Note folders of the person's own work: a program on the PATH is never started when it
+    sits in one (_in_work_folder), as it is never started from the current folder."""
+    for folder in folders:
+        try:
+            _work.extend((os.path.abspath(folder), os.path.realpath(folder)))
+        except (OSError, ValueError):
+            continue
+
+
+def _in_work_folder(path: str) -> bool:
+    """Whether a program found on the PATH sits anywhere under the current folder (which
+    Windows looks in first) or a folder of the person's own work (keep_programs_out_of): a
+    results folder may hold a file of that name, and it is never started, however the PATH
+    reaches it (a link to one too)."""
     try:
-        here = os.path.realpath(os.getcwd())
-    except OSError:
+        folders = {os.path.abspath(os.getcwd()), os.path.realpath(os.getcwd()), *_work}
+        places = {os.path.abspath(path), os.path.realpath(path)}
+    except (OSError, ValueError):
         return True
-    folder = os.path.realpath(os.path.dirname(os.path.abspath(path)))
-    return os.path.normcase(folder) == os.path.normcase(here)
+    return any(os.path.normcase(place) == os.path.normcase(folder)
+               or os.path.normcase(place).startswith(os.path.normcase(folder).rstrip(os.sep)
+                                                     + os.sep)
+               for place in places for folder in folders)
+
+
+def _first_on_path(name: str) -> str | None:
+    """The program `name` on the PATH as a shell finds it (the first one). None when there is
+    none; when the PATH reaches it from a folder that is not a whole path (a relative one, or
+    an empty one, is read from wherever the shell is, so it may be one the project holds); or
+    when it sits in the person's own work (_in_work_folder)."""
+    import shutil
+
+    found = shutil.which(name)
+    if found is None or not os.path.isabs(found) or _in_work_folder(found):
+        return None
+    for entry in os.environ.get("PATH", os.defpath).split(os.pathsep):
+        if not os.path.isabs(entry) and shutil.which(name, path=entry) is not None:
+            return None  # a relative entry holds one too: never decided by the order
+    return found
 
 
 def imports_judgekeeper(python: str) -> bool:
     """Whether `python` on the PATH imports this judgekeeper, not another install (asked once
-    per program found, never one in the current folder)."""
-    import shutil
-
-    found = shutil.which(python)
-    if found is None or _in_this_folder(found):
+    per program found, never one the PATH reaches from a relative folder or one in the person's
+    own work: _first_on_path)."""
+    found = _first_on_path(python)
+    if found is None:
         return False
     if found not in _imports:
         this = _same(os.path.join(os.path.dirname(os.path.realpath(__file__)), "__init__.py"))
@@ -249,7 +282,7 @@ def home_folder_shown(path) -> str | None:
 def _home_command(inside: str) -> str | None:
     """`_home_shown`, quoted for a shell with the home part left outside the quotes (the
     shell reads it there; cmd reads %USERPROFILE% inside double quotes too). None when the
-    rest can't be in a command (Windows: held back)."""
+    rest can't be in a command (held back)."""
     if is_windows():
         rest = quote_arg(inside.replace("/", "\\"))
         if rest == PLACEHOLDER or "%" in inside:
@@ -257,7 +290,8 @@ def _home_command(inside: str) -> str | None:
         if rest.startswith('"'):
             return '"' + HOME_FORMS[1] + rest[1:]
         return HOME_FORMS[1] + rest
-    return HOME_FORMS[0] + quote_arg(inside.replace(os.sep, "/"))
+    rest = quote_arg(inside.replace(os.sep, "/"))
+    return None if rest == PLACEHOLDER else HOME_FORMS[0] + rest
 
 
 def off_path(any_start: bool = False) -> str | None:
@@ -275,7 +309,7 @@ def off_path(any_start: bool = False) -> str | None:
         return None
     if script and not os.path.isabs(typed) and (os.path.isfile(typed)
                                                  or os.path.isfile(typed + ".exe")):
-        return quote_arg(typed) if _from is None else command_path(os.path.abspath(typed))
+        return path_arg(typed) if _from is None else command_path(os.path.abspath(typed))
     python = "py" if is_windows() else "python3"
     if imports_judgekeeper(python):
         return f"{python} -P -m judgekeeper"
@@ -1062,8 +1096,8 @@ def cd_word(shown: str) -> str:
         return shown
     for form in HOME_FORMS:
         if shown.startswith(form):
-            return _home_command(shown[len(form):]) or quote_arg(shown)
-    return quote_arg(shown)
+            return _home_command(shown[len(form):]) or path_arg(shown)
+    return path_arg(shown)
 
 
 def kept_path(path, root) -> str:
@@ -1163,8 +1197,11 @@ def runnable(value: str, labels: bool) -> str:
         return shown
     for form in HOME_FORMS:
         if shown.startswith(form):
-            return _home_command(shown[len(form):]) or ANOTHER_DRIVE[0 if labels else 1]
-    return quote_arg(shown)
+            command = _home_command(shown[len(form):])
+            if command is None and not is_windows():  # a backtick: NAME, said as data
+                return path_arg(shown)
+            return command or ANOTHER_DRIVE[0 if labels else 1]
+    return path_arg(shown)
 
 
 # File-system errors --------------------------------------------------------------------------
@@ -1341,15 +1378,18 @@ def _plain_on_windows(arg: str) -> bool:
 def held_back(arg: str | Path) -> bool:
     """Whether `quote_arg` leaves `arg` out of a command: on Windows, when cmd.exe or
     PowerShell would act on it inside double quotes, or it holds a control character or line
-    break."""
-    return is_windows() and (bool(_WINDOWS_EXPANDS.search(str(arg)))
-                             or not str(arg).isprintable())
+    break; elsewhere, when it holds a backtick (a command in backticks cannot carry it, and
+    only some shells read a `$'...'` form)."""
+    if is_windows():
+        return bool(_WINDOWS_EXPANDS.search(str(arg))) or not str(arg).isprintable()
+    return "`" in str(arg)
 
 
 def quote_arg(arg: str | Path, kept: bool = False) -> str:
-    """`arg` as one argument of a command the user pastes; quoted only when it needs it. On
-    Windows an argument quotes can't keep as text stays out of the command: PLACEHOLDER
-    stands in its place, and `held_lines` says it as data under the line that shows it.
+    """`arg` as one argument of a command the user pastes; quoted only when it needs it. An
+    argument quotes can't keep as text (on Windows; elsewhere one with a backtick) stays out
+    of the command: PLACEHOLDER stands in its place, and `held_lines` says it as data under
+    the line that shows it.
     `kept`: the command is kept in a file or on the page, which say the value beside it
     themselves (start.held_values), so no line here says it."""
     text = str(arg)
@@ -1362,10 +1402,18 @@ def quote_arg(arg: str | Path, kept: bool = False) -> str:
             return PLACEHOLDER
         backslashes = text[len(text.rstrip("\\")):]  # doubled: they don't escape the quote
         return f'"{text}{backslashes}"'
-    if "`" in text:  # $'...' with \x60: no backtick, so it survives inside `...`
-        escaped = text.replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\x60")
-        return f"$'{escaped}'"
+    if held_back(text):  # a backtick: no quoting every shell reads, so it is said as data
+        if not kept:
+            _held[text] = None
+        return PLACEHOLDER
     return shlex.quote(text)
+
+
+def path_arg(path: str | Path, kept: bool = False) -> str:
+    """`quote_arg` for a path a command is given: one that starts with "-" is said as
+    `./name`, so a command line reads it as a file and never as a flag."""
+    text = str(path)
+    return quote_arg("./" + text if text.startswith("-") else text, kept)
 
 
 def quoted_name(value: str) -> str:

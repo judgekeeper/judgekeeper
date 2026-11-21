@@ -42,6 +42,16 @@ def no_browser(monkeypatch):
     return opened
 
 
+@pytest.fixture(autouse=True)
+def no_folders_kept_out():
+    """The folders a run named as its project (textio.keep_programs_out_of) stay with it."""
+    from judgekeeper import textio
+
+    textio._work.clear()
+    yield
+    textio._work.clear()
+
+
 CI_VARIABLES = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "BUILDKITE", "TF_BUILD", "JENKINS_URL")
 
 

@@ -25,7 +25,6 @@ BARE = re.compile(r"(?<![-_{.\w/#])judges?(?:'s)?\b(?![_\-.=]\w|=)", re.IGNORECA
 VERB = re.compile(r"\b(?:to|not|actually) $", re.IGNORECASE)
 # Strings that are code, not words: a dict key, a reason's key, a value written to result.json
 CODE = frozenset({"judge call failed", "jeffreys, with the judge's wobble"})
-SCHEMA_DEFAULT = "Default: judge."  # `name`'s default value, as record() writes it
 
 
 def bare(text: str) -> list[str]:
@@ -84,7 +83,7 @@ def test_the_schema_says_llm_as_a_judge():
                 walk(v)
 
     walk(json.loads(path.read_text(encoding="utf-8")))
-    found = [hit for text in said for hit in bare(text.replace(SCHEMA_DEFAULT, ""))]
+    found = [hit for text in said for hit in bare(text)]
     assert not found, found
 
 

@@ -117,7 +117,7 @@
       </div>
       <div class="gwin sp-shot">
         <div class="rt-bar" aria-hidden="true"><span class="rt-title">result page</span></div>
-        <figure class="gx-shot"><a href="assets/shots/result.webp" aria-label="Enlarge the picture of the result page"><img src="assets/shots/result.webp" width="2880" height="1704" loading="lazy" decoding="async" alt="The result page: &quot;Your LLM-as-a-judge needs work.&quot; Under it, how many answers you and your LLM-as-a-judge disagreed on, the answers you passed and failed with its grades, then the answers where you said Fail and your LLM-as-a-judge said Pass, each with an Add a reason button."></a></figure>
+        <figure class="gx-shot"><a href="assets/shots/result.webp" aria-label="Enlarge the picture of the result page"><img src="assets/shots/result.webp" width="2880" height="1704" loading="lazy" decoding="async" alt="The result page: &quot;Your LLM-as-a-judge needs work.&quot; Under it, how many answers you and your LLM-as-a-judge disagreed on, then three numbers: how often it also says Pass when you say Pass, how often it also says Fail when you say Fail, and kappa. Below them, how many answers you passed and failed, and what your LLM-as-a-judge said on each."></a></figure>
       </div>
       <p class="gx-tap">Tap to enlarge</p>
     </div></li>
@@ -174,7 +174,7 @@
       <p><b>1. Find:</b> run <code>judgekeeper</code> in your project folder. It finds your answers.</p>
       <p><b>2. Mark:</b> mark each answer Pass or Fail. On the result page, add a reason to the failed ones.</p>
       <p><b>3. Measure:</b> from 10 marks, see how many passed, with a range.</p>
-      <p><b>4. Fix:</b> judgekeeper saves the failed answers, apart from a few kept aside, with a prompt for your coding agent to improve your AI’s prompt.</p>
+      <p><b>4. Fix:</b> judgekeeper saves the failed answers, apart from the half kept aside, with a prompt for your coding agent to improve your AI’s prompt.</p>
       <p><b>5. Re-check:</b> run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.</p>
       <p class="gx-small"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md">An example run</a></p>
     </div>

@@ -43,7 +43,6 @@ JSON_FILE, CSV_FILE = "judge-check.json", "judge-check.csv"
 CSV_PATH = f".judgekeeper/{CSV_FILE}"  # start_label.FOLDER
 CSV_COLUMNS = ("id", "problem", "tool_counted_as", "judge_decision", "judge_reason", "input",
                "output")
-TITLE = "Did your LLM-as-a-judge actually judge?"
 EVERY_ANSWER = ("Your LLM-as-a-judge gave a Pass or Fail on every answer (no errors or empty "
                 "replies).")
 LIST_LINE = f"The list is in {CSV_PATH}"
@@ -326,6 +325,6 @@ def page_lines(block: dict | None) -> list[str]:
     return [" ".join(found) for found in lines(block)]
 
 
-__all__ = ["CSV_COLUMNS", "EVERY_ANSWER", "KINDS", "LEFT_OUT", "LIST_LINE", "TITLE", "Finding",
+__all__ = ["CSV_COLUMNS", "EVERY_ANSWER", "KINDS", "LEFT_OUT", "LIST_LINE", "Finding",
            "Result", "check", "has_rows", "is_empty_answer", "lines", "page_lines", "says_opposite",
            "setup_lines", "stated_decisions"]

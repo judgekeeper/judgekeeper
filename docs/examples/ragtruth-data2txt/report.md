@@ -1,6 +1,6 @@
 # Two LLM-as-a-judge setups on RAGTruth's data-to-text overviews
 
-This check runs judgekeeper's normal steps on the second kind of task in RAGTruth: overviews of local businesses (from Yelp), written from a block of structured JSON data. Two LLM-as-a-judge setups, **setup A** (Claude Haiku 5.5, `claude-haiku-5-5`) and **setup B** (Claude Sonnet 5.5, `claude-sonnet-5-5`), graded 200 overviews with one rule, and RAGTruth's human labels were the marks. It is the same check as [the news-summary one](../ragtruth/report.md), with one run per setup instead of three.
+This check runs judgekeeper's normal steps on the third kind of task in RAGTruth: overviews of local businesses (from Yelp), written from a block of structured JSON data. Two LLM-as-a-judge setups, **setup A** (Claude Haiku 5.5, `claude-haiku-5-5`) and **setup B** (Claude Sonnet 5.5, `claude-sonnet-5-5`), graded 200 overviews with one rule, and RAGTruth's human labels were the marks. It is the same check as [the news-summary one](../ragtruth/report.md), with one run per setup instead of three.
 
 judgekeeper's result, in both runs: **needs work**. For setups A and B, the share of overviews people failed that the setup also failed was 98% for A and 97% for B. The share of overviews people passed that it also passed was 39% for A and 65% for B.
 
@@ -15,12 +15,12 @@ judgekeeper's result, in both runs: **needs work**. For setups A and B, the shar
 
 ## How often each LLM-as-a-judge agrees with people
 
-| LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | judgekeeper's result |
-|---|---|---|---|---|
-| A (Haiku 5.5), run 1 | 39% | 98% | 63 of 200 | needs work |
-| B (Sonnet 5.5), run 1 | 65% | 97% | 38 of 200 | needs work |
+| LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | Kappa | judgekeeper's result |
+|---|---|---|---|---|---|
+| A (Haiku 5.5), run 1 | 39% | 98% | 63 of 200 | 0.37 | needs work |
+| B (Sonnet 5.5), run 1 | 65% | 97% | 38 of 200 | 0.62 | needs work |
 
-The first two columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`).
+The first two columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`). Kappa is worked out here from the four counts on each run's Measure screen (both Pass, both Fail, and the two kinds of disagreement), because those older screens do not print it.
 
 ## Does the news-summary pattern hold?
 
@@ -32,7 +32,7 @@ The news-summary check found two things: the setups failed most of what people f
 | This task | 39% | 98% | 65% | 97% |
 
 - **Failing what people failed holds.** On data-to-text the setups failed 98% and 97% of the overviews people failed.
-- **"About one in three good ones failed" holds for setup B, not for setup A.** B's Pass column (65%) is close to its summary one (68%). A passed 39% of the overviews people passed, so it failed about six in ten. That is 27 points below its 66% on summaries, a real gap in these samples. We did not look into why; a strict reading of "supported by the data" is one guess.
+- **"About one in three good ones failed" holds for setup B, not for setup A.** B's Pass column (65%) is close to its summary one (68%). A passed 39% of the overviews people passed, so it failed about six in ten. That is 27 points below its 66% on summaries, a real gap in these samples. Why is not known; a strict reading of "supported by the data" is one guess.
 - **Same result, same advice:** "needs work" in both runs. For setup A, the first step would be the same as before: most mistakes are good overviews failed, so the rule may be too strict for it.
 
 ## Limits
@@ -40,7 +40,7 @@ The news-summary check found two things: the setups failed most of what people f
 - **One run each,** at temperature 1. In the news-summary check, the same setup's TPR moved by up to 4 points between runs, so small differences here mean little.
 - **The answers are old:** from 2023 models, in a public dataset since 2024, so the two LLM-as-a-judge models may have seen them.
 - **One kind of task and one rule.** The data is Yelp business records.
-- **Not the people's rule:** RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
+- **Not the people's rule:** RAGTruth's people labelled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
 - **The labels are people's,** and people disagree with each other too.
 - **Pass and Fail answers come mostly from different models:** the Fails are mostly Llama-2 and Mistral-7B overviews, while 72 of the 100 Passes come from the two GPT models and only 9 of the 100 Fails do (`sample-ids.json`). A strong lean toward one family of writers.
 - **The answers aren't fully independent:** the 200 come from 113 businesses.
