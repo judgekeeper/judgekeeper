@@ -166,7 +166,7 @@ def test_notes_quoting_the_rule_come_after_code(tmp_path):
 
 
 RECORD_RULE = "Pass when the reply is polite and answers the customer's question."
-FIRST_BLOCK = f"""Looking in /home/me/bot …
+FIRST_BLOCK = f"""Looking in /home/me/bot ...
 
 judgekeeper found your LLM-as-a-judge:
 
