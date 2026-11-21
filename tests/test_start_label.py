@@ -363,7 +363,7 @@ def test_starting_to_label_writes_the_start_files(workspace):
     assert data["pool"] == {"answers": 32, "pass": 20, "fail": 12}
     assert len(data["queue"]) == 32
     pool = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()]
-    assert set(pool[0]) == {"id", "input", "output"}
+    assert set(pool[0]) == {"id", "input", "output", "case"}  # case: its test's description
     header, records = read_run(ws.pool_judge)
     assert len(records) == 32
     fields = set(JudgeFingerprint().to_dict())

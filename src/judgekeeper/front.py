@@ -13,9 +13,11 @@ choice prints the flag that answers it and exits 3; a yes/no question is noted, 
 on as if yes but writes nothing, and `--yes` then answers exactly those questions. One
 exception: on results with grades, the comparison with the results before (before_after.py)
 comes last, after the usual `Next:` line, and adds a second `Next:` when the change made it
-worse.
+worse or nothing could be compared.
 No AI call and no key. Exit codes: 0 done, 1 the grades say the change made it worse
-(before_after.py, results with grades only), 3 the person is needed, 2 usage error, 130 Ctrl-C.
+(before_after.py, results with grades only), 3 the person is needed (or nothing could be
+compared), 2 usage error, 130 Ctrl-C. With --before or in CI the comparison alone sets 0, 1 or
+3: a pipeline never waits for marks.
 """
 
 from __future__ import annotations
@@ -278,6 +280,7 @@ class FrontTalk(start.Talk):
         self.before_damaged = False  # fix/before.json was damaged and this run replaced it
         self.marking = False  # the run is `mark` (_run)
         self.before: str | None = None  # --before: the results file to compare with
+        self.other_eval = False  # stopped at results of another eval: nothing is compared
         self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
         self.left_below: list[str] = []  # projects below whose files were left out (_tool_below)
         self.refresh()
@@ -536,15 +539,26 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     # read stops here, before anything is said
     seen = None if marking else before_after.look(
         talk, ws, found, talk.before, other_judge=bool(_why_start_over(talk, ws, found)))
+    # with --before or in CI the comparison alone sets the exit code: a gate never stops on
+    # marks no one in it can give
+    gate = talk.before is not None or page.in_ci()
     try:
         code = _graded(talk, ws, found, mapped, wait, marking)
-    except Stop:  # said why: the change is said after it, and nothing is written
-        if seen is not None and _say_change(talk, ws, seen, write=False):
-            raise Stop(before_after.EXIT_WORSE) from None
+    except Stop as e:  # said why: the change is said after it, and nothing is written
+        if seen is None or talk.other_eval:
+            raise
+        said = _say_change(talk, ws, seen, write=False)
+        if gate and e.code in (0, EXIT_QUESTION):
+            return said or 0
+        if said is not None and e.code in (0, EXIT_QUESTION):
+            raise Stop(said) from None
         raise
     if seen is None:
         return code
-    return before_after.EXIT_WORSE if _say_change(talk, ws, seen) else code
+    said = _say_change(talk, ws, seen)
+    if gate and code in (0, EXIT_QUESTION):
+        return said or 0
+    return code if said is None else said
 
 
 def _graded(talk: FrontTalk, ws: Workspace, found: start.Found, mapped, wait: bool,
@@ -561,20 +575,22 @@ def _graded(talk: FrontTalk, ws: Workspace, found: start.Found, mapped, wait: bo
 
 
 def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
-                write: bool = True) -> bool:
-    """After the usual output: what the newest results did against the ones before (said only
-    when they were compared), and the results read kept for the next run (`write`: unless a
-    question went unanswered, which writes nothing). Whether it made it worse."""
+                write: bool = True) -> int | None:
+    """After the usual output: what the newest results did against the ones before (or why
+    nothing was compared), and the results read kept for the next run (`write`: unless a
+    question went unanswered, which writes nothing). The exit code it sets: 1 made it worse,
+    3 nothing compared, None the run's own."""
     c = seen.comparison
     if c is not None and talk.before is None and seen.had and before_after.read(ws) is None:
         c = None  # started over (another LLM-as-a-judge): the last results are not its baseline
-    for para in before_after.lines(c) if c is not None else ():
+    paragraphs, code = seen.paragraphs(c)
+    for para in paragraphs:
         talk.say()
         for line in para:
             talk.para(line)
     if write and not talk.noted and ws.start.is_file():
         before_after.write(ws, seen.before, seen.now, seen.setup)
-    return c is not None and c.worse
+    return code
 
 
 def _holder_of_kept(path: Path) -> Path | None:
@@ -656,7 +672,8 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
         else:
             start._read_anyway(talk, path, ("--labels", textio.quote_arg(talk.labels)))
             talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine,
-                                                    command, talk.labels)
+                                                    command, talk.labels, found.pool,
+                                                    found.metric)
             talk.labels_from = path.name
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
@@ -1850,7 +1867,8 @@ def _another_eval(result: find.Result, found: start.Found) -> bool:
     if not result.path.resolve().is_relative_to(Path(found.root).resolve()) or \
             not found.pool.answers:
         return False
-    held = [{"input": a.input, "output": a.output, "id": a.id} for a in found.pool.answers]
+    held = [{"input": a.input, "output": a.output, "id": a.id, "case": a.case}
+            for a in found.pool.answers]
     return not project.same_questions(result.path.resolve(), found.tool, held)
 
 
@@ -2709,8 +2727,13 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
 
 
 def _newest_path(found: start.Found) -> Path | None:
-    """The newest results file read (found.used[0]), as a path; None for none."""
-    return next((r.path for r in found.results if found.used and r.rel == found.used[0]), None)
+    """The newest results file read (found.used[0]), as a path; None for none. A file given by
+    path in a folder below is named from the project (start.rebased) but read under its name
+    in that folder: it is the first of found.results, as for every file tool."""
+    if not found.used:
+        return None
+    return next((r.path for r in found.results if r.rel == found.used[0]),
+                found.results[0].path if found.results else None)
 
 
 def _checked_file(ws: Workspace, found: start.Found) -> str | None:
@@ -2841,6 +2864,12 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if not (first or changed or back or grades or elsewhere) and found.tool in FILE_TOOLS and \
             (read := _newest_path(found)) is not None and project.rewritten(ws.root, read):
         talk.para(project.REWRITTEN.format(file=textio.line_path(read)))  # never one pool
+        talk.other_eval = True  # its grades are not compared either
+        if project.numbered_ids_kept(ws.root, read):  # the same questions, or another eval
+            talk.para(before_after.NUMBERED_IDS)
+            raise talk.stop(EXIT_QUESTION, before_after.NUMBERED_IDS_NEXT.format(
+                command=f"{textio.program()} {textio.quote_arg(textio.line_path(read))}",
+                file=textio.line_path(read)))
         raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
             file=textio.line_path(read), program=project.program_anywhere() + talk.away))
     if not (first or changed or back or grades or elsewhere):
