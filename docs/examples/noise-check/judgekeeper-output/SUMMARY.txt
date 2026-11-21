@@ -1,0 +1,71 @@
+math/same-1__older-ai-1.txt | On the 1319 questions in both results: fixed 208, broke 51, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-1__same-2.txt | On the 1319 questions in both results: fixed 59, broke 58, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+math/same-1__same-3.txt | On the 1319 questions in both results: fixed 62, broke 58, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+math/same-1__same-4.txt | On the 1319 questions in both results: fixed 56, broke 63, same | Can't tell yet. That leans toward worse. | exit 0
+math/same-1__same-5.txt | On the 1319 questions in both results: fixed 55, broke 63, same | Can't tell yet. That leans toward worse. | exit 0
+math/same-1__small-a-1.txt | On the 1319 questions in both results: fixed 115, broke 56, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-1__worse.txt | On the 1319 questions in both results: fixed 68, broke 348, same | Your change made it worse. A difference this large is unlikely | exit 1
+math/same-2__older-ai-1.txt | On the 1319 questions in both results: fixed 209, broke 53, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-2__same-3.txt | On the 1319 questions in both results: fixed 71, broke 68, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+math/same-2__same-4.txt | On the 1319 questions in both results: fixed 65, broke 73, same | Can't tell yet. That leans toward worse. | exit 0
+math/same-2__same-5.txt | On the 1319 questions in both results: fixed 59, broke 68, same | Can't tell yet. That leans toward worse. | exit 0
+math/same-2__small-a-1.txt | On the 1319 questions in both results: fixed 110, broke 52, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-2__worse.txt | On the 1319 questions in both results: fixed 64, broke 345, same | Your change made it worse. A difference this large is unlikely | exit 1
+math/same-3__older-ai-1.txt | On the 1319 questions in both results: fixed 200, broke 47, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-3__same-4.txt | On the 1319 questions in both results: fixed 59, broke 70, same | Can't tell yet. That leans toward worse. | exit 0
+math/same-3__same-5.txt | On the 1319 questions in both results: fixed 56, broke 68, same | Can't tell yet. That leans toward worse. | exit 0
+math/same-3__small-a-1.txt | On the 1319 questions in both results: fixed 108, broke 53, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-3__worse.txt | On the 1319 questions in both results: fixed 65, broke 349, same | Your change made it worse. A difference this large is unlikely | exit 1
+math/same-4__older-ai-1.txt | On the 1319 questions in both results: fixed 215, broke 51, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-4__same-5.txt | On the 1319 questions in both results: fixed 62, broke 63, same | Can't tell yet. That leans toward worse. | exit 0
+math/same-4__small-a-1.txt | On the 1319 questions in both results: fixed 125, broke 59, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-4__worse.txt | On the 1319 questions in both results: fixed 73, broke 346, same | Your change made it worse. A difference this large is unlikely | exit 1
+math/same-5__older-ai-1.txt | On the 1319 questions in both results: fixed 216, broke 51, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-5__small-a-1.txt | On the 1319 questions in both results: fixed 120, broke 53, same | Your change helped. A difference this large is unlikely to be a | exit 0
+math/same-5__worse.txt | On the 1319 questions in both results: fixed 71, broke 343, same | Your change made it worse. A difference this large is unlikely | exit 1
+multiple-choice/same-1__older-ai-1.txt | On the 1000 questions in both results: fixed 97, broke 49, same | Your change helped. A difference this large is unlikely to be a | exit 0
+multiple-choice/same-1__same-2.txt | On the 1000 questions in both results: fixed 14, broke 21, same | Can't tell yet. That leans toward worse. | exit 0
+multiple-choice/same-1__same-3.txt | On the 1000 questions in both results: fixed 24, broke 18, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+multiple-choice/same-1__same-4.txt | On the 1000 questions in both results: fixed 28, broke 26, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+multiple-choice/same-1__same-5.txt | On the 1000 questions in both results: fixed 19, broke 22, same | Can't tell yet. That leans toward worse. | exit 0
+multiple-choice/same-1__worse.txt | On the 1000 questions in both results: fixed 34, broke 64, same | Your change made it worse. A difference this large is unlikely | exit 1
+multiple-choice/same-2__older-ai-1.txt | On the 1000 questions in both results: fixed 104, broke 49, same | Your change helped. A difference this large is unlikely to be a | exit 0
+multiple-choice/same-2__same-3.txt | On the 1000 questions in both results: fixed 27, broke 14, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+multiple-choice/same-2__same-4.txt | On the 1000 questions in both results: fixed 27, broke 18, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+multiple-choice/same-2__same-5.txt | On the 1000 questions in both results: fixed 21, broke 17, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+multiple-choice/same-2__worse.txt | On the 1000 questions in both results: fixed 36, broke 59, same | Your change made it worse. A difference this large is unlikely | exit 1
+multiple-choice/same-3__older-ai-1.txt | On the 1000 questions in both results: fixed 95, broke 53, same | Your change helped. A difference this large is unlikely to be a | exit 0
+multiple-choice/same-3__same-4.txt | On the 1000 questions in both results: fixed 22, broke 26, same | Can't tell yet. That leans toward worse. | exit 0
+multiple-choice/same-3__same-5.txt | On the 1000 questions in both results: fixed 20, broke 29, same | Can't tell yet. That leans toward worse. | exit 0
+multiple-choice/same-3__worse.txt | On the 1000 questions in both results: fixed 33, broke 69, same | Your change made it worse. A difference this large is unlikely | exit 1
+multiple-choice/same-4__older-ai-1.txt | On the 1000 questions in both results: fixed 95, broke 49, same | Your change helped. A difference this large is unlikely to be a | exit 0
+multiple-choice/same-4__same-5.txt | On the 1000 questions in both results: fixed 16, broke 21, same | Can't tell yet. That leans toward worse. | exit 0
+multiple-choice/same-4__worse.txt | On the 1000 questions in both results: fixed 31, broke 63, same | Your change made it worse. A difference this large is unlikely | exit 1
+multiple-choice/same-5__older-ai-1.txt | On the 1000 questions in both results: fixed 102, broke 51, same | Your change helped. A difference this large is unlikely to be a | exit 0
+multiple-choice/same-5__worse.txt | On the 1000 questions in both results: fixed 36, broke 63, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-1__older-ai-1.txt | On the 817 questions in both results: fixed 41, broke 97, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-1__same-1-regrade.txt | On the 817 questions in both results: fixed 11, broke 10, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+truthfulness/same-1__same-2.txt | On the 817 questions in both results: fixed 36, broke 39, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-1__same-3.txt | On the 817 questions in both results: fixed 39, broke 33, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+truthfulness/same-1__same-4.txt | On the 817 questions in both results: fixed 39, broke 34, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+truthfulness/same-1__same-5.txt | On the 817 questions in both results: fixed 34, broke 43, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-1__small-a-1.txt | On the 817 questions in both results: fixed 37, broke 51, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-1__worse-2.txt | On the 817 questions in both results: fixed 55, broke 165, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-2__older-ai-1.txt | On the 817 questions in both results: fixed 47, broke 100, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-2__same-3.txt | On the 817 questions in both results: fixed 40, broke 31, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+truthfulness/same-2__same-4.txt | On the 817 questions in both results: fixed 38, broke 30, same | Can't tell yet. That leans toward better, but a split this small | exit 0
+truthfulness/same-2__same-5.txt | On the 817 questions in both results: fixed 37, broke 43, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-2__small-a-1.txt | On the 817 questions in both results: fixed 38, broke 49, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-2__worse-2.txt | On the 817 questions in both results: fixed 57, broke 164, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-3__older-ai-1.txt | On the 817 questions in both results: fixed 38, broke 100, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-3__same-4.txt | On the 817 questions in both results: fixed 34, broke 35, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-3__same-5.txt | On the 817 questions in both results: fixed 27, broke 42, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-3__small-a-1.txt | On the 817 questions in both results: fixed 36, broke 56, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-3__worse-2.txt | On the 817 questions in both results: fixed 47, broke 163, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-4__older-ai-1.txt | On the 817 questions in both results: fixed 45, broke 106, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-4__same-5.txt | On the 817 questions in both results: fixed 31, broke 45, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-4__small-a-1.txt | On the 817 questions in both results: fixed 33, broke 52, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-4__worse-2.txt | On the 817 questions in both results: fixed 52, broke 167, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-5__older-ai-1.txt | On the 817 questions in both results: fixed 53, broke 100, same | Your change made it worse. A difference this large is unlikely | exit 1
+truthfulness/same-5__small-a-1.txt | On the 817 questions in both results: fixed 45, broke 50, same | Can't tell yet. That leans toward worse. | exit 0
+truthfulness/same-5__worse-2.txt | On the 817 questions in both results: fixed 63, broke 164, same | Your change made it worse. A difference this large is unlikely | exit 1
