@@ -66,6 +66,7 @@ WIN = os.name == "nt"
 MARKER = ".made-by-install-check"  # only a folder holding this file is ever removed
 
 N = 50
+TABLE_COLUMNS = ("input", "output")  # the question and answer columns of the table's results.csv
 JUDGE_PASSES = frozenset(range(1, 29))  # the fake judge passes 1-28 and fails 29-50
 # The answers the stand-in person passes, by the result their 50 marks give: against the
 # judge on 29 only; on 47 (25 Pass, 25 Fail); on 29-40 (40 Pass, 10 Fail: under the 15 Fail
@@ -506,7 +507,7 @@ class Check:
 
     def make_table(self, rule: str, label: str):
         model = MODELS["own"] if rule == RULE_OLD else NEW_MODEL
-        lines = ["input,output,verdict,judge_model"]
+        lines = [",".join((*TABLE_COLUMNS, "verdict", "judge_model"))]
         for i in range(1, N + 1):
             q, a = quiz(i)
             lines.append(f'"{q}","{a}",{"pass" if i in JUDGE_PASSES else "fail"},{model}')
@@ -784,7 +785,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             head = answers.read_text(encoding="utf-8").splitlines()[:1]
         except OSError:
             head = []
-        self.step("2. marked-answers.csv holds the marked answers", head == ["question,answer"])
+        # A table's file has the results file's own column names; the other tools' has these.
+        want = ",".join(TABLE_COLUMNS) if self.tool == "table" else "question,answer"
+        self.step("2. marked-answers.csv holds the marked answers", head == [want])
 
     def summary(self) -> int:
         print("\n\n==================== SUMMARY ====================")

@@ -341,6 +341,15 @@ def test_install_check_runs_judgekeeper_as_a_person_not_as_ci():
     assert "self.env.pop(name, None)" in text.split(f'"{names[-1]}"):', 1)[1][:80]
 
 
+def test_install_check_expects_the_tables_own_columns_in_marked_answers():
+    """Since 1.2.0 a table's marked-answers.csv has the results file's own column names; the
+    other tools' has question,answer."""
+    text = (ROOT / "scripts" / "install_check.py").read_text(encoding="utf-8")
+    assert 'TABLE_COLUMNS = ("input", "output")' in text
+    assert 'head == ["question,answer"]' not in text
+    assert '",".join(TABLE_COLUMNS)' in text and '"question,answer"' in text
+
+
 def test_ci_builds_and_runs_the_installed_wheel_on_every_push():
     wf = _workflow("ci.yml")
     # every pull request, and every push to main: a pull request's push runs it once
