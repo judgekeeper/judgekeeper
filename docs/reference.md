@@ -337,7 +337,7 @@ judgekeeper's own format: one graded answer per JSONL line, written by you or by
 | field | meaning |
 |---|---|
 | `schema_version` | `2` now. Without it, version 1 (no `metadata`, `rule`, `trajectory`, `outcome`, `app_version`) |
-| `target_id` | the answer's id; else made from `input` and `output` (and `trajectory`) |
+| `target_id` | the answer's id; else made from `input` and `output` (and `trajectory`). A line with a `target_id` and no `input` or `output` is its own answer, found by its id |
 | `name` | the LLM-as-a-judge or criterion (default `LLM-as-a-judge`) |
 | `annotator_kind` | `LLM` (a grade, the default; `LLM_JUDGE` too), `HUMAN` (a label, used as a mark with `--labels`) or `CODE` (ignored) |
 | `label` | the grade, as in [How grades are read](#how-grades-are-read) |

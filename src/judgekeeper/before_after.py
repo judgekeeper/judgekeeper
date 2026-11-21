@@ -95,17 +95,24 @@ def grades_of(found: start.Found, numbers: bool = False) -> dict:
     key: [Pass or Fail of each of its answers]}, "ids": whether each is named by its own id}.
     Not the older results the pool may hold beside them. A question with no Pass or Fail
     grade is there with none. An id that is a plain number names a question only with
-    `numbers` (--before: the person chose both files); else its text does."""
+    `numbers` (--before: the person chose both files); else its text does. An answer with no
+    question text has only its id, so its id is kept."""
     from judgekeeper.project import plain_number
 
     newest = found.used[0] if found.used else None
     answers = [(a.case, a.input, a.verdict) for a in found.pool.answers if a.source == newest]
     answers += [(case, found.pool.left[i][1].input, None)  # no Pass or Fail grade
                 for i, (source, case) in found.pool.left_from.items() if source == newest]
-    answers = [(c if c is not None and (numbers or not plain_number(c)) else None, q, v)
-               for c, q, v in answers]
+    answers = [(c if c is not None and (numbers or not plain_number(c) or _blank(q)) else None,
+                q, v) for c, q, v in answers]
     return {"questions": _grades(answers),
             "ids": bool(answers) and all(case is not None for case, _, _ in answers)}
+
+
+def _blank(question) -> bool:
+    """Whether a question has no text to name it by."""
+    return question is None or (isinstance(question, str | list | dict) and not (
+        question.strip() if isinstance(question, str) else question))
 
 
 def _grades(answers) -> dict[str, list[str]]:
