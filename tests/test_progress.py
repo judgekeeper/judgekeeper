@@ -1,5 +1,5 @@
 """Reading a big results file says it is alive: after about 2 seconds, a line on stderr every
-few seconds ("Reading results.json (100,000 answers so far)..."), so a person or a coding agent
+few seconds ("Reading results.json (100,000 answers so far)…"), so a person or a coding agent
 sees the command is working. A quick read says nothing."""
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def test_a_slow_table_says_how_far_it_got(tmp_path, capsys, slow):
     main([str(tmp_path / "results.csv"), "--yes"])
     err = capsys.readouterr().err
     lines = [x for x in err.splitlines() if x.startswith("Reading results.csv (")]
-    assert lines and lines[0].endswith(" answers so far)...")
+    assert lines and lines[0].endswith(" answers so far)…")
     assert len(lines) < 20  # every few seconds, not every row
 
 

@@ -128,7 +128,7 @@ SCORE_READ = "Read the score column with your pass mark; the verdict column is n
 RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, so your marks "
              "still test it.")
 RAN_AGAIN_CHECKED = ("Your answers were graded again. Your LLM-as-a-judge is the one your last "
-                     "check re-tested, so your marks still test it.")
+                     "check re-checked, so your marks still test it.")
 RAN_AGAIN_KEPT = ("Your answers were graded again. Your LLM-as-a-judge is the one you had before "
                   "your last check, so your marks still test it.")  # that check found it worse
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
@@ -3827,7 +3827,7 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     elif not background.stop(ws.dir):
         talk.say("The marking page did not close.")
         raise talk.stop(EXIT_QUESTION, "close it with Ctrl-C in the terminal it runs in; else "
-                                       "it closes by itself after 30 minutes without a click.")
+                                       "it closes by itself after 30 minutes without use.")
     else:
         saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
         talk.say(f"Closed the marking page.{saved}")

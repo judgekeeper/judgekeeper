@@ -235,7 +235,7 @@ So with 100 marks, whether you get a verdict yet depends on which answers you we
 
 ## Limits
 
-- **One LLM-as-a-judge and one task:** GPT-4-0613, judging whether a response is a jailbreak. Other LLM-as-a-judge setups and tasks can behave differently.
+- **One LLM-as-a-judge and one task:** GPT-4-0613, grading whether a response is a jailbreak. Other LLM-as-a-judge setups and tasks can behave differently.
 - **Old grades:** the GPT-4 grades come from the paper's run. GPT-4 was not called again, so this checks judgekeeper's numbers, not today's GPT-4.
 - **The answers:** 300 in all, 200 jailbreak attempts and 100 harmless prompts the paper took from XSTest.
 - **The marks:** the experts' majority vote, entered by a script. A person marking by hand may mark differently. judgekeeper says so on every Measure screen here.
@@ -250,7 +250,7 @@ So with 100 marks, whether you get a verdict yet depends on which answers you we
 - **`ids-and-grades.csv`:** row id, GPT-4 grade, expert majority, and whether it was marked in the draw on `6437d85`. No text.
 - **`measure-round-1.txt`, `true-figures.json`:** the Measure screen of the draw's marks on 1.1.1, and the draw's figures with that run's result.
 - **`two-batches/`** (250 marks per draw): `draws.csv` (each draw's counts, ranges and inside yes/no), `summary.json` (the real values and the 20-draw result), and draw 1's Measure screens after batch 1 and after both batches.
-- **`report.html`:** judgekeeper's report page after 200 marks in the first run, with each prompt and response replaced by its row id. Its result line is judgekeeper 1.0.0's; on the same marks 1.1.0 says "too early to tell" (see "After 200 marks").
+- **`report.html`:** judgekeeper's report page after 200 marks in the first run, with each prompt and response replaced by its row id. Its result line is judgekeeper 1.0.0's; on the same marks 1.1.1 and later say "too early to tell" (see "After 200 marks").
 - **`first-run/`:** the first run's Measure screens and figures, made again on 1.1.1 from its marks, its report page after 100 marks, ids and grades, and the 20 repeat draws.
 
 Every CSV, text and JSON file here starts with the same header: the dataset, its revision, the subset and split, and where the grades come from. The report pages carry it as a comment.

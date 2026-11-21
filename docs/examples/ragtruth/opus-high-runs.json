@@ -3,7 +3,7 @@
   "dataset": "RAGTruth (github.com/ParticleMedia/RAGTruth), MIT license, Copyright (c) 2023 Particle Media",
   "revision": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
   "subset": "dataset/response.jsonl and source_info.jsonl, split test, task_type Summary",
-  "grades": "marks: the dataset's human labels; judge: Claude Opus 5.5 (anthropic:messages:claude-opus-5-5) with effort high set in the config, through promptfoo llm-rubric with rule.txt, 3 runs, 2026-10-30",
+  "grades": "marks: the dataset's human labels; LLM-as-a-judge: Claude Opus 5.5 (anthropic:messages:claude-opus-5-5) with effort high set in the config, through promptfoo llm-rubric with rule.txt, 3 runs, 2026-10-30",
   "text": "ids, grades and counts only; no article, summary or reason"
  },
  "judge": "opus-high",

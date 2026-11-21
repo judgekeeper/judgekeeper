@@ -16,29 +16,29 @@ judgekeeper's result, in all 12 runs: **needs work**. Across the three LLM-as-a-
 
 ## How often each LLM-as-a-judge agrees with people
 
-| LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | judgekeeper's result |
-|---|---|---|---|---|
-| Haiku 5.5, run 1 | 66% | 89% | 45 of 200 | needs work |
-| Haiku 5.5, run 2 | 66% | 89% | 45 of 200 | needs work |
-| Haiku 5.5, run 3 | 67% | 87% | 46 of 200 | needs work |
-| Sonnet 5.5, run 1 | 68% | 90% | 42 of 200 | needs work |
-| Sonnet 5.5, run 2 | 70% | 91% | 39 of 200 | needs work |
-| Sonnet 5.5, run 3 | 71% | 91% | 38 of 200 | needs work |
-| Opus 5.5 (effort high), run 1 | 58% | 94% | 48 of 200 | needs work |
-| Opus 5.5 (effort high), run 2 | 61% | 94% | 45 of 200 | needs work |
-| Opus 5.5 (effort high), run 3 | 62% | 94% | 44 of 200 | needs work |
+| LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | Kappa | judgekeeper's result |
+|---|---|---|---|---|---|
+| Haiku 5.5, run 1 | 66% | 89% | 45 of 200 | 0.55 | needs work |
+| Haiku 5.5, run 2 | 66% | 89% | 45 of 200 | 0.55 | needs work |
+| Haiku 5.5, run 3 | 67% | 87% | 46 of 200 | 0.54 | needs work |
+| Sonnet 5.5, run 1 | 68% | 90% | 42 of 200 | 0.58 | needs work |
+| Sonnet 5.5, run 2 | 70% | 91% | 39 of 200 | 0.61 | needs work |
+| Sonnet 5.5, run 3 | 71% | 91% | 38 of 200 | 0.62 | needs work |
+| Opus 5.5 (effort high), run 1 | 58% | 94% | 48 of 200 | 0.52 | needs work |
+| Opus 5.5 (effort high), run 2 | 61% | 94% | 45 of 200 | 0.55 | needs work |
+| Opus 5.5 (effort high), run 3 | 62% | 94% | 44 of 200 | 0.56 | needs work |
 
-The first two columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`). Opus's rows were added on 2026-10-30. Opus at its default effort is in a second table below.
+The first two columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`). Kappa is worked out here from the four counts on each run's Measure screen (both Pass, both Fail, and the two kinds of disagreement), because those older screens do not print it. Opus's rows were added on 2026-10-30. Opus at its default effort is in a second table below.
 
 **Asked again:** Haiku changed its grade on 19 of the 200 answers in at least one of its 3 runs. Sonnet changed it on 13. Opus (effort high) changed it on 6 (`opus-high-runs.json`).
 
 **Extra: Opus 5.5 at its default effort (medium)**, run first, before the like-for-like runs above:
 
-| LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | judgekeeper's result |
-|---|---|---|---|---|
-| Opus 5.5 (effort medium), run 1 | 61% | 94% | 45 of 200 | needs work |
-| Opus 5.5 (effort medium), run 2 | 58% | 93% | 49 of 200 | needs work |
-| Opus 5.5 (effort medium), run 3 | 58% | 92% | 50 of 200 | needs work |
+| LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | Kappa | judgekeeper's result |
+|---|---|---|---|---|---|
+| Opus 5.5 (effort medium), run 1 | 61% | 94% | 45 of 200 | 0.55 | needs work |
+| Opus 5.5 (effort medium), run 2 | 58% | 93% | 49 of 200 | 0.51 | needs work |
+| Opus 5.5 (effort medium), run 3 | 58% | 92% | 50 of 200 | 0.50 | needs work |
 
 At medium effort Opus changed its grade on 11 of the 200 answers (`opus-medium-runs.json`).
 
@@ -54,7 +54,7 @@ At medium effort Opus changed its grade on 11 of the 200 answers (`opus-medium-r
 
 - **The answers are old:** from 2023 models, in a public dataset since 2024, so the LLM-as-a-judge models may have seen them.
 - **News summaries only,** and one rule.
-- **Not the people's rule:** RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
+- **Not the people's rule:** RAGTruth's people labelled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
 - **The labels have a ceiling:** two annotators agreed on 91.8% of answers (the RAGTruth paper, arXiv:2401.00396, section 3.3, page 4).
 - **Pass and Fail answers come mostly from different models:** the Fails are mostly Mistral-7B and Llama-2.
 - **The answers aren't fully independent:** the 200 come from 113 articles.

@@ -15,12 +15,12 @@ judgekeeper's result, in both runs: **needs work**. For setups A and B, the shar
 
 ## How often each LLM-as-a-judge agrees with people
 
-| LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | judgekeeper's result |
-|---|---|---|---|---|
-| A (Haiku 5.5), run 1 | 61% | 95% | 44 of 200 | needs work |
-| B (Sonnet 5.5), run 1 | 58% | 97% | 45 of 200 | needs work |
+| LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | Kappa | judgekeeper's result |
+|---|---|---|---|---|---|
+| A (Haiku 5.5), run 1 | 61% | 95% | 44 of 200 | 0.56 | needs work |
+| B (Sonnet 5.5), run 1 | 58% | 97% | 45 of 200 | 0.55 | needs work |
 
-The first two columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`).
+The first two columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`). Kappa is worked out here from the four counts on each run's Measure screen (both Pass, both Fail, and the two kinds of disagreement), because those older screens do not print it.
 
 ## Does the news-summary pattern hold?
 
@@ -32,7 +32,7 @@ The news-summary check found two things: the setups failed most of what people f
 | This task | 61% | 95% | 58% | 97% |
 
 - **Failing what people failed holds.** On question answers the setups failed 95% and 97% of the answers people failed, a little more than on summaries.
-- **"About one in three good ones failed" does not hold exactly.** On question answers the setups failed about four in ten of the answers people passed (the Pass column is 61% and 58%), more than the roughly one in three on summaries. With one run each, this is a lean, not a difference we can state.
+- **"About one in three good ones failed" does not hold exactly.** On question answers the setups failed about four in ten of the answers people passed (the Pass column is 61% and 58%), more than the roughly one in three on summaries. With one run each, this is a lean, not a difference this run can state.
 - **Same result, same advice:** "needs work" in both runs, because many good answers were failed.
 
 ## Limits
@@ -40,7 +40,7 @@ The news-summary check found two things: the setups failed most of what people f
 - **One run each,** at temperature 1. In the news-summary check, the same setup's TPR moved by up to 4 points between runs, so small differences here mean little.
 - **The answers are old:** from 2023 models, in a public dataset since 2024, so the two LLM-as-a-judge models may have seen them.
 - **One kind of task and one rule.** Question answers here are short, and the passages are web text from MS MARCO.
-- **Not the people's rule:** RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
+- **Not the people's rule:** RAGTruth's people labelled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
 - **The labels are people's,** and people disagree with each other too.
 - **Pass and Fail answers come mostly from different models:** the Fails are mostly Llama-2 and Mistral-7B answers, while 39 of the 100 Passes come from the two GPT models and only 5 of the 100 Fails do (`sample-ids.json`).
 - **The answers aren't fully independent:** the 200 come from 104 questions.

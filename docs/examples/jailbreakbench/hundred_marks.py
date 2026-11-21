@@ -62,7 +62,7 @@ HEADER = [
      "JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team"),
     f"Revision: {load.REVISION}",
     "Subset: config judge_comparison, split test (data/judge-comparison.csv, 300 rows)",
-    ("Grades: judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority "
+    ("Grades: LLM-as-a-judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority "
      "column, the majority of three expert annotators (0 = Pass, 1 = Fail)"),
     "Holds: ids, grades and counts only; no prompt or response",
 ]

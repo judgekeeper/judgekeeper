@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "judgekeeper records, version 2",
-  "description": "One judged answer per JSON line: an LLM-as-a-judge's verdict (annotator_kind LLM), a person's label (HUMAN) or a code check (CODE). Field names follow OpenInference annotations. Only a verdict is needed in practice (label or score); every field is optional. Fields not listed here are allowed and kept. A record without schema_version is version 1, which has the same fields minus metadata, rule, trajectory, outcome and app_version.",
+  "description": "One graded answer per JSON line: an LLM-as-a-judge's verdict (annotator_kind LLM), a person's label (HUMAN) or a code check (CODE). Field names follow OpenInference annotations. Only a verdict is needed in practice (label or score); every field is optional. Fields not listed here are allowed and kept. A record without schema_version is version 1, which has the same fields minus metadata, rule, trajectory, outcome and app_version.",
   "type": "object",
   "properties": {
     "schema_version": {
@@ -21,7 +21,7 @@
       ]
     },
     "name": {
-      "description": "Which LLM-as-a-judge, metric or criterion. Default: judge.",
+      "description": "Which LLM-as-a-judge, metric or criterion. Default: LLM-as-a-judge.",
       "$ref": "#/$defs/text"
     },
     "annotator_kind": {
@@ -67,7 +67,7 @@
       "description": "The question or input, as text or any JSON."
     },
     "output": {
-      "description": "The answer that was judged, as text or any JSON."
+      "description": "The answer that was graded, as text or any JSON."
     },
     "evaluator": {
       "description": "The LLM-as-a-judge's identity. A string must hold this object as JSON (as a CSV cell does).",

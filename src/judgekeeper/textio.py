@@ -613,7 +613,7 @@ def reading(n: int, name: str | None = None) -> None:
                                                     and now - said < PROGRESS_EVERY):
         return
     _reading["said"] = now
-    print(f"Reading {name or last_read or 'your results'} ({n:,} answers so far)...",
+    print(f"Reading {name or last_read or 'your results'} ({n:,} answers so far)…",
           file=sys.stderr, flush=True)
 
 

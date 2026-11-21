@@ -473,7 +473,7 @@ class Talk:
 
     def looking(self, root: Path) -> None:
         """Say which folder is searched."""
-        self.say(f"Looking in {root} ...")
+        self.say(f"Looking in {root} …")
         self.say()
 
     def remember(self, flag: str, chosen: str, line: str | None = None) -> None:

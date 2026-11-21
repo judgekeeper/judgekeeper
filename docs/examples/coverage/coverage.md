@@ -2,7 +2,7 @@
 
 Written by `scripts/coverage_check.py`; do not edit by hand. How often a range holds the true value, in percent, and its average width (high end minus low end). A 95% range should hold it about 95 times in 100.
 
-Grid: the LLM-as-a-judge's pass share (pi) 50%, 70%, 90%; the chance an answer the LLM-as-a-judge passed is marked Pass (a) 0.6, 0.8, 0.95; the chance an answer it failed is marked Fail (w) 0.6, 0.8, 0.95; 10, 15, 25, 40 answers labeled in each group. 4,000 simulated checks per cell, fixed seed 20261008. Jeffreys ranges: 20,000 draws, seed 20261008. Checks where a number is unknown (TNR when every labeled answer is marked Pass, say) are left out of that number's coverage and counted.
+Grid: the LLM-as-a-judge's pass share (pi) 50%, 70%, 90%; the chance an answer the LLM-as-a-judge passed is marked Pass (a) 0.6, 0.8, 0.95; the chance an answer it failed is marked Fail (w) 0.6, 0.8, 0.95; 10, 15, 25, 40 answers labelled in each group. 4,000 simulated checks per cell, fixed seed 20261008. Jeffreys ranges: 20,000 draws, seed 20261008. Checks where a number is unknown (TNR when every labelled answer is marked Pass, say) are left out of that number's coverage and counted.
 
 ## `judgekeeper`: the level
 

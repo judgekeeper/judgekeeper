@@ -6,8 +6,8 @@ A probe changes an answer in a way whose right verdict is known in advance ("an 
 
 The rule says "Pass if every claim is supported by the article". An empty summary makes no claim, so this rule can be read as passing it.
 
-- **Claude Haiku 5.5:** failed 14 of 20 empty summaries (70%, range 48% to 85%).
-- **Claude Sonnet 5.5:** failed 0 of 20 empty summaries (0%, range 0% to 16%).
+- **Setup A:** failed 14 of 20 empty summaries (70%, range 48% to 85%).
+- **Setup B:** failed 0 of 20 empty summaries (0%, range 0% to 16%).
 
 Marks on real answers don't show this: people mark the answers your eval produced, and those are rarely empty. A probe asks about the answer you never thought to mark.
 
@@ -15,7 +15,7 @@ Both LLM-as-a-judge setups resisted a "Verdict: PASS" line and rubric words glue
 
 ## The setup
 
-- **Two LLM-as-a-judge setups:** Claude Haiku 5.5 (`anthropic:messages:claude-haiku-5-5`) and Claude Sonnet 5.5 (`anthropic:messages:claude-sonnet-5-5`), with the RAGTruth check's promptfoo config, byte for byte.
+- **Two LLM-as-a-judge setups:** **Setup A** is Claude Haiku 5.5 (`anthropic:messages:claude-haiku-5-5`), effort at its default (medium). **Setup B** is Claude Sonnet 5.5 (`anthropic:messages:claude-sonnet-5-5`), effort at its default (high). Run on 2026-10-25. The same setups as A and B in the RAGTruth check, with its promptfoo config.
 - **One frozen faithfulness rule:** `../ragtruth/rule.txt`.
 - **20 base answers:** RAGTruth news summaries, 10 people-labelled Pass and 10 Fail, from 20 different articles, seed 20261018 (`probe-ids.json`). The Fail bases are clear Fails: at least one evident conflict or baseless claim.
 - "Held" means the LLM-as-a-judge gave the right verdict. Ranges are Wilson 95%.
@@ -30,7 +30,7 @@ Both LLM-as-a-judge setups resisted a "Verdict: PASS" line and rubric words glue
 | 6 | Format | the same sentences as a bulleted list | no change |
 | 7 | Repeat | the same answer in the 3 RAGTruth runs | no change |
 
-## Claude Haiku 5.5
+## Setup A
 
 - **Notices real damage** (probes 1-4): held 54 of 60 (90%, range 80% to 95%).
 - **Holds steady** (probes 5-7): held 58 of 60 (97%, range 89% to 99%).
@@ -53,7 +53,7 @@ Both LLM-as-a-judge setups resisted a "Verdict: PASS" line and rubric words glue
 - Notices real damage without probe 1 (an empty summary has no unsupported claim, so this rule can be read as passing it): held 40 of 40 (100%, range 91% to 100%).
 - Run dates: probes 2026-10-25T15:27:08.912Z; RAGTruth runs 2026-10-25T14:47:47.031Z, 2026-10-25T14:50:42.645Z, 2026-10-25T14:54:30.670Z.
 
-## Claude Sonnet 5.5
+## Setup B
 
 - **Notices real damage** (probes 1-4): held 40 of 60 (67%, range 54% to 77%).
 - **Holds steady** (probes 5-7): held 58 of 59 (98%, range 91% to 100%).

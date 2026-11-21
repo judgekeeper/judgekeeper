@@ -661,7 +661,7 @@ def test_after_a_worse_check_the_judge_is_the_one_before_it(here, capsys, no_cal
     test is the one from before that check, not the one it re-tested."""
     _checked_outside(here, capsys, worse=True)
     out = flat(run(capsys)[1])
-    assert "the one your last check re-tested" not in out, out
+    assert "the one your last check re-checked" not in out, out
     assert ("Your answers were graded again. Your LLM-as-a-judge is the one you had before your "
             "last check, so your marks still test it.") in out, out
 

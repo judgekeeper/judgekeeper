@@ -111,7 +111,7 @@ def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = [v for v, _ in _released(text)]
     assert entries == [VERSION, "1.2.0", "1.1.2", "1.1.1", "1.1.0", "1.0.2", "1.0.1", "1.0.0"]  # the earlier ones are on PyPI
-    assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1): see the PyPI release history.")
+    assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1) are no longer on PyPI.")
 
 
 def test_the_lead_changelog_entry_has_its_release_date():

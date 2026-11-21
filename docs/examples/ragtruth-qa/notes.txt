@@ -3,10 +3,10 @@
 # Subset: dataset/response.jsonl and source_info.jsonl, split test, task_type QA
 # Grades: none: these are the notes of the run, not results
 # Holds: ids, grades and counts only; no passage, data, question or answer
-# Notes for the RAGTruth QA run (credit run B). Numbers only.
+# Notes for the RAGTruth QA run. Numbers only.
 
 Date: 2026-10-30 (UTC). judgekeeper 1.0.0, commit bfc3606. promptfoo 0.124.0.
-Judges: anthropic:messages:claude-haiku-5-5 and anthropic:messages:claude-sonnet-5-5 (the aliases; promptfoo does not save the model string the API returns). 1 run each.
+LLM-as-a-judge setups: anthropic:messages:claude-haiku-5-5 and anthropic:messages:claude-sonnet-5-5 (the aliases; promptfoo does not save the model string the API returns). 1 run each.
 Sample: sample-ids.json, written and committed before any run. Rule: rule.txt. Config: promptfooconfig.yaml with the provider filled in.
 Temperature: 1 (the API default). Cache off (--no-cache).
 Effort: not set in the config, so the API default: medium for Haiku 5.5, high for Sonnet 5.5 (the API documentation's defaults), the same as in ../ragtruth/.

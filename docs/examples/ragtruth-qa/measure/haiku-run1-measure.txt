@@ -1,7 +1,7 @@
 # Source: RAGTruth (github.com/ParticleMedia/RAGTruth), MIT license, Copyright (c) 2023 Particle Media
 # Revision: c103204b9ce28d6bbad859304bf30de72b8ed8fe
 # Subset: dataset/response.jsonl and source_info.jsonl, split test, task_type QA
-# Grades: marks: the dataset's human labels (Fail when the annotators marked at least one hallucination span, else Pass); judge: Claude Haiku 5.5 through promptfoo llm-rubric with rule.txt, API default effort (medium), 2026-10-30
+# Grades: marks: the dataset's human labels (Fail when the annotators marked at least one hallucination span, else Pass); LLM-as-a-judge: Claude Haiku 5.5 through promptfoo llm-rubric with rule.txt, API default effort (medium), 2026-10-30
 # Holds: ids, grades and counts only; no passage, data, question or answer
 # The screen below is judgekeeper's Measure output, copied exactly.
 

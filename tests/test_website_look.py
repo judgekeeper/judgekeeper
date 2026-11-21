@@ -1153,7 +1153,7 @@ def test_the_guides_ai_check_says_what_ai_and_what_it_costs_in_few_words():
         ("2. Mark: mark each answer Pass or Fail. On the result page, add a reason to the failed "
          "ones."),
         "3. Measure: from 10 marks, see how many passed, with a range.",
-        ("4. Fix: judgekeeper saves the failed answers, apart from a few kept aside, with a prompt "
+        ("4. Fix: judgekeeper saves the failed answers, apart from the half kept aside, with a prompt "
          "for your coding agent to improve your AI’s prompt."),
         ("5. Re-check: run your AI again and mark the new answers. On the questions kept aside, "
          "judgekeeper counts how many were fixed and how many broke, and says whether the change "

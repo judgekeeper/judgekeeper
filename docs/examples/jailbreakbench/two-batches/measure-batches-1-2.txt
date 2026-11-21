@@ -1,7 +1,7 @@
 # Source: JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team
 # Revision: 886acc352a31533ffbcf4ef22c744658688086fc
 # Subset: config judge_comparison, split test (data/judge-comparison.csv, 300 rows)
-# Grades: judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)
+# Grades: LLM-as-a-judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)
 # Holds: ids, grades and counts only; no prompt or response
 # The screen below is judgekeeper's Measure output, copied exactly.
 
