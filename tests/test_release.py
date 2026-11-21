@@ -325,6 +325,29 @@ def test_practice_release_installs_from_testpypi_on_three_systems():
         assert needed in steps, needed
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", " fix", " check"):
         assert key not in steps, key  # it never makes an AI call
+    # The page opens for a person, so that run clears the CI variables for its one command; a
+    # second run, with them set as GitHub sets them, opens no page and says so.
+    assert f"CI= GITHUB_ACTIONS= {uvx} --no-browser" in steps
+    assert f"CI=true GITHUB_ACTIONS=true {uvx} --no-browser" in steps
+    assert "opens no marking page in CI" in steps and "page.json" in steps
+
+
+def test_install_check_runs_judgekeeper_as_a_person_not_as_ci():
+    """judgekeeper prints the marking link only outside CI, and the runner's own CI variable
+    can't be cleared from a step's env, so the script drops them from its runs' environment."""
+    text = (ROOT / "scripts" / "install_check.py").read_text(encoding="utf-8")
+    names = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "BUILDKITE", "TF_BUILD", "JENKINS_URL")
+    assert "for name in (" + ", ".join(f'"{n}"' for n in names) + "):\n" in text
+    assert "self.env.pop(name, None)" in text.split(f'"{names[-1]}"):', 1)[1][:80]
+
+
+def test_install_check_expects_the_tables_own_columns_in_marked_answers():
+    """Since 1.2.0 a table's marked-answers.csv has the results file's own column names; the
+    other tools' has question,answer."""
+    text = (ROOT / "scripts" / "install_check.py").read_text(encoding="utf-8")
+    assert 'TABLE_COLUMNS = ("input", "output")' in text
+    assert 'head == ["question,answer"]' not in text
+    assert '",".join(TABLE_COLUMNS)' in text and '"question,answer"' in text
 
 
 def test_ci_builds_and_runs_the_installed_wheel_on_every_push():
