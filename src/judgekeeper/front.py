@@ -3106,7 +3106,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
         opened = page.open_new(ws, talk.options["port"], _flags_of(talk, saved, ws), here=wait,
                                say=talk.para, back=_back(talk, saved))
         shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait,
-                                     result)
+                                     result, ws.dir)
     except KeyboardInterrupt:  # before its link was printed: no page is left running
         page.close(ws, opened)
         raise

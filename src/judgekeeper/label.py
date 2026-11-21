@@ -226,6 +226,7 @@ def _json_for_html(data) -> str:
 ONLY_PAGE = "only the marking page in your browser can send this"
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
 LOCK_COPY = "page.json"  # the same, read when server.json is gone
+OPEN_FILE = "page-open.html"  # a local page that redirects to the page's link (page.py)
 MAX_LOCK = 64 * 1024  # bytes of a lock read: a real one is a few hundred
 ALREADY_OPEN = ("A marking page is already open for this project. Close it with Ctrl-C in "
                 "its terminal, or run `{program} --stop`.")
@@ -291,7 +292,7 @@ def own_lock(folder: Path) -> dict | None:
             and page_folder(port, lock["token"], wait=True) == project
             and ask(port, "GET", "/alive", {"stop": lock["stop"]}, wait=True) == 200):
         return lock
-    for name in (LOCK, LOCK_COPY):
+    for name in (LOCK, LOCK_COPY, OPEN_FILE):  # the redirect holds the dead page's token
         try:
             (Path(folder) / name).unlink()
         except OSError:
@@ -533,9 +534,21 @@ class LabelServer:
         """Remove the lock and its copy, each when it is still this server's."""
         if self.lock is None:
             return
-        for path in (self.lock, self.lock.with_name(LOCK_COPY)):
+        self._remove_open_file(self.lock.with_name(OPEN_FILE))  # first: the lock's going is
+        for path in (self.lock, self.lock.with_name(LOCK_COPY)):  # what `--stop` waits for
             self._remove(path)
         self.lock = None
+
+    def _remove_open_file(self, path: Path) -> None:
+        """Remove the redirect page a run opened this server's link with, when it holds this
+        server's token (a later server's file is its own). It could not be used after the
+        server stops anyway: the token dies with the server."""
+        try:
+            if path.is_symlink() or self.token not in path.read_text(encoding="utf-8"):
+                return
+            path.unlink()
+        except (OSError, ValueError):
+            pass
 
     def _remove(self, path: Path) -> None:
         """Remove `path` when it holds this server's stop secret. Windows refuses to delete a

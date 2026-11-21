@@ -36,6 +36,9 @@ def no_browser(monkeypatch):
     monkeypatch.delenv("BROWSER", raising=False)
     opened = []
     monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: opened.append(url) or True)
+    # the link itself is what the fake browser gets, whatever browser this machine has; a test
+    # of the redirect page (test_page_open_file.py) says otherwise
+    monkeypatch.setattr("judgekeeper.page.hands_url_to_program", lambda: False)
     return opened
 
 

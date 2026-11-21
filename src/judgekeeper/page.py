@@ -28,6 +28,7 @@ import time
 import webbrowser
 from contextlib import contextmanager
 from dataclasses import dataclass
+from html import escape
 from pathlib import Path
 
 from judgekeeper import background, keys, marks, start, start_label, textio
@@ -36,6 +37,7 @@ from judgekeeper.label import (
     HOST,
     LOCK,
     LOCK_COPY,
+    OPEN_FILE,
     LabelError,
     LabelServer,
     ask,
@@ -319,7 +321,67 @@ def terminal() -> bool:
     return output and _interactive()
 
 
-def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) -> str | None:
+# Browsers that python's webbrowser starts without the link in a command's arguments: macOS
+# (osascript reads its script on its input) and Windows (os.startfile). Any other, and any
+# program BROWSER names, gets the link as an argument, which every user of the machine can
+# read in the process list.
+NO_ARGUMENT = ("MacOSXOSAScript", "WindowsDefault")
+REDIRECT = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="refresh" content="0; url={url}">
+<title>judgekeeper</title>
+</head>
+<body>
+<p>Opening the marking page. If it does not open, <a href="{url}">use this link</a>.</p>
+</body>
+</html>
+"""
+
+
+def hands_url_to_program() -> bool:
+    """Whether webbrowser.open would give the link to a program as a command argument: the
+    first browser it would try is not one of NO_ARGUMENT. No browser at all is not."""
+    try:
+        browser = webbrowser.get()
+    except webbrowser.Error:
+        return False
+    return type(browser).__name__ not in NO_ARGUMENT
+
+
+def _redirect_to(folder: Path, url: str) -> str:
+    """Write .judgekeeper/page-open.html (owner-only, replaced when there is one) holding
+    nothing but a redirect to `url`; its file link. The page's token is in it, as in server.json:
+    the page removes the file when it stops (label.LabelServer.release), and the token dies
+    with the page. MarksError when the file is a link (nothing is written through it); OSError
+    when it can't be written."""
+    path = Path(folder) / OPEN_FILE
+    marks._refuse_links(path)
+    textio.write_replacing(path, REDIRECT.format(url=escape(url, quote=True)))
+    return path.absolute().as_uri()
+
+
+def _in_browser(url: str, folder: Path | None) -> bool:
+    """Open `url` in the browser. When the browser would get it as a command argument, it
+    gets the file link of a page that redirects to it instead (_redirect_to); where that file
+    can't be written or opened, the link itself, so the page still opens. A file that is a
+    link is not written through and the link is not handed to a program at all: False."""
+    if folder is not None and hands_url_to_program():
+        try:
+            file_url = _redirect_to(folder, url)
+        except marks.MarksError:
+            return False
+        except OSError:
+            file_url = None
+        if file_url is not None:
+            return webbrowser.open(file_url) or webbrowser.open(url)
+    return webbrowser.open(url)
+
+
+def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False,
+         folder: Path | None = None) -> str | None:
     """Open the page in the person's browser (BROWSER: nothing is said, the caller says it).
     When the BROWSER variable names the program that opens it, stamp the page's marks first.
     At a terminal, print the link when no browser opened (or it took more than SLOW_BROWSER
@@ -328,7 +390,8 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
     without one nothing is (KEPT), so its token stays out of the output.
     None when the marks could not be stamped: then the page is not opened, or the link not
     printed. `result`: the page is opened at its result page (every answer is marked: the
-    reason boxes are what is left)."""
+    reason boxes are what is left). `folder`: the project's .judgekeeper/, where a redirect
+    page is written when the browser would get the link as a command argument (_in_browser)."""
     at_terminal = terminal()
     url = page.result_url if result else page.url
     opens = not no_browser and not page.kept  # a tab only for a page this run started
@@ -337,7 +400,7 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
     began = _clock()
     if opens:
         say(OPENING_BROWSER)
-    in_browser = opens and webbrowser.open(url)
+    in_browser = opens and _in_browser(url, folder)
     if in_browser and _clock() - began > SLOW_BROWSER:  # it hung: the link is printed too
         in_browser = False
     if in_browser and not (at_terminal and wait):

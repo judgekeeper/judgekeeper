@@ -10,6 +10,7 @@
 - In a records file, a HUMAN label with only a `target_id` now takes its answer from the LLM-as-a-judge line with the same `target_id`, so labels exported by other tools in the records format import. The labels can be in a file of their own (a records file with only HUMAN lines, in the project folder or in `.judgekeeper/records/`, or named with `--labels FILE`), and a label with no name labels the one LLM-as-a-judge the grades hold. A label for an answer that is not in your results is skipped, and labels for another name than your LLM-as-a-judge's are said, with how many.
 - On the marking page, a mark from a tab whose card was already marked in another tab is no longer saved over it: the page says so and loads the list again. An Undo click made while a mark is saving now waits for the save, as the Z key does. A press that sends no click event now counts as a click.
 - A CSV whose answers have amounts such as `$50,000` is now read, not refused with "has a quote that never closes". A bare number in a file whose rows hold grade words is no longer taken as a grade.
+- On a machine with other users, the link to your marking page is no longer in the command line that starts your browser: where the browser would get it as an argument (the program in `BROWSER`, `xdg-open` on Linux), it opens a small file in `.judgekeeper/` that goes on to the page. The file is for you only and is removed when the page stops. The link printed in the terminal is the same.
 
 ## 1.2.0 (2026-11-16)
 
