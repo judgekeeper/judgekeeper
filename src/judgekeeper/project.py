@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -413,6 +414,8 @@ def same_questions(path: Path, tool: str | None, held: list, answers: bool = Fal
     if not rows or len(rows) >= table.MAX_ROWS:  # none or only the first rows read
         return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
+    if not answers and shares_cases(held, records):
+        return True  # its own test cases, whatever text was put into each question
     if (shared := shares_questions(held, rows)) is not None:
         return shared
     ids = {str(a.get("id")) for a in held}
@@ -440,6 +443,52 @@ def shares_questions(held: list, rows: list) -> bool | None:
     return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
 
 
+def plain_number(case) -> bool:
+    """Whether a test-case id is a plain number (a row number, Inspect AI's own numbering of
+    samples): two evals have the same ones, so it never says two questions are one."""
+    return re.fullmatch(r"[0-9]+", str(case).strip()) is not None
+
+
+def shares_cases(held: list, records, numbers: bool = False) -> bool:
+    """Whether the results `records` keep the test-case ids of `held` (dicts with the "case"
+    a file's own id names, start._names_cases): half of the smaller side's ids are in both,
+    as before_after matches questions. Ids that are plain numbers count only with `numbers`.
+    False when either side has none: compared by text."""
+    from judgekeeper import start
+
+    def counted(case) -> bool:
+        return bool(case) and (numbers or not plain_number(case))
+
+    ours = {str(a["case"]) for a in held if counted(a.get("case"))}
+    if not ours or not start._names_cases(records):
+        return False
+    theirs = {str(r.target_id) for r in records if counted(r.target_id)}
+    return bool(theirs) and 2 * len(ours & theirs) >= min(len(ours), len(theirs))
+
+
+def numbered_ids_kept(store: Path, path: Path) -> bool:
+    """Whether the results file `path`, another eval by its text (rewritten), keeps the ids of
+    the answers the session in `store` marks, and they are plain numbers: the same questions
+    rewritten, or another eval numbered the same way, which no one can tell apart here."""
+    import json
+
+    from judgekeeper import find, start
+    from judgekeeper.records import RecordsError
+
+    ws = Workspace(store)
+    try:
+        held = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()
+                if line.strip()]
+        kind = find.classify_file(path)
+        records = start._read(find.Result(kind, path, path.name, path.stat().st_size),
+                              False).records
+    except (OSError, ValueError, TypeError, AttributeError, RecursionError, RecordsError,
+            start.StartError, *start.UNREADABLE):
+        return False
+    held = [a for a in held if isinstance(a, dict)]
+    return shares_cases(held, records, numbers=True) and not shares_cases(held, records)
+
+
 def one_eval(first: Path, second: Path) -> bool:
     """Whether two results files are rounds of one eval: `second` shares questions with
     `first` as same_questions counts them. A file it can't read is never called another eval
@@ -458,7 +507,9 @@ def one_eval(first: Path, second: Path) -> bool:
     except (OSError, ValueError, TypeError, AttributeError, RecordsError, start.StartError,
             *start.UNREADABLE):
         return True
-    held = [{"input": r.input, "output": r.output} for r in records]
+    cases = start._names_cases(records)
+    held = [{"input": r.input, "output": r.output,
+             "case": str(r.target_id) if cases and r.target_id else None} for r in records]
     return same_questions(second, kind, held)
 
 

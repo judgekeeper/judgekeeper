@@ -280,7 +280,8 @@ def add(ws, found) -> int:
     queue = [{**q, "batch": batch} for q in build_queue(named, seed)]
     by_id = {a.id: a for a in named}
     rows = _scrubbed([{"id": q["id"], "input": by_id[q["id"]].input,
-                       "output": by_id[q["id"]].output, **by_id[q["id"]].agent, "batch": batch}
+                       "output": by_id[q["id"]].output, **by_id[q["id"]].agent,
+                       **({"case": c} if (c := by_id[q["id"]].case) else {}), "batch": batch}
                       for q in queue])
     pool = rows + old_rows
     write_replacing(ws.pool, "".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pool))

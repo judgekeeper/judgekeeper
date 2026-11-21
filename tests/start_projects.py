@@ -47,9 +47,10 @@ def _write_json(path: Path, data) -> Path:
 def promptfoo_data(verdicts, model: str | None = MODEL, rubric: str = RUBRIC,
                    metric: str | None = None, created: str | None = "2026-10-03T14:12:00.000Z",
                    description: str | None = "support bot", tag: str = "",
-                   outputs=None) -> dict:
+                   outputs=None, cases: str = "t") -> dict:
     """A promptfoo results file: the fixture's first row, once per verdict, with only the
-    llm-rubric component. `model` None leaves the grader out (promptfoo's default grader)."""
+    llm-rubric component. `model` None leaves the grader out (promptfoo's default grader).
+    Each test's description, its own id, is `cases` and its number."""
     base = json.loads(PROMPTFOO.read_text(encoding="utf-8"))
     row0 = base["results"]["results"][0]
     rows = []
@@ -58,7 +59,7 @@ def promptfoo_data(verdicts, model: str | None = MODEL, rubric: str = RUBRIC,
         row["id"], row["testIdx"] = f"row-{i}", i
         qvars = {"question": question(i, tag)}
         row["vars"] = qvars
-        row["testCase"] = {"description": f"t{i}", "vars": qvars, "assert": [],
+        row["testCase"] = {"description": f"{cases}{i}", "vars": qvars, "assert": [],
                            "options": ({"provider": {"id": model, "config": {"temperature": 0}}}
                                        if model else {})}
         row["response"] = {"output": answer(i, tag) if outputs is None else outputs[i]}
@@ -89,22 +90,24 @@ def promptfoo_project(root: Path, verdicts, name: str = "results.json", config: 
     return _write_json(root / name, promptfoo_data(verdicts, **kwargs))
 
 
-def deepeval_data(verdicts, model: str = "gpt-4.1", tag: str = "", start: int = 0) -> dict:
-    """A DeepEval test run: the fixture's first case and its GEval metric, once per verdict."""
+def deepeval_data(verdicts, model: str = "gpt-4.1", tag: str = "", start: int = 0,
+                  cases: str = "case-") -> dict:
+    """A DeepEval test run: the fixture's first case and its GEval metric, once per verdict.
+    Each case's name, its own id, is `cases` and its number."""
     base = json.loads(DEEPEVAL.read_text(encoding="utf-8"))
     case0 = base["testCases"][0]
-    cases = []
+    out = []
     for n, v in enumerate(verdicts):
         i = start + n
         case = copy.deepcopy(case0)
-        case.update(name=f"case-{i}", input=question(i, tag), actualOutput=answer(i, tag),
+        case.update(name=f"{cases}{i}", input=question(i, tag), actualOutput=answer(i, tag),
                     success=v)
         metric = copy.deepcopy(case0["metricsData"][0])
         metric.update(success=v, score=0.9 if v else 0.1, evaluationModel=model,
                       reason=f"reason {i}")
         case["metricsData"] = [metric]
-        cases.append(case)
-    return {**base, "testFile": "test_support.py", "testCases": cases,
+        out.append(case)
+    return {**base, "testFile": "test_support.py", "testCases": out,
             "conversationalTestCases": []}
 
 

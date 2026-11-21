@@ -295,7 +295,7 @@ def test_other_promptfoo_files_are_named_before_any_mark(here, capsys):
     now = time.time()
     for age, (name, tag) in enumerate([("other.json", " OTHER"), ("results-regraded.json", ""),
                                        ("results.json", "")]):
-        data = promptfoo_data(split(20, 16), tag=tag)
+        data = promptfoo_data(split(20, 16), tag=tag, cases="other-" if tag else "t")
         data["evalId"] = f"eval-{age}"
         _write(here / name, data)
         os.utime(here / name, (now - 3600 * age,) * 2)
