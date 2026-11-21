@@ -833,6 +833,8 @@ def report_section(ws: Workspace, m: Marks | None = None) -> dict | None:
     buttons. Never a hidden mark. None when there is none. A split.json that can't be used
     can't say which marks are kept aside: no mistake and `split_unknown`. `m`: the marks,
     when the caller has them (Marks(ws))."""
+    from judgekeeper.start_label import answer_or_id
+
     try:
         m = m if m is not None else Marks(ws)
     except (OSError, ValueError, KeyError):
@@ -852,7 +854,8 @@ def report_section(ws: Workspace, m: Marks | None = None) -> dict | None:
 
     return {"mistakes": [{"id": r["id"], "judge": r["judge"], "final": r["final"],
                           "question": _question(m, r), "fields": _fields(m, r),
-                          "answer": reasons.canonical(r["output"]),
+                          "answer": reasons.canonical(
+                              answer_or_id(m.rows.get(r["id"], {}), r["id"])),
                           "reason": r["reason"], "why": why(r)}
                          for r in wrong],
             "parts": m.parts, "left_out": reasons.parts_left_out(m.data),

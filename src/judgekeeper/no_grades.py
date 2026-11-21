@@ -325,7 +325,7 @@ def section(ws, r: dict, session=None) -> dict | None:
     order (r["fails"]), each as fix.report_section gives a mistake (no LLM-as-a-judge grade
     or reason), the person's own buttons and the results file; with a comparison (compare),
     it and the shown answers that broke, as the mistakes are. None before a result."""
-    from judgekeeper.start_label import StartSession, shown_question
+    from judgekeeper.start_label import StartSession, answer_or_id, shown_question
 
     if r.get("check") != "result":
         return None
@@ -347,7 +347,7 @@ def section(ws, r: dict, session=None) -> dict | None:
             fields = kept if len(kept) > 1 else None
         why = reasons.of_line(m.last.get(i) if m else None)
         return {"id": i, "judge": None, "final": "fail", "question": shown,
-                "fields": fields, "answer": reasons.canonical(raw.get("output")),
+                "fields": fields, "answer": reasons.canonical(answer_or_id(raw, i)),
                 "reason": "", "why": {"reasons": why["reasons"], "note": why["note"],
                                       "rule_parts": [], "spans": why["spans"]}}
 
@@ -1751,6 +1751,8 @@ def _to_id_column(ws, found) -> None:
 
     moved = {}
     for a in found.pool.answers:
+        if a.input in (None, "") and a.output in (None, ""):  # an id alone: no text to move from
+            continue
         old = derive_record_id(a.input, a.output)
         if old != a.id:
             moved[old] = a.id

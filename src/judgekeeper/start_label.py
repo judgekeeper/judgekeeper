@@ -515,6 +515,15 @@ def display(value) -> str:
     return chat if chat is not None else json.dumps(value, ensure_ascii=False, indent=2)
 
 
+def answer_or_id(raw: dict, item_id: str) -> str:
+    """The answer as the pages show it; for an answer with no question, no answer text and no
+    steps (a records line with only an id), its id, so each card tells itself apart."""
+    output = display(raw.get("output"))
+    if output.strip() or display(raw.get("input")).strip() or raw.get("trajectory"):
+        return output
+    return f"id: {item_id}"
+
+
 # A chat message's part that is not text, as the page names it (one, several)
 NOT_TEXT = {"image": ("image", "images"), "audio": ("audio clip", "audio clips"),
             "video": ("video", "videos"), "document": ("document", "documents")}
@@ -1096,7 +1105,7 @@ class StartSession(LabelSession):
         raw = self.raw[i["id"]]
         return {"id": i["id"], "input": shown_question(self.workspace, raw.get("input"),
                                                        raw.get("output")),
-                "output": display(raw.get("output")), "label": i["label"],
+                "output": answer_or_id(raw, i["id"]), "label": i["label"],
                 "skipped": i["deferred"],
                 **({"run": self.runs[i["id"]]} if i["id"] in self.runs else {})}
 
