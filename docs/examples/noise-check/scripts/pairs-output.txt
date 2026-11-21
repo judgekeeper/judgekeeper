@@ -1,0 +1,112 @@
+== math
+older-ai-1: 92.4% pass of 1319
+same-1: 80.5% pass of 1319
+same-2: 80.6% pass of 1319
+same-3: 80.8% pass of 1319
+same-4: 80.0% pass of 1319
+same-5: 79.9% pass of 1319
+small-a-1: 85.0% pass of 1319
+worse: 59.3% pass of 1319
+same-1 -> same-2: n=1319 fixed=59 broke=58 flips=117 points=+0.1 leans better
+same-1 -> same-3: n=1319 fixed=62 broke=58 flips=120 points=+0.3 leans better
+same-1 -> same-4: n=1319 fixed=56 broke=63 flips=119 points=-0.5 leans worse
+same-1 -> same-5: n=1319 fixed=55 broke=63 flips=118 points=-0.6 leans worse
+same-2 -> same-3: n=1319 fixed=71 broke=68 flips=139 points=+0.2 leans better
+same-2 -> same-4: n=1319 fixed=65 broke=73 flips=138 points=-0.6 leans worse
+same-2 -> same-5: n=1319 fixed=59 broke=68 flips=127 points=-0.7 leans worse
+same-3 -> same-4: n=1319 fixed=59 broke=70 flips=129 points=-0.8 leans worse
+same-3 -> same-5: n=1319 fixed=56 broke=68 flips=124 points=-0.9 leans worse
+same-4 -> same-5: n=1319 fixed=62 broke=63 flips=125 points=-0.1 leans worse
+no-change flips: 117 to 139 of 1319
+average of the 5 no-change runs: 80.36%
+worse against that average: -21.08 points
+small-a-1 against that average: +4.62 points
+older-ai-1 against that average: +12.05 points
+same-1 -> worse: n=1319 fixed=68 broke=348 points=-21.2 worse
+same-2 -> worse: n=1319 fixed=64 broke=345 points=-21.3 worse
+same-3 -> worse: n=1319 fixed=65 broke=349 points=-21.5 worse
+same-4 -> worse: n=1319 fixed=73 broke=346 points=-20.7 worse
+same-5 -> worse: n=1319 fixed=71 broke=343 points=-20.6 worse
+same-1 -> small-a-1: n=1319 fixed=115 broke=56 points=+4.5 helped
+same-2 -> small-a-1: n=1319 fixed=110 broke=52 points=+4.4 helped
+same-3 -> small-a-1: n=1319 fixed=108 broke=53 points=+4.2 helped
+same-4 -> small-a-1: n=1319 fixed=125 broke=59 points=+5.0 helped
+same-5 -> small-a-1: n=1319 fixed=120 broke=53 points=+5.1 helped
+same-1 -> older-ai-1: n=1319 fixed=208 broke=51 points=+11.9 helped
+same-2 -> older-ai-1: n=1319 fixed=209 broke=53 points=+11.8 helped
+same-3 -> older-ai-1: n=1319 fixed=200 broke=47 points=+11.6 helped
+same-4 -> older-ai-1: n=1319 fixed=215 broke=51 points=+12.4 helped
+same-5 -> older-ai-1: n=1319 fixed=216 broke=51 points=+12.5 helped
+== truthfulness
+older-ai-1: 74.5% pass of 817
+same-1-regrade: 81.5% pass of 817
+same-1: 81.4% pass of 817
+same-2: 81.0% pass of 817
+same-3: 82.1% pass of 817
+same-4: 82.0% pass of 817
+same-5: 80.3% pass of 817
+small-a-1: 79.7% pass of 817
+worse-2: 67.9% pass of 817
+same-1 -> same-2: n=817 fixed=36 broke=39 flips=75 points=-0.4 leans worse
+same-1 -> same-3: n=817 fixed=39 broke=33 flips=72 points=+0.7 leans better
+same-1 -> same-4: n=817 fixed=39 broke=34 flips=73 points=+0.6 leans better
+same-1 -> same-5: n=817 fixed=34 broke=43 flips=77 points=-1.1 leans worse
+same-2 -> same-3: n=817 fixed=40 broke=31 flips=71 points=+1.1 leans better
+same-2 -> same-4: n=817 fixed=38 broke=30 flips=68 points=+1.0 leans better
+same-2 -> same-5: n=817 fixed=37 broke=43 flips=80 points=-0.7 leans worse
+same-3 -> same-4: n=817 fixed=34 broke=35 flips=69 points=-0.1 leans worse
+same-3 -> same-5: n=817 fixed=27 broke=42 flips=69 points=-1.8 leans worse
+same-4 -> same-5: n=817 fixed=31 broke=45 flips=76 points=-1.7 leans worse
+no-change flips: 68 to 80 of 817
+average of the 5 no-change runs: 81.37%
+worse-2 against that average: -13.44 points
+small-a-1 against that average: -1.69 points
+older-ai-1 against that average: -6.83 points
+same-1 -> worse-2: n=817 fixed=55 broke=165 points=-13.5 worse
+same-2 -> worse-2: n=817 fixed=57 broke=164 points=-13.1 worse
+same-3 -> worse-2: n=817 fixed=47 broke=163 points=-14.2 worse
+same-4 -> worse-2: n=817 fixed=52 broke=167 points=-14.1 worse
+same-5 -> worse-2: n=817 fixed=63 broke=164 points=-12.4 worse
+same-1 -> small-a-1: n=817 fixed=37 broke=51 points=-1.7 leans worse
+same-2 -> small-a-1: n=817 fixed=38 broke=49 points=-1.3 leans worse
+same-3 -> small-a-1: n=817 fixed=36 broke=56 points=-2.4 worse
+same-4 -> small-a-1: n=817 fixed=33 broke=52 points=-2.3 leans worse
+same-5 -> small-a-1: n=817 fixed=45 broke=50 points=-0.6 leans worse
+same-1 -> older-ai-1: n=817 fixed=41 broke=97 points=-6.9 worse
+same-2 -> older-ai-1: n=817 fixed=47 broke=100 points=-6.5 worse
+same-3 -> older-ai-1: n=817 fixed=38 broke=100 points=-7.6 worse
+same-4 -> older-ai-1: n=817 fixed=45 broke=106 points=-7.5 worse
+same-5 -> older-ai-1: n=817 fixed=53 broke=100 points=-5.8 worse
+same-1 -> same-1-regrade: n=817 fixed=11 broke=10 points=+0.1 leans better
+== multiple-choice
+older-ai-1: 85.2% pass of 1000
+same-1: 80.4% pass of 1000
+same-2: 79.7% pass of 1000
+same-3: 81.0% pass of 1000
+same-4: 80.6% pass of 1000
+same-5: 80.1% pass of 1000
+worse: 77.4% pass of 1000
+same-1 -> same-2: n=1000 fixed=14 broke=21 flips=35 points=-0.7 leans worse
+same-1 -> same-3: n=1000 fixed=24 broke=18 flips=42 points=+0.6 leans better
+same-1 -> same-4: n=1000 fixed=28 broke=26 flips=54 points=+0.2 leans better
+same-1 -> same-5: n=1000 fixed=19 broke=22 flips=41 points=-0.3 leans worse
+same-2 -> same-3: n=1000 fixed=27 broke=14 flips=41 points=+1.3 leans better
+same-2 -> same-4: n=1000 fixed=27 broke=18 flips=45 points=+0.9 leans better
+same-2 -> same-5: n=1000 fixed=21 broke=17 flips=38 points=+0.4 leans better
+same-3 -> same-4: n=1000 fixed=22 broke=26 flips=48 points=-0.4 leans worse
+same-3 -> same-5: n=1000 fixed=20 broke=29 flips=49 points=-0.9 leans worse
+same-4 -> same-5: n=1000 fixed=16 broke=21 flips=37 points=-0.5 leans worse
+no-change flips: 35 to 54 of 1000
+average of the 5 no-change runs: 80.36%
+worse against that average: -2.96 points
+older-ai-1 against that average: +4.84 points
+same-1 -> worse: n=1000 fixed=34 broke=64 points=-3.0 worse
+same-2 -> worse: n=1000 fixed=36 broke=59 points=-2.3 worse
+same-3 -> worse: n=1000 fixed=33 broke=69 points=-3.6 worse
+same-4 -> worse: n=1000 fixed=31 broke=63 points=-3.2 worse
+same-5 -> worse: n=1000 fixed=36 broke=63 points=-2.7 worse
+same-1 -> older-ai-1: n=1000 fixed=97 broke=49 points=+4.8 helped
+same-2 -> older-ai-1: n=1000 fixed=104 broke=49 points=+5.5 helped
+same-3 -> older-ai-1: n=1000 fixed=95 broke=53 points=+4.2 helped
+same-4 -> older-ai-1: n=1000 fixed=95 broke=49 points=+4.6 helped
+same-5 -> older-ai-1: n=1000 fixed=102 broke=51 points=+5.1 helped
