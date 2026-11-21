@@ -617,10 +617,14 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
             return bool(own_ids and not records.ids_derived and r.target_id)
 
         def key_of(r) -> str:
-            return str(r.target_id) if own(r) else derive_record_id(r.input, r.output,
-                                                                    r.trajectory)
+            # a line with only the file's own id and no text is its own answer, by its id
+            return str(r.target_id) if own(r) or text_free(r) else derive_record_id(
+                r.input, r.output, r.trajectory)
 
         cases = _names_cases(records)
+
+        def named(r, cases=cases) -> bool:  # Answer.case: the id names the answer's test case
+            return bool(r.target_id) and (cases or text_free(r))
 
         extra = records.per_metric.get(metric, {})
         threshold = None if extra.get("strict_mode") else extra.get("threshold")
@@ -668,8 +672,7 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
             if not judged:
                 r = seen[0][0]
                 pool.left[key] = (seen[0][2], r)
-                pool.left_from[key] = (source, str(r.target_id) if cases and r.target_id
-                                       else None)
+                pool.left_from[key] = (source, str(r.target_id) if named(r) else None)
                 continue
             passes = sum(v.verdict == "pass" for _, v in judged)
             pool.n_results += len(judged)
@@ -689,7 +692,7 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                     reason=v.rationale or r.explanation or "", score=score,
                     fingerprint=make_fingerprint(_known(r.evaluator), r.created_at),
                     source=source, agent=r.agent(), mark=r.mark, pass_mark=pass_mark,
-                    pass_op=pass_op, case=str(r.target_id) if cases and r.target_id else None)
+                    pass_op=pass_op, case=str(r.target_id) if named(r) else None)
     pool.answers = list(chosen.values())
     for target, value, name in pending:
         keys = pool.by_target.get(target, ())
@@ -2130,7 +2133,8 @@ def _judges(records, kind: str | None = None) -> Counter:
     grades: dict[tuple, list] = {}
     for r in records:
         if r.annotator_kind == LLM:
-            key = (r.name, r.target_id if r.target_id and not getattr(records, "ids_derived", True)
+            key = (r.name, r.target_id if r.target_id and (
+                not getattr(records, "ids_derived", True) or text_free(r))
                    else derive_record_id(r.input, r.output, r.trajectory))
             grades.setdefault(key, []).append(r.label)
     counts: Counter = Counter()
