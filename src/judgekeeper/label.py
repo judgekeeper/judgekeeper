@@ -58,6 +58,8 @@ DEFAULT_PORT = 8765
 IDLE_TIMEOUT = 30 * 60  # seconds
 # Seconds one connection may stay silent (a browser's spare one) before it is dropped.
 CONNECTION_TIMEOUT = 5
+# Seconds a one-time code (GET /?code=, see LabelServer.take_code) opens the page for
+CODE_LIFE = 120
 MAX_BODY = 1_000_000
 MAX_DRAIN = 64_000_000  # a body over MAX_BODY is read and dropped up to this, then 413
 MAX_CONNECTIONS = 32
@@ -226,7 +228,6 @@ def _json_for_html(data) -> str:
 ONLY_PAGE = "only the marking page in your browser can send this"
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
 LOCK_COPY = "page.json"  # the same, read when server.json is gone
-OPEN_FILE = "page-open.html"  # a local page that redirects to the page's link (page.py)
 MAX_LOCK = 64 * 1024  # bytes of a lock read: a real one is a few hundred
 ALREADY_OPEN = ("A marking page is already open for this project. Close it with Ctrl-C in "
                 "its terminal, or run `{program} --stop`.")
@@ -292,7 +293,7 @@ def own_lock(folder: Path) -> dict | None:
             and page_folder(port, lock["token"], wait=True) == project
             and ask(port, "GET", "/alive", {"stop": lock["stop"]}, wait=True) == 200):
         return lock
-    for name in (LOCK, LOCK_COPY, OPEN_FILE):  # the redirect holds the dead page's token
+    for name in (LOCK, LOCK_COPY):
         try:
             (Path(folder) / name).unlink()
         except OSError:
@@ -488,7 +489,8 @@ class _HTTPServer(ThreadingHTTPServer):
 
 class LabelServer:
     def __init__(self, session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
-                 page: str, stays: bool = False, token: str | None = None):
+                 page: str, stays: bool = False, token: str | None = None,
+                 code: str | None = None):
         self.session = session
         self.stays = stays  # never stops by itself after the result
         # (session, link back to the labeling page) -> the result page (HTML), for GET /result
@@ -497,6 +499,12 @@ class LabelServer:
         self.done_at: float | None = None
         self.token = token or secrets.token_urlsafe(32)
         self.stop_secret = secrets.token_urlsafe(32)  # closes the page; can't read or mark
+        # A one-time code the browser's launcher gets in place of the token, so the token is
+        # not in a command line other users can read. Not the token, not derived from it, and
+        # in memory only: never in the lock, a file or the log.
+        self.code = code
+        self.clock = time.monotonic  # a test sets another
+        self.code_until = self.clock() + CODE_LIFE
         self.httpd = _HTTPServer((HOST, port), _handler(self))
         self.httpd.timeout = 0.2
         self.host = HOST
@@ -534,21 +542,9 @@ class LabelServer:
         """Remove the lock and its copy, each when it is still this server's."""
         if self.lock is None:
             return
-        self._remove_open_file(self.lock.with_name(OPEN_FILE))  # first: the lock's going is
-        for path in (self.lock, self.lock.with_name(LOCK_COPY)):  # what `--stop` waits for
+        for path in (self.lock, self.lock.with_name(LOCK_COPY)):
             self._remove(path)
         self.lock = None
-
-    def _remove_open_file(self, path: Path) -> None:
-        """Remove the redirect page a run opened this server's link with, when it holds this
-        server's token (a later server's file is its own). It could not be used after the
-        server stops anyway: the token dies with the server."""
-        try:
-            if path.is_symlink() or self.token not in path.read_text(encoding="utf-8"):
-                return
-            path.unlink()
-        except (OSError, ValueError):
-            pass
 
     def _remove(self, path: Path) -> None:
         """Remove `path` when it holds this server's stop secret. Windows refuses to delete a
@@ -586,6 +582,21 @@ class LabelServer:
 
     def stop(self) -> None:
         self._stopped = True
+        self.code = None
+
+    def take_code(self, given: str) -> bool:
+        """Whether `given` is the page's one-time code, still alive; then it is used up. A
+        wrong one uses nothing up."""
+        code = self.code
+        if code is None:
+            return False
+        if self.clock() > self.code_until:
+            self.code = None
+            return False
+        if not hmac.compare_digest(given.encode(), code.encode()):
+            return False
+        self.code = None
+        return True
 
     @property
     def stopped(self) -> bool:
@@ -674,6 +685,13 @@ def _handler(server: LabelServer):
             if url.path == "/project" and self.command == "GET" and hmac.compare_digest(
                     query.get("proof", [""])[0].encode(), proof(server.token).encode()):
                 return True  # the lock check (own_lock)
+            code = query.get("code", [""])[0]
+            if code and self.command == "GET" and url.path in ("/", "/result") \
+                    and server.take_code(code):  # the launcher's one visit: on to the token
+                server.last_request = time.monotonic()
+                self._send(303, b"", "text/plain; charset=utf-8",
+                           {"Location": f"{url.path}?token={server.token}"})
+                return False
             token = query.get("token", [""])[0]
             if hmac.compare_digest(token.encode(), server.token.encode()):
                 server.last_request = time.monotonic()
@@ -926,13 +944,14 @@ def _handler(server: LabelServer):
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                 page: str, lock: Path | None = None, stays: bool = False,
                 token: str | None = None, settings: dict | None = None,
-                asked: int | None = None, no_browser: bool | None = None) -> LabelServer:
+                asked: int | None = None, no_browser: bool | None = None,
+                code: str | None = None) -> LabelServer:
     """A server for `session`, or a LabelError that says why there cannot be one. With `lock`
     (the project's .judgekeeper/), one server per project: when its page is already open,
     that is the error; else this server holds the lock until it stops. Two pages on one
     project would each write their marks over the other's. `token`: the one its caller made
     (default: a new one); `settings`, `asked` (the port the run asked for) and `no_browser`
-    (it was given --no-browser): kept in the lock."""
+    (it was given --no-browser): kept in the lock. `code`: the one-time code (take_code)."""
     if lock is not None and is_open(lock):
         from judgekeeper.textio import program
 
@@ -943,7 +962,7 @@ def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
         raise LabelError(unwritable)
     try:
         server = LabelServer(session, port, result=result, page=page, stays=stays,
-                             token=token)
+                             token=token, code=code)
     except OSError as e:
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
     server.asked, server.no_browser = asked, no_browser

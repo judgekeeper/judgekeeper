@@ -28,7 +28,6 @@ import time
 import webbrowser
 from contextlib import contextmanager
 from dataclasses import dataclass
-from html import escape
 from pathlib import Path
 
 from judgekeeper import background, keys, marks, start, start_label, textio
@@ -37,7 +36,6 @@ from judgekeeper.label import (
     HOST,
     LOCK,
     LOCK_COPY,
-    OPEN_FILE,
     LabelError,
     LabelServer,
     ask,
@@ -131,14 +129,16 @@ def _same_flags(old: dict | None, key: dict) -> bool:
 
 
 def page_server(ws: Workspace, port: int, flags: dict | None = None,
-                token: str | None = None, stamp: str | None = None, back: dict | None = None):
+                token: str | None = None, stamp: str | None = None, back: dict | None = None,
+                code: str | None = None):
     """The marking page: marking, and the result. Every click is a stamped
     line in marks.jsonl. It holds the project's lock and stays open after the result, until
     /stop, Ctrl-C or 30 minutes idle. `flags` (start.run_flags, of the run that opened it):
     the result keeps them, and `judgekeeper mark` with them is how to come back to it.
     `token`: the one the command made (default: a new one). `stamp`: how the page with the
     same token was stamped before (marks.LINKS), so its marks are stamped so. `back`: how
-    to come back as typed where it was started (start.saved_back), for its footer."""
+    to come back as typed where it was started (start.saved_back), for its footer. `code`: the
+    one-time code the browser may be given in place of the token (label.LabelServer.take_code)."""
     session = marking_session(ws, start.command_from(flags, kept=True))
     if stamp in marks.LINKS:
         session.link = stamp
@@ -151,15 +151,16 @@ def page_server(ws: Workspace, port: int, flags: dict | None = None,
     server = make_server(session, port, result=result, page=template, lock=ws.dir,
                          stays=True, token=token, settings=page_key(ws, flags),
                          asked=start.saved_flags(flags).get("port", DEFAULT_PORT),
-                         no_browser=bool(start.saved_flags(flags).get("no_browser")))
+                         no_browser=bool(start.saved_flags(flags).get("no_browser")),
+                         code=code)
     server.taken_back = lambda session: start_label.result_again(ws, session, flags)
     return server
 
 
-def server_for(ws: Workspace, settings: dict, token: str):
+def server_for(ws: Workspace, settings: dict, token: str, code: str | None = None):
     """The marking page `settings` ask for."""
     return page_server(ws, int(settings["port"]), settings.get("flags"), token=token,
-                       stamp=settings.get("link"), back=settings.get("back"))
+                       stamp=settings.get("link"), back=settings.get("back"), code=code)
 
 
 @dataclass
@@ -169,6 +170,16 @@ class Page:
     token: str
     server: LabelServer | None = None  # served by this process (--wait)
     kept: bool = False  # the page that was open already: this run did not start it
+    code: str | None = None  # the one-time code its server takes in place of the token
+
+    def browser_url(self, result: bool = False) -> str:
+        """The link a browser's launcher gets: with the one-time code in place of the token
+        when the launcher would take it as a command argument (hands_url_to_program), so the
+        token is not in a command line other users can read."""
+        url = self.result_url if result else self.url
+        if self.code and hands_url_to_program():
+            return url.replace(f"?token={self.token}", f"?code={self.code}", 1)
+        return url
 
     @property
     def result_url(self) -> str:
@@ -188,6 +199,7 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
     with one_at_a_time(ws.dir, say):
         old = live_lock(ws.dir)
         token = old["token"] if old else secrets.token_urlsafe(32)
+        code = secrets.token_urlsafe(32)  # not the token, not made from it
         if (old is not None and not here
                 and old["settings"] == page_key(ws, flags)):
             return Page(link(old["port"], token), old["port"], token, kept=True)
@@ -205,13 +217,13 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
             try:
                 if here:
                     server = page_server(ws, port, flags, token=token, stamp=stamp,
-                                         back=back)
-                    return Page(server.url, server.port, server.token, server)
+                                         back=back, code=code)
+                    return Page(server.url, server.port, server.token, server, code=code)
                 settings = {"root": str(ws.root.resolve()), "port": port, "flags": flags,
                             "link": stamp, "python_m": textio.started_with_python_m(),
                             "program": textio.program_in(ws.root),  # its lines: from there
                             "back": back}
-                url = background.start(ws.dir, settings, token)
+                url = background.start(ws.dir, settings, token, code=code)
             except LabelError:
                 url = None
                 if not picked or port_free(port):
@@ -223,7 +235,7 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
         return None
     from urllib.parse import urlsplit
 
-    return Page(url, urlsplit(url).port, token)
+    return Page(url, urlsplit(url).port, token, code=code)
 
 
 # A mark this many seconds in the future is another run's, on a clock a little ahead (a
@@ -326,19 +338,6 @@ def terminal() -> bool:
 # program BROWSER names, gets the link as an argument, which every user of the machine can
 # read in the process list.
 NO_ARGUMENT = ("MacOSXOSAScript", "WindowsDefault")
-REDIRECT = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="referrer" content="no-referrer">
-<meta http-equiv="refresh" content="0; url={url}">
-<title>judgekeeper</title>
-</head>
-<body>
-<p>Opening the marking page. If it does not open, <a href="{url}">use this link</a>.</p>
-</body>
-</html>
-"""
 
 
 def hands_url_to_program() -> bool:
@@ -351,37 +350,7 @@ def hands_url_to_program() -> bool:
     return type(browser).__name__ not in NO_ARGUMENT
 
 
-def _redirect_to(folder: Path, url: str) -> str:
-    """Write .judgekeeper/page-open.html (owner-only, replaced when there is one) holding
-    nothing but a redirect to `url`; its file link. The page's token is in it, as in server.json:
-    the page removes the file when it stops (label.LabelServer.release), and the token dies
-    with the page. MarksError when the file is a link (nothing is written through it); OSError
-    when it can't be written."""
-    path = Path(folder) / OPEN_FILE
-    marks._refuse_links(path)
-    textio.write_replacing(path, REDIRECT.format(url=escape(url, quote=True)))
-    return path.absolute().as_uri()
-
-
-def _in_browser(url: str, folder: Path | None) -> bool:
-    """Open `url` in the browser. When the browser would get it as a command argument, it
-    gets the file link of a page that redirects to it instead (_redirect_to); where that file
-    can't be written or opened, the link itself, so the page still opens. A file that is a
-    link is not written through and the link is not handed to a program at all: False."""
-    if folder is not None and hands_url_to_program():
-        try:
-            file_url = _redirect_to(folder, url)
-        except marks.MarksError:
-            return False
-        except OSError:
-            file_url = None
-        if file_url is not None:
-            return webbrowser.open(file_url) or webbrowser.open(url)
-    return webbrowser.open(url)
-
-
-def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False,
-         folder: Path | None = None) -> str | None:
+def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) -> str | None:
     """Open the page in the person's browser (BROWSER: nothing is said, the caller says it).
     When the BROWSER variable names the program that opens it, stamp the page's marks first.
     At a terminal, print the link when no browser opened (or it took more than SLOW_BROWSER
@@ -390,8 +359,7 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False,
     without one nothing is (KEPT), so its token stays out of the output.
     None when the marks could not be stamped: then the page is not opened, or the link not
     printed. `result`: the page is opened at its result page (every answer is marked: the
-    reason boxes are what is left). `folder`: the project's .judgekeeper/, where a redirect
-    page is written when the browser would get the link as a command argument (_in_browser)."""
+    reason boxes are what is left)."""
     at_terminal = terminal()
     url = page.result_url if result else page.url
     opens = not no_browser and not page.kept  # a tab only for a page this run started
@@ -400,7 +368,7 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False,
     began = _clock()
     if opens:
         say(OPENING_BROWSER)
-    in_browser = opens and _in_browser(url, folder)
+    in_browser = opens and webbrowser.open(page.browser_url(result))
     if in_browser and _clock() - began > SLOW_BROWSER:  # it hung: the link is printed too
         in_browser = False
     if in_browser and not (at_terminal and wait):
@@ -454,6 +422,8 @@ def main() -> int:
     try:
         given = json.loads(sys.stdin.readline())
         token, root = str(given["token"]), Path(given["root"])
+        code = given.get("code")
+        code = code if isinstance(code, str) and len(code) >= 32 else None
         settings = {"port": int(given["port"]), "flags": dict(given["flags"]),
                     "link": given.get("link"), "back": start.saved_back(given.get("back"))}
         textio._python_m = given.get("python_m") is True  # its commands say `python3 -P -m`
@@ -478,7 +448,7 @@ def main() -> int:
     for where in dict.fromkeys((root, results if results.is_dir() else results.parent)):
         keys.hide_keys(where, [where / rel for rel in start._promptfoo_configs(where)])
     try:
-        server = server_for(Workspace(root), settings, token)
+        server = server_for(Workspace(root), settings, token, code)
     except (LabelError, OSError) as e:
         faulthandler.cancel_dump_traceback_later()
         print(f"judgekeeper: {e}", file=sys.stderr)

@@ -187,7 +187,7 @@ def test_the_page_hides_the_keys_in_the_projects_env_files(here, monkeypatch):
     given = {"token": "t" * 40, "root": str(here), "port": 0, "flags": {}}
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(given) + "\n"))
     monkeypatch.setattr(page, "_watch", lambda: None)
-    monkeypatch.setattr(page, "server_for", lambda ws, settings, token: None)
+    monkeypatch.setattr(page, "server_for", lambda ws, settings, token, code=None: None)
     monkeypatch.setattr(page, "serve", lambda server: None)
     assert page.main() == 0
     assert redact.scrub(f"note {LOCAL} {STAGING}") == f"note {redact.REDACTED} {redact.REDACTED}"
