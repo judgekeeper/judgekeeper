@@ -49,8 +49,9 @@ def test_new_results_with_no_question_never_stand_in_for_marked_answers(here, ca
     capsys.readouterr()
     new = _yes_no(here / "new.json", set())
     data = json.loads(new.read_text(encoding="utf-8"))
-    for row in data["results"]["results"]:
+    for i, row in enumerate(data["results"]["results"]):
         row["vars"] = row["testCase"]["vars"] = {}
+        row["testCase"]["description"] = f"new-{i}"  # another eval's tests
         row["prompt"] = {"raw": prompt, "label": prompt} if prompt else None
     new.write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys, "check", new.name)

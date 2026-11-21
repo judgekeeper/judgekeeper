@@ -532,6 +532,7 @@ class Pool:
     # id -> (repeats, passes, fails)
     split: dict = field(default_factory=dict)
     left: dict = field(default_factory=dict)  # answer id: (judge_check kind, its record)
+    left_from: dict = field(default_factory=dict)  # answer id left: (its file, Answer.case)
     unread: set = field(default_factory=set)  # answers whose grades no label map reads yet
 
     @property
@@ -642,7 +643,10 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                 pool.n_merged += len(judged)
                 continue
             if not judged:
-                pool.left[key] = (seen[0][2], seen[0][0])
+                r = seen[0][0]
+                pool.left[key] = (seen[0][2], r)
+                pool.left_from[key] = (source, str(r.target_id) if cases and r.target_id
+                                       else None)
                 continue
             passes = sum(v.verdict == "pass" for _, v in judged)
             pool.n_results += len(judged)

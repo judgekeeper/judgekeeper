@@ -243,11 +243,11 @@ def _chat(verdicts, tag: str) -> dict:
 BESIDE = {  # tool: (the session's file, the file beside it, a writer of one)
     "promptfoo": ("a.json", "b.json",
                   lambda path, tag: promptfoo_project(path.parent, split(20, 16), name=path.name,
-                                                      config=False, tag=tag)),
+                                                      config=False, tag=tag, cases=f"{tag}-")),
     "inspect": ("a.json", "b.json", lambda path, tag: _write_json(path, _chat(split(20, 16), tag))),
     "deepeval": ("test_run_20261001_143217.json", "test_run_20261002_143217.json",
                  lambda path, tag: deepeval_project(path.parent, split(20, 16), name=path.name,
-                                                    tag=tag)),
+                                                    tag=tag, cases=f"{tag}-")),
 }
 
 
@@ -296,13 +296,13 @@ def _with_shared(tag: str, verdicts=None, outputs_tag: str | None = None) -> dic
     outputs = [*SHARED, *(answer(i, tag if outputs_tag is None else outputs_tag)
                           for i in range(2, 36))]
     return promptfoo_data(split(20, 16) if verdicts is None else verdicts, tag=tag,
-                          outputs=outputs)
+                          outputs=outputs, cases=f"{tag}-")
 
 
 def _more_questions() -> dict:
     """The 36 marked questions, as marked, then 100 new ones: the eval run on more questions."""
     outputs = [*SHARED, *(answer(i, "one") for i in range(2, 136))]
-    return promptfoo_data(split(68, 68), tag="one", outputs=outputs)
+    return promptfoo_data(split(68, 68), tag="one", outputs=outputs, cases="one-")
 
 
 @pytest.mark.parametrize("second", ["other questions", "graded again", "new answers",

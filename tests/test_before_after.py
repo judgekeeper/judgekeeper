@@ -37,8 +37,16 @@ LEANS_WORSE = "Can't tell yet. That leans toward worse."
 SAME = "Can't tell yet. Before and after look about the same."
 COUNTED = "Counted from the grades in your results, not from your marks."
 NEXT_WORSE = "Next: fix what broke or undo your change, then run your eval again."
-NO_MATCH = ("No question is in both results, so there is nothing to compare. Give each "
-            "question an id that stays the same from run to run.")
+NO_MATCH = "No question is in both results, so there is nothing to compare."
+NO_MATCH_NEXT = ("Next: give each question an id that stays the same from run to run (such as "
+                 "an `id` column), then run your eval again.")
+RESTARTED = ("Your LLM-as-a-judge setup changed since the last results, so there is nothing to "
+             "compare yet. This run is the new starting point.")
+OTHER_SETUP = ("The two results were graded by different LLM-as-a-judge setups (the model, rule "
+               "or pass mark changed), so judgekeeper does not compare them.")
+OTHER_SETUP_NEXT = "Next: compare results graded by the same LLM-as-a-judge setup."
+NO_MATCH_IDS_NEXT = ("Next: check that you compare results of the same eval: the two share no "
+                     "question id.")
 
 
 @pytest.fixture
@@ -273,10 +281,10 @@ def test_the_verdict_is_change_kind_with_one_test(here, capsys):
 # What is compared ----------------------------------------------------------------------------
 
 def test_with_fewer_than_five_questions_in_both_it_never_exits_1(here, capsys):
-    before = rows_csv(here / "results.csv", qs(0, 30, True))
-    said(capsys, before)
+    """With --before: so few shared questions in place would be another eval."""
+    rows_csv(here / "before.csv", qs(0, 30, True))
     rows_csv(here / "results.csv", qs(26, 56, False))  # questions 26 to 29 are in both
-    code, out = said(capsys, here / "results.csv")
+    code, out = said(capsys, "results.csv", "--before", "before.csv")
     assert code != 1, out
     assert counts(0, 4, 0) in flat(out)
     assert LEANS_WORSE in flat(out)
@@ -350,10 +358,9 @@ def test_amounts_with_thousands_separators_are_compared(here, capsys):
 
 def test_a_question_is_the_same_when_only_its_spaces_differ(here, capsys):
     """no_grades.question_key: runs of spaces and line breaks read as one space."""
-    before = rows_csv(here / "results.csv", qs(0, 40, True))
-    said(capsys, before)
-    rows_csv(before, [(q.replace(" ", "  "), a, False) for q, a, _ in qs(0, 40, True)])
-    code, out = said(capsys, before)
+    rows_csv(here / "before.csv", qs(0, 40, True))
+    rows_csv(here / "results.csv", [(q.replace(" ", "  "), a, False) for q, a, _ in qs(0, 40, True)])
+    code, out = said(capsys, "results.csv", "--before", "before.csv")
     assert code == 1, out
     assert counts(0, 40, 0) in flat(out)
 
@@ -394,17 +401,44 @@ def test_two_test_cases_with_the_same_text_are_two_questions(here, capsys):
     assert code == 1
 
 
-def test_results_with_no_question_in_both_say_so_in_one_line_and_no_verdict(here, capsys):
-    path = rows_csv(here / "results.csv", qs(0, 40, True))
+def _no_question_in_both(here, capsys):
+    """An Inspect AI log written again with other samples: the same eval, no question kept."""
+    from tests.start_projects import inspect_data
+
+    path = OWN_IDS["inspect"](here, ALL_PASS)
     said(capsys, path)
-    rows_csv(path, qs(100, 140, False))
-    code, out = said(capsys, path)
-    assert code != 1, out
-    assert NO_MATCH in flat(out)
+    data = inspect_data(MADE_WORSE)
+    for i, s in enumerate(data["samples"]):
+        s.update(id=f"other-{i}", input=f"Other thing {i}?")
+    (here / path).write_text(json.dumps(data), encoding="utf-8")
+    return said(capsys, path)
+
+
+def test_results_with_no_question_in_both_say_so_in_one_line_and_no_verdict(here, capsys):
+    code, out = _no_question_in_both(here, capsys)
+    assert NO_MATCH in flat(out), out
+    assert code == 3
     assert "only one of the two results" not in flat(out)
     assert "On the" not in flat(out).replace("On the page", "")
     assert not any(line in flat(out) for line in no_grades.CHANGE.values())
     assert COUNTED not in out
+
+
+def test_no_question_in_both_needs_you_so_a_pipeline_stops(here, capsys):
+    """A bot broken so badly that no question is the same must not pass a gate: exit 3."""
+    code, out = _no_question_in_both(here, capsys)
+    assert code == 3, out
+    assert flat(out).endswith(f"{NO_MATCH} {NO_MATCH_IDS_NEXT}")  # both name their samples
+
+
+def test_before_with_no_question_in_both_needs_you(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    rows_csv(tmp_path / "main-results.csv", qs(0, 40, True))
+    rows_csv(tmp_path / "results.csv", qs(100, 140, False))
+    code, out = said(capsys, "results.csv", "--before", "main-results.csv")
+    assert code == 3, out
+    assert NO_MATCH in flat(out)
+    assert next_lines(out)[-1] == NO_MATCH_NEXT
 
 
 # A question is its own test-case id, for every format that keeps one ------------------------
@@ -432,10 +466,22 @@ def _records(root, verdicts, tag=""):
     return "."  # found in the project, not given by path
 
 
+def _inspect_named(root, verdicts, tag=""):
+    """An Inspect AI log whose samples have ids of their own, not plain numbers."""
+    from tests.start_projects import inspect_data
+
+    data = inspect_data(verdicts, tag=tag)
+    for i, s in enumerate(data["samples"]):
+        s["id"] = f"sample-{i}"
+    path = root / "logs" / "support.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return "logs/support.json"
+
+
 OWN_IDS = {  # each keeps its own id while the prompt written into every question changes
     "promptfoo": lambda root, v, tag="": promptfoo_project(root, v, tag=tag).name,
-    "inspect": lambda root, v, tag="": inspect_project(
-        root, v, name="logs/support.json", tag=tag).relative_to(root).as_posix(),
+    "inspect": lambda root, v, tag="": _inspect_named(root, v, tag),
     "deepeval": _deepeval,
     "records": _records,
 }
@@ -486,6 +532,141 @@ def test_marks_stay_on_their_answers_for_a_file_with_its_own_ids(here, capsys):
     again = StartSession(Workspace(here))
     assert set(again.marked()) == marked
     assert not marked & {str(i) for i in range(40)}  # not the sample ids
+
+
+# The same eval when its test cases keep their ids ---------------------------------------------
+
+ANOTHER_EVAL = "looks like another eval"
+
+
+def _ids_csv(root, verdicts, tag=""):
+    return ids_csv(root / "results.csv", [(f"case-{i}", f"Question {i}?{tag}", f"Answer {i}.",
+                                           v) for i, v in enumerate(verdicts)]).name
+
+
+def _other_promptfoo(root, verdicts):
+    """A promptfoo file of another eval: other tests, with other descriptions."""
+    from tests.start_projects import promptfoo_data
+
+    data = promptfoo_data(verdicts, tag=" Other eval.")
+    for i, row in enumerate(data["results"]["results"]):
+        row["testCase"]["description"] = f"other {i}"
+        row["vars"] = row["testCase"]["vars"] = {"question": f"Other thing {i}?"}
+    (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def _other_csv(root, verdicts):
+    ids_csv(root / "results.csv", [(f"other-{i}", f"Other thing {i}?", f"Answer {i}.", v)
+                                   for i, v in enumerate(verdicts)])
+
+
+BY_ID = {"csv": _ids_csv, **OWN_IDS}
+
+
+@pytest.mark.parametrize("tool", BY_ID)
+def test_kept_ids_with_a_new_prompt_are_the_same_eval(here, capsys, tool):
+    """The same text put before every question, the ids kept: the newest results of this
+    eval, so its changed answers are added for marking and the run ends on one comparison."""
+    path = BY_ID[tool](here, ALL_PASS)
+    said(capsys, path)
+    BY_ID[tool](here, MADE_WORSE, tag=" Prompt v2.")
+    code, out = said(capsys, path)
+    assert code == 1, out
+    assert ANOTHER_EVAL not in flat(out) and "folder of its own" not in flat(out)
+    assert counts(0, 12, 28) in flat(out)
+    assert flat(out).count(WORSE) == 1
+    assert next_lines(out)[-1] == NEXT_WORSE
+
+
+@pytest.mark.parametrize("tool", ["csv", "promptfoo", "inspect"])
+def test_kept_ids_add_the_changed_answers_for_marking(here, capsys, tool):
+    path = BY_ID[tool](here, ALL_PASS)
+    said(capsys, path)
+    BY_ID[tool](here, ALL_PASS, tag=" Prompt v2.")
+    code, out = said(capsys, path)
+    assert ANOTHER_EVAL not in flat(out), out
+    assert "Your newest results have 40 answers you haven't seen. They're added for marking." \
+        in flat(out)
+    assert code != 1
+
+
+OTHER = {"csv": (_ids_csv, _other_csv), "promptfoo": (OWN_IDS["promptfoo"], _other_promptfoo)}
+
+
+@pytest.mark.parametrize("tool", OTHER)
+def test_a_file_of_another_eval_with_other_ids_is_still_another_eval(here, capsys, tool):
+    first, other = OTHER[tool]
+    path = first(here, ALL_PASS)
+    said(capsys, path)
+    other(here, MADE_WORSE)
+    code, out = said(capsys, path)
+    assert ANOTHER_EVAL in flat(out), out
+    assert code == 3
+
+
+# Ids that are plain numbers: row numbers, Inspect AI's own numbering -----------------------------
+
+NUMBERED_IDS = ("The questions changed and their ids are plain numbers, so judgekeeper can't "
+                "tell they are the same questions.")
+
+
+def _numbered(root, verdicts, tag=""):
+    return ids_csv(root / "results.csv", [(str(i + 1), f"Question {i}?{tag}", f"Answer {i}.", v)
+                                          for i, v in enumerate(verdicts)]).name
+
+
+@pytest.mark.parametrize("ci", [False, True])
+def test_numbered_ids_with_a_new_prompt_say_so_and_compare_nothing(here, capsys, monkeypatch,
+                                                                    ci):
+    if ci:
+        monkeypatch.setenv("CI", "true")
+    path = _numbered(here, ALL_PASS)
+    said(capsys, path)
+    pool = (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8")
+    _numbered(here, MADE_WORSE, tag=" Prompt v2.")
+    code, out = said(capsys, path)
+    assert code == 3, out
+    assert NUMBERED_IDS in flat(out)
+    assert next_lines(out) == [("Next: run `judgekeeper results.csv --before FILE`, with your "
+                               "earlier results as FILE, to compare them, or put results.csv in a "
+                               "folder of its own to mark it.")]
+    assert new_lines(out) == [] and WORSE not in flat(out) and NO_MATCH not in flat(out)
+    assert (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8") == pool
+
+
+def test_an_unrelated_eval_with_numbered_ids_is_never_pooled(here, capsys):
+    path = _numbered(here, ALL_PASS)
+    said(capsys, path)
+    pool = (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8")
+    ids_csv(here / "results.csv", [(str(i + 1), f"Other thing {i}?", f"Other answer {i}.", True)
+                                   for i in range(40)])
+    code, out = said(capsys, path)
+    assert ANOTHER_EVAL in flat(out), out
+    assert "added for marking" not in flat(out) and new_lines(out) == []
+    assert code == 3
+    assert (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8") == pool
+
+
+def test_before_matches_numbered_ids(tmp_path, monkeypatch, capsys):
+    """The person chose both files: a plain-number id is the same question there."""
+    monkeypatch.chdir(tmp_path)
+    ids_csv(tmp_path / "main-results.csv",
+            [(str(i + 1), f"Question {i}?", f"Answer {i}.", True) for i in range(40)])
+    ids_csv(tmp_path / "results.csv", [(str(i + 1), f"Prompt v2. Question {i}?", f"Answer {i}.",
+                                        v) for i, v in enumerate(MADE_WORSE)])
+    code, out = said(capsys, "results.csv", "--before", "main-results.csv")
+    assert counts(0, 12, 28) in flat(out), out
+    assert code == 1
+
+
+def test_a_few_ids_kept_with_other_text_is_still_another_eval(here, capsys):
+    path = _ids_csv(here, ALL_PASS)
+    said(capsys, path)
+    ids_csv(here / "results.csv", [(f"case-{i}" if i < 5 else f"new-{i}", f"Other thing {i}?",
+                                    f"Answer {i}.", True) for i in range(40)])
+    code, out = said(capsys, path)
+    assert ANOTHER_EVAL in flat(out), out
+    assert code == 3
 
 
 # The baseline ---------------------------------------------------------------------------------
@@ -619,6 +800,29 @@ def test_another_judge_model_is_not_compared_with_the_last_one(here, capsys):
     assert new_lines(out) == [] and WORSE not in flat(out)
 
 
+@pytest.mark.parametrize("change", ["model", "pass mark"])
+def test_a_changed_setup_says_this_run_is_the_new_starting_point(here, capsys, change):
+    """Said where the comparison would be, with no Next of its own, once."""
+    flags = ["--no-browser", "--port", "0"]
+    if change == "model":
+        path = table_project(here, ALL_PASS, name="results.csv", model="judge-a")
+        said(capsys, path, *flags)
+        table_project(here, MADE_WORSE, name="results.csv", model="judge-b")
+    else:
+        path = _scores(here / "results.csv", [0.55] * 12 + [0.9] * 28)
+        said(capsys, path, "--pass-if", "score>=0.5", *flags)
+        flags += ["--pass-if", "score>=0.6"]
+    main(["--stop"])
+    capsys.readouterr()
+    code, out = said(capsys, path, *flags)
+    main(["--stop"])
+    assert flat(out).endswith(RESTARTED), out
+    assert code != 1
+    code, out = said(capsys, path, *flags)
+    main(["--stop"])
+    assert RESTARTED not in flat(out), out
+
+
 def test_a_baseline_changed_by_hand_is_not_used(here, capsys):
     path = _table(here, ALL_PASS)
     said(capsys, path)
@@ -683,6 +887,140 @@ def test_before_reads_with_the_same_judge_of_these_results(tmp_path, monkeypatch
     code, out = said(capsys, "results.csv", "--before", "main.csv", "--pass-if", "score>=0.5")
     assert code == 1, out
     assert counts(0, 12, 28) in flat(out)
+
+
+def test_before_refuses_results_graded_by_another_rule(tmp_path, monkeypatch, capsys):
+    """Only the promptfoo llm-rubric changed: the grades moved with the rule, not your AI."""
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, ALL_PASS, name="main-results.json", rubric="Is short.")
+    promptfoo_project(tmp_path, MADE_WORSE, name="results.json")
+    code, out = said(capsys, "results.json", "--before", "main-results.json")
+    assert code == 3, out
+    assert OTHER_SETUP in flat(out)
+    assert next_lines(out)[-1] == OTHER_SETUP_NEXT
+    assert WORSE not in flat(out) and new_lines(out) == []
+
+
+def test_before_refuses_results_graded_by_another_model(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    table_project(tmp_path, ALL_PASS, name="main-results.csv", model="judge-a")
+    table_project(tmp_path, MADE_WORSE, name="results.csv", model="judge-b")
+    code, out = said(capsys, "results.csv", "--before", "main-results.csv")
+    assert code == 3, out
+    assert OTHER_SETUP in flat(out) and new_lines(out) == []
+
+
+def test_before_compares_when_one_side_names_no_judge(tmp_path, monkeypatch, capsys):
+    """No judge information on one side: nothing to tell them apart by, compared as before."""
+    monkeypatch.chdir(tmp_path)
+    table_project(tmp_path, ALL_PASS, name="main-results.csv")
+    table_project(tmp_path, MADE_WORSE, name="results.csv", model="judge-b")
+    code, out = said(capsys, "results.csv", "--before", "main-results.csv")
+    assert code == 1, out
+    assert OTHER_SETUP not in flat(out)
+    assert counts(0, 12, 28) in flat(out)
+
+
+def test_before_on_results_with_ids_that_share_none_says_to_check_the_eval(
+        tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    ids_csv(tmp_path / "main-results.csv",
+            [(f"case-{i}", f"Question {i}?", f"Answer {i}.", True) for i in range(40)])
+    ids_csv(tmp_path / "results.csv",
+            [(f"other-{i}", f"Other {i}?", f"Answer {i}.", False) for i in range(40)])
+    code, out = said(capsys, "results.csv", "--before", "main-results.csv")
+    assert code == 3, out
+    assert NO_MATCH in flat(out)
+    assert next_lines(out)[-1] == NO_MATCH_IDS_NEXT
+    assert "Give each question an id" not in flat(out)
+
+
+# --before's grades are read with the same rules as the results' ---------------------------------
+
+def _graded_csv(path: Path, grades) -> Path:
+    with path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["input", "output", "verdict"])
+        for i, g in enumerate(grades):
+            w.writerow([f"Question {i}?", f"Answer {i}.", g])
+    return path
+
+
+def test_before_with_grade_words_it_cannot_tell_stops_as_the_results_do(
+        tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _graded_csv(tmp_path / "main-results.csv", ["good"] * 20 + ["bad"] * 20)
+    _graded_csv(tmp_path / "results.csv", ["pass"] * 40)
+    code, out = said(capsys, "results.csv", "--before", "main-results.csv")
+    assert code == 3, out
+    assert ("judgekeeper can't tell which of the LLM-as-a-judge's decisions in "
+            "main-results.csv mean Pass and which mean Fail: bad, good.") in flat(out)
+    assert "--label-map" in next_lines(out)[-1] and "--before main-results.csv" in \
+        next_lines(out)[-1]
+    assert NO_MATCH not in flat(out) and new_lines(out) == []
+
+
+def test_before_reads_grade_words_with_the_label_map_given(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    _graded_csv(tmp_path / "main-results.csv", ["good"] * 40)
+    _graded_csv(tmp_path / "results.csv", ["bad"] * 12 + ["good"] * 28)
+    code, out = said(capsys, "results.csv", "--before", "main-results.csv",
+                     "--label-map", "good=pass,bad=fail")
+    assert counts(0, 12, 28) in flat(out), out
+    assert code == 1
+
+
+@pytest.mark.parametrize("n, line", [
+    (10, "10 questions have no Pass or Fail grade in one of the results and are left out."),
+    (1, "1 question has no Pass or Fail grade in one of the results and is left out.")])
+def test_questions_with_no_grade_on_one_side_are_left_out_on_a_line_of_their_own(
+        tmp_path, monkeypatch, capsys, n, line):
+    monkeypatch.chdir(tmp_path)
+    _graded_csv(tmp_path / "main-results.csv", ["pass"] * (40 - n) + ["error"] * n)
+    _graded_csv(tmp_path / "results.csv", ["pass"] * 40)
+    code, out = said(capsys, "results.csv", "--before", "main-results.csv")
+    assert line in flat(out), out
+    assert "only one of the two results" not in flat(out)
+    assert counts(0, 0, 40 - n) in flat(out)
+    assert code == 0
+
+
+# With --before or in CI the comparison sets the exit code ---------------------------------------
+
+SMALL = 25  # under the answers a first result needs: the usual run asks for marks (exit 3)
+
+
+def test_before_on_small_results_exits_with_the_comparison(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    rows_csv(tmp_path / "before.csv", qs(0, SMALL, True))
+    rows_csv(tmp_path / "results.csv", qs(0, SMALL, [False] + [True] * (SMALL - 1)))
+    code, out = said(capsys, "results.csv", "--before", "before.csv")
+    assert counts(0, 1, SMALL - 1) in flat(out), out
+    assert code == 0
+
+
+def test_in_ci_small_results_exit_with_the_comparison(here, capsys, monkeypatch):
+    monkeypatch.setenv("CI", "true")
+    path = rows_csv(here / "results.csv", qs(0, SMALL, True))
+    said(capsys, path)
+    rows_csv(path, qs(0, SMALL, [False] + [True] * (SMALL - 1)))
+    code, out = said(capsys, path)
+    assert counts(0, 1, SMALL - 1) in flat(out), out
+    assert code == 0
+    rows_csv(path, qs(0, SMALL, [False] * 12 + [True] * (SMALL - 12)))
+    code, out = said(capsys, path)
+    assert WORSE in flat(out), out
+    assert code == 1
+
+
+def test_a_person_with_no_before_keeps_the_usual_exit_code(here, capsys):
+    """The run stops at a question (another eval): 3, as it was, whatever the comparison."""
+    path = _ids_csv(here, ALL_PASS)
+    said(capsys, path)
+    _other_csv(here, ALL_PASS)
+    code, out = said(capsys, path)
+    assert ANOTHER_EVAL in flat(out), out
+    assert code == 3
 
 
 @pytest.mark.parametrize("bad", ["missing.csv", "garbage.csv"])

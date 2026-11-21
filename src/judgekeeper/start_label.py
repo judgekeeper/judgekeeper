@@ -358,7 +358,8 @@ def prepare(found, say, ws: Workspace | None = None, keep_marks: bool = False) -
     pool, records = [], []
     for q in queue:
         a = answers[q["id"]]
-        pool.append({"id": a.id, "input": a.input, "output": a.output, **a.agent})
+        pool.append({"id": a.id, "input": a.input, "output": a.output, **a.agent,
+                     **({"case": a.case} if a.case else {})})  # project.same_questions
         records.append(judge_record(a, found))
     pool = _scrubbed(pool)
     write_replacing(ws.pool, "".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pool))

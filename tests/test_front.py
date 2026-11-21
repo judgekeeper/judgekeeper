@@ -93,7 +93,9 @@ def assert_one_next_at_the_end(out: str) -> str:
 def before_comparison(out: str) -> str:
     """The usual output: what is said before the comparison with the results before
     (before_after.lines), which comes last."""
-    m = re.search(r"^(On the \d+ questions? in both results:|No question is in both results)",
+    m = re.search(r"^(On the \d+ questions? in both results:|No question is in both results|"
+                  r"No question has a Pass or Fail grade in both|Your LLM-as-a-judge setup changed "
+                  r"since the last results|The two results were graded by different)",
                   out, flags=re.MULTILINE)
     return out[:m.start()] if m else out
 

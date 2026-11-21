@@ -3,13 +3,14 @@
 `judgekeeper` with no command (front.py) does the next step: finds the LLM-as-a-judge, checks
 it, opens the marking page, and prints the result once there are enough marks. On results
 with grades it also compares them with the last ones read (or `--before FILE`), question by
-question (before_after.py): exit 1 only when the change made it worse. `mark`
+question (before_after.py): exit 1 when the change made it worse, 3 when nothing could be
+compared. `mark`
 (mark.py) opens the page to mark more; `check` (check.py) re-tests a changed judge on the marks
 from its new results (exit 1 only when the drop's middle estimate is over 20 points, whichever
 word it says); `fix` (fix.py) tests a new rule on marks it keeps hidden, from the results of
 grading them again. judgekeeper only reads files: it never runs an eval tool or calls an AI.
 Exit codes: 0 success, 1 made it worse (the plain run) or a drop (`check`), 2 usage error, 3
-the person is needed (a link where judgekeeper writes, too), 130 Ctrl-C.
+the person is needed (a link where judgekeeper writes, too, or nothing to compare), 130 Ctrl-C.
 
 Every error is scrubbed (redact.scrub) and ends with one `Next:` line, printed here. A failure
 with no better message never prints its own text, which can hold an answer's text: one line
@@ -274,8 +275,8 @@ def _front_parser() -> argparse.ArgumentParser:
                    help="the LLM-as-a-judge's model, when the results do not record it")
     p.add_argument("--before", metavar="FILE",
                    help="results with grades to compare these with, question by question, "
-                        "in place of the last results read here: exit 1 only when the "
-                        "change made it worse")
+                        "in place of the last results read here: exit 1 when the change "
+                        "made it worse, 3 when nothing could be compared")
     p.add_argument("--yes", action="store_true",
                    help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(p)
