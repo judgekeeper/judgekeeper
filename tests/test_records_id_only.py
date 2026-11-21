@@ -220,3 +220,62 @@ def test_the_result_page_lists_a_failed_id_only_answer_by_its_id(here, capsys):
     run(capsys, ".", "--labels", "human.jsonl")
     page = (here / ".judgekeeper" / "report.html").read_text(encoding="utf-8")
     assert len(re.findall(r"id: case-\d+", page)) == 10, page[:200]
+
+
+# Plain-number ids: the id is all an id-only answer has -------------------------------------------
+
+def numbered(n: int = 40, flip: tuple = (), **more) -> list[dict]:
+    lines = []
+    for i in range(1, n + 1):
+        label = "pass" if i % 2 else "fail"
+        if i in flip:
+            label = "fail" if label == "pass" else "pass"
+        lines.append({"schema_version": 2, "target_id": str(i), "name": "ok",
+                      "annotator_kind": "LLM", "label": label, **{
+                          k: v.format(i=i) for k, v in more.items()}})
+    return lines
+
+
+def test_plain_number_ids_of_id_only_answers_are_compared_one_by_one(here, capsys):
+    write(here / "grades.jsonl", numbered())
+    write(here / "human.jsonl", [{**x, "annotator_kind": "HUMAN"} for x in numbered()])
+    _, out = run(capsys, ".", "--labels", "human.jsonl")
+    assert "Added 40 marks" in out, out
+    write(here / "grades.jsonl", numbered(flip=(1, 2, 3, 4, 5)))
+    _, out = run(capsys, ".")
+    assert "On the 40 questions in both results: fixed 2, broke 3, same 35." in out, out
+
+
+def keys_of(root: Path) -> dict:
+    from judgekeeper import before_after
+
+    return before_after.grades_of(start.find_judge(root))
+
+
+def test_grades_of_gives_one_question_for_each_id_only_answer_with_a_number_id(here):
+    write(here / "grades.jsonl", numbered())
+    got = keys_of(here)
+    assert len(got["questions"]) == 40
+    assert got["ids"] is True
+
+
+def test_a_number_id_still_gives_way_to_the_question_text(here):
+    from judgekeeper import no_grades
+
+    write(here / "grades.jsonl", numbered(input="Question {i}?", output="Answer {i}."))
+    got = keys_of(here)
+    assert set(got["questions"]) == {no_grades.question_key(f"Question {i}?")
+                                     for i in range(1, 41)}
+    assert got["ids"] is False
+
+
+def test_a_mixed_file_with_number_ids_keys_each_answer_by_text_or_id(here):
+    from judgekeeper import before_after, no_grades
+
+    lines = numbered(20, input="Question {i}?", output="Answer {i}.") + [
+        {**x, "target_id": str(int(x["target_id"]) + 20)} for x in numbered(20)]
+    write(here / "grades.jsonl", lines)
+    got = keys_of(here)
+    assert len(got["questions"]) == 40
+    assert no_grades.question_key("Question 3?") in got["questions"]
+    assert before_after._key("25", None) in got["questions"]
