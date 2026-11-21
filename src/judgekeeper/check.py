@@ -55,6 +55,7 @@ from judgekeeper.textio import (
     loads,
     make_private,
     old_hook,
+    path_arg,
     percent,
     plural,
     points,
@@ -1350,7 +1351,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     said.say(f"No marks in {this}. Your marks are in {which} above it "
              f"({above.name}).")
     said.say()
-    said.say(f"Next: run `{program('check')} {quote_arg(where)}`.")
+    said.say(f"Next: run `{program('check')} {path_arg(where)}`.")
     return EXIT_NEEDS_YOU
 
 
@@ -2033,7 +2034,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     newer = None if given_results(path) or now is None else _newer_elsewhere(state, now.newest)
     if newer is not None:  # a note: the check reads what judgekeeper.toml says, as always
         tool = state.data.get("tool")
-        said.say(NEWER.format(tool=find.NAMES.get(tool, tool), file=quote_arg(newer),
+        said.say(NEWER.format(tool=find.NAMES.get(tool, tool), file=path_arg(newer),
                               command=program("check")))
         said.say()
     unknown = unknown_grades(found, found.results[0].path) if found is not None else None

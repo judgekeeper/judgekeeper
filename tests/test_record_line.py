@@ -245,6 +245,53 @@ def test_records_are_never_written_through_a_link(project, tmp_path_factory, cap
     assert "is a link. judgekeeper does not write through links" in message
 
 
+def test_records_are_never_written_through_a_hard_link(project, tmp_path_factory, caplog):
+    """A records file with a second name elsewhere would write the answer there too."""
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+    victim = elsewhere / "notes.txt"
+    victim.write_text("victim line\n", encoding="utf-8")
+    path = recorder._path(None)
+    path.parent.mkdir(parents=True)
+    try:
+        os.link(victim, path)
+    except (OSError, NotImplementedError):
+        pytest.skip("hard links not allowed here")
+    with caplog.at_level(logging.WARNING, logger="judgekeeper"):
+        assert judgekeeper.record("q", "a", verdict="pass") is None
+    assert victim.read_text(encoding="utf-8") == "victim line\n"
+    assert "is linked to another file. judgekeeper does not write through links" in (
+        caplog.records[-1].getMessage())
+
+
+def test_the_folder_record_makes_keeps_its_answers_out_of_git(project):
+    """.judgekeeper/.gitignore, the same file a first run writes, is there with the folder."""
+    from judgekeeper.start_label import GITIGNORE
+
+    judgekeeper.record("q", "a", verdict="pass")
+    gitignore = project / ".judgekeeper" / ".gitignore"
+    assert gitignore.read_text(encoding="utf-8") == GITIGNORE
+    if os.name != "nt":
+        assert gitignore.stat().st_mode & 0o077 == 0
+
+
+def test_record_leaves_a_gitignore_that_is_there_alone(project):
+    folder = project / ".judgekeeper"
+    folder.mkdir()
+    (folder / ".gitignore").write_text("mine\n", encoding="utf-8")
+    judgekeeper.record("q", "a", verdict="pass")
+    assert (folder / ".gitignore").read_text(encoding="utf-8") == "mine\n"
+    assert len(files(project)) == 1
+
+
+def test_record_never_writes_a_gitignore_through_a_link(project, tmp_path_factory):
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+    (elsewhere / "target").write_text("kept\n", encoding="utf-8")
+    (project / ".judgekeeper").mkdir()
+    _link(project / ".judgekeeper" / ".gitignore", elsewhere / "target")
+    judgekeeper.record("q", "a", verdict="pass")
+    assert (elsewhere / "target").read_text(encoding="utf-8") == "kept\n"
+
+
 def test_the_off_switch(project, monkeypatch):
     for off in ("0", "false", "off", "no", "OFF"):
         monkeypatch.setenv("JUDGEKEEPER_RECORD", off)

@@ -50,6 +50,7 @@ from judgekeeper.textio import (
     loads,
     make_private,
     old_hook,
+    path_arg,
     plainly,
     plural,
     program,
@@ -1240,7 +1241,10 @@ class Talk:
             print(said(line))
 
     def para(self, text: str, indent: str = "") -> None:
+        held = held_lines(text)  # said as data once the whole paragraph is
         for line in wrap(text, indent=indent):
+            self.say(line)
+        for line in held:
             self.say(line)
 
     def command(self, subcommand: str = "fix") -> str:
@@ -1645,11 +1649,11 @@ def mlflow_store(ws: Workspace, here: bool = True) -> str | None:
     if not isinstance(store, str) or not store:
         return None
     if not here:
-        return quote_arg(store)
+        return path_arg(store)
     try:
-        return quote_arg(Path(os.path.relpath(ws.root / store)).as_posix())
+        return path_arg(Path(os.path.relpath(ws.root / store)).as_posix())
     except ValueError:  # another drive on Windows
-        return quote_arg((ws.root / store).resolve().as_posix())
+        return path_arg((ws.root / store).resolve().as_posix())
 
 
 def _new_results(ws: Workspace) -> str:
@@ -1691,7 +1695,7 @@ def _no_grades_next(talk: Talk, ws: Workspace, given: Path) -> str:
         return (f"score your log again with your new rule and your grader model: run "
                 f"`{inspect_score(ws, log)}` and then {talk.run(log)}.")
     return (f"give `inspect score` the `-S` options your scorer was set up with, its model "
-            f"too, then {talk.run(quote_arg(line_path(given)))}.")
+            f"too, then {talk.run(path_arg(line_path(given)))}.")
 
 
 def _yaml_string(text) -> str:
@@ -1929,15 +1933,15 @@ def regrade_steps(ws: Workspace, command: str, what: str = "rule",
     if not line:
         return None
     shown = f"{shown_folder(ws)}/{FOLDER}"
-    new = quote_arg(f"{shown}/{NEW_JSON}")
+    new = path_arg(f"{shown}/{NEW_JSON}")
     n = _answer_rows(ws)
     calls = (f" It calls your LLM-as-a-judge's model {n} times, once for each marked answer, "
              "with your own API key." if n > 1 else " It calls your LLM-as-a-judge's model "
              "once, with your own API key." if n else "")
     return REGRADE_STEPS.format(what=what, file=_file(ws, REGRADE_FILE), line=line, calls=calls,
-                                config=quote_arg(f"{shown}/{REGRADE_FILE}"), new=new,
+                                config=path_arg(f"{shown}/{REGRADE_FILE}"), new=new,
                                 where=", in your project folder" if away else "",
-                                after=quote_arg(f"{ws.dir.name}/{FOLDER}/{NEW_JSON}") if away
+                                after=path_arg(f"{ws.dir.name}/{FOLDER}/{NEW_JSON}") if away
                                 else new, command=command)
 
 
