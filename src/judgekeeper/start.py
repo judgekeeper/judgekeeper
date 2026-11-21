@@ -218,7 +218,7 @@ def path_word(path: str | Path, kept: bool = False) -> str:
         return textio.runnable(str(path), labels=False)
     if not kept and textio.through_top(path):
         return textio.runnable(os.path.abspath(path), labels=False)
-    return quote_arg(path, kept)
+    return textio.path_arg(path, kept)
 
 
 def flag_word(flag: str, value: str) -> str:
@@ -365,7 +365,7 @@ class Talk:
         past the question it answers. After a climb, one with --tool (it never climbs)
         names the folder read."""
         if self.read_in is not None and any(w.split("=", 1)[0] == "--tool" for w in extra):
-            return self.command_in(quote_arg(self.read_in), *extra)
+            return self.command_in(textio.path_arg(self.read_in), *extra)
         return " ".join((self.program, *self._flags_for(extra), *extra))
 
     def command_at(self, where: str | Path, *extra: str) -> str:
@@ -377,7 +377,7 @@ class Talk:
         path = Path(where) if self.path == "." else Path(self.path) / where
         if self.read_in is not None:  # a folder above read (a climb, a session): from here
             path = Path(self.read_in) / where
-        return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
+        return " ".join((self.program, textio.path_arg(path.as_posix()), *flags, *extra))
 
     def command_in(self, folder: str, *extra: str, away: bool = False) -> str:
         """`command` run on `folder` (written as it goes on the line, from the folder the
@@ -1629,7 +1629,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
         if kind is None and path.suffix.lower() in find.EXCEL:
             raise StartError(EXCEL.format(file=path.name),
                              f"save {path.name} as CSV UTF-8, then run "
-                             f"`{talk.command_in(quote_arg(path.with_suffix('.csv').name))}`.")
+                             f"`{talk.command_in(textio.path_arg(path.with_suffix('.csv').name))}`.")
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "

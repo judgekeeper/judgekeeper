@@ -28,7 +28,7 @@ from pathlib import Path
 from judgekeeper import no_grades, start
 from judgekeeper.records import RecordsError
 from judgekeeper.start import StartError, Stop
-from judgekeeper.textio import loads, make_private, plural, quote_arg, write_replacing
+from judgekeeper.textio import loads, make_private, path_arg, plural, write_replacing
 
 FILE = "last-graded.json"  # in .judgekeeper/: the results read last and the ones before
 EXIT_WORSE = 1
@@ -324,7 +324,7 @@ def _unread(talk, path: Path, other: start.Found) -> Stop:
     words = [str(v) for v in values]
     shown = _shown(words) if all(start.verdict_like(v) for v in values) else LONG_TEXT
     talk.para(UNREAD.format(name=path.name, values=shown))
-    again = talk.command(*talk.labels_flags(), "--before", quote_arg(str(path)), "--label-map",
+    again = talk.command(*talk.labels_flags(), "--before", path_arg(str(path)), "--label-map",
                          LABEL_MAP)
     return talk.stop(start.EXIT_QUESTION, (
         "decide which of the values above mean Pass, which mean Fail and which mean no "

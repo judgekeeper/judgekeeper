@@ -459,8 +459,10 @@ def store_facts(path: Path) -> tuple[datetime | None, int | None]:
     that way; an assessment count of None when the store is older than assessments, or when
     its runs hold mlflow.evaluate() judge metrics (MLflow 2: said by the reader)."""
     try:
-        con = sqlite3.connect(f"file:{path.as_posix()}?mode=ro&immutable=1", uri=True)
-    except sqlite3.Error:
+        # an address built from the path as a URI would (as mlflow_store does): a `%2e%2e`, `#`
+        # or `?` in a folder name is part of the name
+        con = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
+    except (sqlite3.Error, OSError, RuntimeError, ValueError):
         return None, None
     try:
         tables = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
@@ -1365,7 +1367,7 @@ def _prefer_saved_runs(found: Search) -> None:
             words = {"read": read.rel, "read_day": _day(read), "other": other.rel,
                      "other_day": _day(other)}
             note = NEWEST_RUN.format(
-                **words, command=f"{textio.program()} {textio.quote_arg(other.rel)}")
+                **words, command=f"{textio.program()} {textio.path_arg(other.rel)}")
             found.notes.append(note)
             found.older_runs[note] = (other.path, words)
             if read is copy:  # the results folder's runs are older: the copy is read alone

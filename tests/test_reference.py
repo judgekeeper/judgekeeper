@@ -204,11 +204,13 @@ def test_the_table_format_and_record_are_described():
     assert RECORD_HEADING in sections
 
 
-def test_no_key_is_needed_and_none_is_ever_written():
+def test_no_key_is_needed_and_none_is_ever_printed():
     flat = _flat(_sections()["Your API keys"])
     for needed in ("judgekeeper makes no AI call and needs no API key",
                    "It never runs your eval tool or your project's code",
-                   "judgekeeper never prints a key or writes one to a file",
+                   ("judgekeeper never prints a key. It hides key-shaped text in what it shows "
+                    "and in the files it writes, except a records file written by "
+                    "`judgekeeper.record()`, which holds what your program passed in"),
                    "There is no flag that takes a key"):
         assert needed in flat, needed
     for gone in ("Before any AI call", "asks first", "--yes"):

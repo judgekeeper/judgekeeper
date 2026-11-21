@@ -419,6 +419,18 @@ def cmd_front(args) -> int:
 COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, None: cmd_front}
 
 
+def keep_programs_out_of_project(path: str) -> None:
+    """Never start a program that sits in the project (or the folder given) to name a command:
+    the `python3` that might import judgekeeper is looked up on the PATH (textio)."""
+    given = Path(path)
+    textio._work.clear()  # the folders an earlier command in this process named
+    try:
+        textio.keep_programs_out_of(given if given.is_dir() else given.parent,
+                                    project.project_of(given))
+    except (OSError, ValueError, RuntimeError):
+        pass
+
+
 def refuse_linked_folder(path: str) -> None:
     """Stop (StartError) when the project's .judgekeeper/, or anything in it, is a link: once,
     before any command does its work, so none writes through it (`fix` writes in fix/)."""
@@ -620,6 +632,7 @@ def _main(argv: list[str] | None) -> int:
             _next(NEXT_HELP.replace("{command}", program(_command(args_list) or "") + " --help"))
         return EXIT_USAGE
     try:
+        keep_programs_out_of_project(args.path or ".")
         refuse_linked_folder(args.path or ".")
         hide_project_keys(args.path or ".")
         with trash_removed_at_end():  # MLflow's .trash, once the whole command is done

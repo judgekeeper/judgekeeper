@@ -10,6 +10,11 @@
 - In a records file, a HUMAN label with only a `target_id` now takes its answer from the LLM-as-a-judge line with the same `target_id`, so labels exported by other tools in the records format import. The labels can be in a file of their own (a records file with only HUMAN lines, in the project folder or in `.judgekeeper/records/`, or named with `--labels FILE`), and a label with no name labels the one LLM-as-a-judge the grades hold. A label for an answer that is not in your results is skipped, and labels for another name than your LLM-as-a-judge's are said, with how many. A line with a `target_id` and no `input` or `output` is its own answer, found by its id.
 - On the marking page, a mark from a tab whose card was already marked in another tab is no longer saved over it: the page says so and loads the list again. An Undo click made while a mark is saving now waits for the save, as the Z key does. A press that sends no click event now counts as a click.
 - A CSV whose answers have amounts such as `$50,000` is now read, not refused with "has a quote that never closes". A bare number in a file whose rows hold grade words is no longer taken as a grade.
+- A command judgekeeper prints is now safe to paste into any shell. A file, folder, metric or model name with a backtick is shown as `NAME`, with the name on its own line below, the way it already was on Windows.
+- A file or folder named like an option, such as `-x.csv`, is now printed as `./-x.csv` in a command, so the command reads it as a file.
+- A `%`, `#` or `?` in a folder name no longer changes which MLflow store judgekeeper reads, and no longer makes it create a file outside your project.
+- To name its own command, judgekeeper no longer starts a `python3` that sits in your project folder, however your PATH reaches it.
+- `judgekeeper.record()` now writes `.judgekeeper/.gitignore` when it makes the folder, so `git add .` does not take your records, and it no longer writes to a records file that has a second name.
 
 ## 1.2.0 (2026-11-16)
 

@@ -37,7 +37,7 @@ from judgekeeper.mapper import OUTPUT_WORDS, QUESTION_WORDS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
 from judgekeeper.records import DEFAULT_NAME, derive_record_id
 from judgekeeper.redact import scrub
-from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
+from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, path_arg, plural, runnable
 
 IN_RESULTS = "\0results"  # --labels with no FILE (argparse's const): never a file's name
 RESULTS_NAME = "your results"
@@ -222,7 +222,7 @@ def _twice(path: Path, columns: list, command: Callable[..., str]) -> None:
         same = [c for c in columns if str(c).strip().lower() in wanted]
         if len(same) > 1:
             given = (runnable(str(path), labels=True) if str(path.parent) != "."
-                     else quote_arg(path.name))
+                     else path_arg(path.name))
             raise LabelsStop([TWICE.format(file=path.name, kind=kind, a=str(same[0]).strip(),
                                            b=str(same[1]).strip(),
                                            command=command("--labels", given))])

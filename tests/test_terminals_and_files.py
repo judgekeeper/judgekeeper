@@ -9,7 +9,6 @@ from __future__ import annotations
 import errno
 import io
 import os
-import shutil
 import subprocess
 import sys
 
@@ -285,14 +284,14 @@ def test_printed_commands_quote_paths_for_the_shell_in_use(monkeypatch):
 
 
 @pytest.mark.parametrize("name", ["evals `v2`", "a`b", "it's `x`\\y"])
-def test_a_path_with_a_backtick_survives_inside_backticks(monkeypatch, name):
+def test_a_path_with_a_backtick_is_said_as_data_not_in_the_command(monkeypatch, name):
+    """No quotes carry a backtick for every shell (dash does not read `$'...'`): the command
+    says NAME, and the value is said beside it, as on Windows."""
     monkeypatch.setattr(sys, "platform", "linux")
-    quoted = textio.quote_arg(name)
-    assert "`" not in quoted
-    if shutil.which("bash"):  # the shell reads it back as it was
-        out = subprocess.run(["bash", "-c", f"printf %s {quoted}"], capture_output=True,
-                             text=True, check=True).stdout
-        assert out == name
+    textio._held.clear()
+    assert textio.quote_arg(name) == textio.PLACEHOLDER
+    assert list(textio._held) == [name]
+    textio._held.clear()
 
 
 def test_a_folder_with_a_backtick_gives_a_command_that_can_be_copied(tmp_path, monkeypatch,
@@ -307,7 +306,8 @@ def test_a_folder_with_a_backtick_gives_a_command_that_can_be_copied(tmp_path, m
     main(["evals `v2`", "--no-browser"])
     out = capsys.readouterr().out
     next_line = " ".join(out[out.index("Next:"):].split())
-    assert next_line.count("`") % 2 == 0 and "\\x60v2\\x60" in next_line, next_line
+    assert "judgekeeper NAME" in next_line and "$'" not in next_line, next_line
+    assert "NAME: evals `v2`" in " ".join(out.split()), out
 
 
 # Wording of rare cases ------------------------------------------------------------------------
