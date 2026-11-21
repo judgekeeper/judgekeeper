@@ -402,15 +402,11 @@ def test_two_test_cases_with_the_same_text_are_two_questions(here, capsys):
 
 
 def _no_question_in_both(here, capsys):
-    """An Inspect AI log written again with other samples: the same eval, no question kept."""
-    from tests.start_projects import inspect_data
-
-    path = OWN_IDS["inspect"](here, ALL_PASS)
+    """judgekeeper.record() files written again with other test cases: the same eval by its
+    tool, no question kept."""
+    path = _records(here, ALL_PASS)
     said(capsys, path)
-    data = inspect_data(MADE_WORSE)
-    for i, s in enumerate(data["samples"]):
-        s.update(id=f"other-{i}", input=f"Other thing {i}?")
-    (here / path).write_text(json.dumps(data), encoding="utf-8")
+    _records(here, MADE_WORSE, ids="other-")
     return said(capsys, path)
 
 
@@ -449,7 +445,7 @@ def _deepeval(root, verdicts, tag=""):
     return deepeval_project(root, verdicts, tag=tag).relative_to(root).as_posix()
 
 
-def _records(root, verdicts, tag=""):
+def _records(root, verdicts, tag="", ids="case-"):
     """A file as judgekeeper.record() writes it, with the caller's own target_id."""
     folder = root / ".judgekeeper" / "records"
     folder.mkdir(parents=True, exist_ok=True)
@@ -457,7 +453,7 @@ def _records(root, verdicts, tag=""):
     with path.open("w", encoding="utf-8") as f:
         for i, v in enumerate(verdicts):
             f.write(json.dumps({
-                "schema_version": 2, "target_id": f"case-{i}", "name": "Safe wording",
+                "schema_version": 2, "target_id": f"{ids}{i}", "name": "Safe wording",
                 "annotator_kind": "LLM", "label": "pass" if v else "fail", "score": None,
                 "explanation": f"reason {i}", "run": None,
                 "input": f"System: be kind.{tag} Question {i}?", "output": f"Answer {i}.",
@@ -657,6 +653,27 @@ def test_before_matches_numbered_ids(tmp_path, monkeypatch, capsys):
     code, out = said(capsys, "results.csv", "--before", "main-results.csv")
     assert counts(0, 12, 28) in flat(out), out
     assert code == 1
+
+
+def test_an_inspect_log_rewritten_in_place_with_other_questions_is_not_pooled(here, capsys):
+    """A log given by its path in a folder below: the file read now is checked for another
+    eval too, so its answers never join the marked ones."""
+    from tests.start_projects import inspect_data
+
+    path = inspect_project(here, ALL_PASS, name="logs/support.json").relative_to(here).as_posix()
+    said(capsys, path)
+    pool = (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8")
+    data = inspect_data(MADE_WORSE)  # the same sample numbers, 0 to 39
+    for i, s in enumerate(data["samples"]):
+        s["input"] = f"Other thing {i}?"
+        s["output"]["completion"] = f"Other answer {i}."
+    (here / path).write_text(json.dumps(data), encoding="utf-8")
+    code, out = said(capsys, path)
+    assert ANOTHER_EVAL in flat(out), out
+    assert NUMBERED_IDS in flat(out)
+    assert "added for marking" not in flat(out) and new_lines(out) == []
+    assert code == 3
+    assert (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8") == pool
 
 
 def test_a_few_ids_kept_with_other_text_is_still_another_eval(here, capsys):

@@ -2727,8 +2727,13 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
 
 
 def _newest_path(found: start.Found) -> Path | None:
-    """The newest results file read (found.used[0]), as a path; None for none."""
-    return next((r.path for r in found.results if found.used and r.rel == found.used[0]), None)
+    """The newest results file read (found.used[0]), as a path; None for none. A file given by
+    path in a folder below is named from the project (start.rebased) but read under its name
+    in that folder: it is the first of found.results, as for every file tool."""
+    if not found.used:
+        return None
+    return next((r.path for r in found.results if r.rel == found.used[0]),
+                found.results[0].path if found.results else None)
 
 
 def _checked_file(ws: Workspace, found: start.Found) -> str | None:
