@@ -239,7 +239,7 @@ def test_the_read_line_counts_runs_your_people_labelled_not_runs_that_went_wrong
     assert "Read 40 runs from export.json: your people labelled 40 of them." in out
     one = [task(0, [annotation(2, 0)], [prediction("rv", 0)], run_id="a")]
     _, out, _ = run(capsys, "steps", str(save(here, one, "one.json")))
-    assert "Read 1 run from one.json: your people labelled 1 of it." in out
+    assert "Read 1 run from one.json: your people labelled it." in out
 
 
 def test_never_a_raw_agreement_alone(here, capsys):

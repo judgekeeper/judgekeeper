@@ -513,8 +513,11 @@ def _numbers(file: Path, shown: str, reviewer: str | None, model: str | None) ->
         fp = _fingerprint(name, export.created.get(name), given.get(name, {}))
         reviewers.append({"name": name, "model": fp.model, "fingerprint": fp.to_dict(),
                           "unknown_fields": unknown_fields(fp.to_dict()), **numbers})
-    _say(f"Read {plural(stats['tasks'], 'run')} from {file.name}: your people labelled "
-         f"{stats['labelled']} of {'it' if stats['tasks'] == 1 else 'them'}.")
+    if stats["tasks"] == 1:
+        labelled = "your people labelled it" if stats["labelled"] else "your people did not label it"
+    else:
+        labelled = f"your people labelled {stats['labelled']} of them"
+    _say(f"Read {plural(stats['tasks'], 'run')} from {file.name}: {labelled}.")
     if stats["disagreed"]:
         _say(f"People disagreed on {plural(stats['disagreed'], 'run')}; they are left out of "
              "these numbers.")
