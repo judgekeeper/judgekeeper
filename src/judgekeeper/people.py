@@ -37,9 +37,11 @@ TOO_FEW_LINE = ("Fewer than {min} answers were labelled by more than one person,
 SAME_LINE = ("Your people gave the same label to every answer, so how much they agree beyond "
              "coincidence can't be worked out.")
 COUNTS_LINE = "Answers labelled by each person: {people}."
-AGAINST_LINE = ("Your check against user {who}, on {answers}: kappa {kappa}. When user {who} "
-                "says Pass, your check also says Pass {tpr} of the time; when user {who} says "
-                "Fail, it also says Fail {tnr} of the time.")
+AGAINST_LINE = "Your check against user {who}, on {answers}: kappa {kappa}. {pass_} {fail}."
+PASS_CLAUSE = "When user {who} says Pass, your check also says Pass {tpr} of the time;"
+FAIL_CLAUSE = "when user {who} says Fail, it also says Fail {tnr} of the time"
+NO_PASS_CLAUSE = "User {who} passed none of these answers;"  # no Pass to find: no rate
+NO_FAIL_CLAUSE = "user {who} failed none of these answers"
 
 
 # The numbers ------------------------------------------------------------------------------
@@ -227,7 +229,11 @@ def lines(block: dict | None) -> list[str]:
         shown += f" and {len(named) - SHOW_PEOPLE} more"
     out.append(COUNTS_LINE.format(people=shown))
     for who, a in (block.get("vs_check") or {}).items():
+        pass_ = (NO_PASS_CLAUSE if a["tpr"] is None else PASS_CLAUSE).format(
+            who=who, tpr=_share(a["tpr"]))
+        fail = (NO_FAIL_CLAUSE if a["tnr"] is None else FAIL_CLAUSE).format(
+            who=who, tnr=_share(a["tnr"]))
         out.append(AGAINST_LINE.format(
             who=who, kappa="n/a" if a["kappa"] is None else _two(a["kappa"]),
-            tpr=_share(a["tpr"]), tnr=_share(a["tnr"]), answers=plural(a["n"], "answer")))
+            answers=plural(a["n"], "answer"), pass_=pass_, fail=fail))
     return out

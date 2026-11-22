@@ -73,3 +73,28 @@ def test_many_people_are_cut_with_a_count():
     line = next(x for x in people.lines(people.analyse(ratings, None))
                 if x.startswith("Answers labelled by each person: "))
     assert line.endswith(" and 4 more.")
+
+
+def _against(tpr, tnr, kappa=0.5, who="2", n=10):
+    block = {"enough": True, "value": 0.5, "measure": "kappa", "interval": [0.1, 0.9],
+             "shared": 10, "per_person": {who: n},
+             "vs_check": {who: {"n": n, "kappa": kappa, "tpr": tpr, "tnr": tnr}}}
+    return people.lines(block)[-1]
+
+
+def test_a_person_who_passed_nothing_has_no_pass_rate_said():
+    assert _against(None, 0.8) == (
+        "Your check against user 2, on 10 answers: kappa 0.50. User 2 passed none of these "
+        "answers; when user 2 says Fail, it also says Fail 80% of the time.")
+
+
+def test_a_person_who_failed_nothing_has_no_fail_rate_said():
+    assert _against(0.6, None) == (
+        "Your check against user 2, on 10 answers: kappa 0.50. When user 2 says Pass, your "
+        "check also says Pass 60% of the time; user 2 failed none of these answers.")
+
+
+def test_kappa_undefined_stays_n_a_and_never_says_unknown_of_the_time():
+    line = _against(None, None, kappa=None)
+    assert "kappa n/a." in line and "unknown" not in line
+    assert "passed none of these answers" in line and "failed none of these answers" in line
