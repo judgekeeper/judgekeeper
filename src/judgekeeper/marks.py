@@ -120,18 +120,22 @@ def repeat_line(item_id: str, mark: str | None, group: str | None, seconds, sitt
 
 
 def imported_line(item_id: str, mark: str, group: str | None, sitting: str, source: str,
-                  by: str = BY_FILE, who=None, labeled_at: str | None = None) -> dict:
-    """One label brought with --labels as a line of marks.jsonl: no seconds, `source` the
-    file's base name (never a path) or FROM_RESULTS. From Label Studio (`by`), `who` is the
-    number Label Studio gives the person (never more) and `labeled_at` when they labelled."""
+                  by: str = BY_FILE, who=None, labeled_at: str | None = None, seconds=None,
+                  annotation=None, supersedes=None) -> dict:
+    """One label brought with --labels as a line of marks.jsonl: `source` the file's base name
+    (never a path) or FROM_RESULTS; no seconds unless the file says how long the person took.
+    From Label Studio (`by`), `who` is the number Label Studio gives the person (never more),
+    `labeled_at` when they labelled, `annotation` its number there, and `supersedes` the
+    number of the annotation of the same person this one replaced (that one is the line
+    before it)."""
     if mark not in ("pass", "fail"):
         raise ValueError("an imported mark must be pass or fail")
-    line = {"id": item_id, "mark": mark, "group": group, "at": utc_now(), "seconds": None,
-            "sitting": sitting, "by": by, "from": source}
-    if who is not None:
-        line["who"] = who
-    if labeled_at is not None:
-        line["labeled_at"] = labeled_at
+    line = {"id": item_id, "mark": mark, "group": group, "at": utc_now(),
+            "seconds": _seconds(seconds), "sitting": sitting, "by": by, "from": source}
+    for key, value in (("who", who), ("labeled_at", labeled_at), ("annotation", annotation),
+                       ("supersedes", supersedes)):
+        if value is not None:
+            line[key] = value
     return line
 
 

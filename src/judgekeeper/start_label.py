@@ -1823,6 +1823,8 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     from judgekeeper import fix
 
     r["fix_ready"] = fix.can_run(ws)  # "What next" asks for marks until `fix` can run
+    if block := people_block(ws, groups):  # how much the people agree, and the check vs each
+        r["people"] = block
     imported, needed, off = import_check(m, data, set(labels))  # only the marks it counts
     if imported:
         r["imported"] = imported
@@ -1863,6 +1865,16 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     return r
 
 
+def people_block(ws: Workspace, groups: dict[str, str]) -> dict | None:
+    """people.analyse of what each person said (people.jsonl, from a Label Studio import) on
+    the answers of this check, against the check's grades (`groups`, {answer id: pass | fail});
+    None when fewer than two people labelled anything."""
+    from judgekeeper import people
+
+    ratings = [x for x in people.load(ws.dir / people.FILE) if x[0] in groups]
+    return people.analyse(ratings, groups) if ratings else None
+
+
 def marks_digest(ws: Workspace, session: StartSession) -> str:
     """What a result is made from: the marks (answer and label, never a skip, and whether it
     was brought with --labels: a page mark can check it), the judge's verdicts, and the
@@ -1880,8 +1892,12 @@ def marks_digest(ws: Workspace, session: StartSession) -> str:
     except (OSError, ValueError, AttributeError):
         never = []
     waits = b"\0" + json.dumps(never).encode("utf-8") if never else b""  # else as before
+    from judgekeeper import people
+
+    said = (b"\0" + (ws.dir / people.FILE).read_bytes()) if (ws.dir / people.FILE).is_file() \
+        else b""  # what the people said is part of the result; none: as before
     return hashlib.sha256(json.dumps(marks).encode("utf-8") + b"\0" + verdicts
-                          + waits).hexdigest()
+                          + waits + said).hexdigest()
 
 
 def _same_result(ws: Workspace, digest: str) -> dict | None:
