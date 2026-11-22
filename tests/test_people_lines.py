@@ -44,9 +44,10 @@ def test_answers_by_person_and_the_check_against_each_person():
                for x in out)
     against = [x for x in out if x.startswith("Your check against user ")]
     assert len(against) == 2
-    assert against[0].startswith("Your check against user 2: kappa 1.00; ")
-    assert "it passes 100% of what they passed and fails 100% of what they failed" in against[0]
-    assert against[0].endswith("(on 12 answers).")
+    assert against[0] == (
+        "Your check against user 2, on 12 answers: kappa 1.00. When user 2 says Pass, your "
+        "check also says Pass 100% of the time; when user 2 says Fail, it also says Fail "
+        "100% of the time.")
 
 
 def test_no_raw_agreement_and_no_trust_words():

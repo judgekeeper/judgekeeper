@@ -37,8 +37,9 @@ TOO_FEW_LINE = ("Fewer than {min} answers were labelled by more than one person,
 SAME_LINE = ("Your people gave the same label to every answer, so how much they agree beyond "
              "coincidence can't be worked out.")
 COUNTS_LINE = "Answers labelled by each person: {people}."
-AGAINST_LINE = ("Your check against user {who}: kappa {kappa}; it passes {tpr} of what they "
-                "passed and fails {tnr} of what they failed (on {answers}).")
+AGAINST_LINE = ("Your check against user {who}, on {answers}: kappa {kappa}. When user {who} "
+                "says Pass, your check also says Pass {tpr} of the time; when user {who} says "
+                "Fail, it also says Fail {tnr} of the time.")
 
 
 # The numbers ------------------------------------------------------------------------------
