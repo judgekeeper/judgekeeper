@@ -223,7 +223,7 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 judgekeeper steps [PATH] [--reviewer FILE] [--model NAME]
 ```
 
-For agents. A reviewer (an AI that reads a run and says which step went wrong first) can be checked against your people the same way an LLM-as-a-judge is. People label each run in [Label Studio](https://labelstud.io): the number of its **first wrong step**, counting from 1, or **0 if all steps are fine**. judgekeeper only reads and writes files; it never calls Label Studio or an AI.
+For agents. A reviewer (an AI that reads a run and says which step went wrong first) can be checked against your people the same way an LLM-as-a-judge is. People label each run in [Label Studio](https://labelstud.io): the number of its **first wrong step**, counting from 1 (step N is the Nth step in the run's `steps` list), or **0 if all steps are fine**. judgekeeper only reads and writes files; it never calls Label Studio or an AI.
 
 **1. Your runs.** A JSONL file, one run per line:
 
