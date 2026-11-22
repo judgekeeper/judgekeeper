@@ -1,6 +1,6 @@
 """The keeper of human judgment for AI: see how often a check agrees with human labels."""
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 __all__ = ["record"]
 

@@ -1,7 +1,7 @@
 {
   "set": 1,
   "seed": 7,
-  "made_at": "2026-11-20T04:05:26Z",
+  "made_at": "2026-11-22T17:01:39Z",
   "visible": [
     "05b81752ba3d4a6d",
     "05bbe4f57f751a11",
@@ -46,7 +46,7 @@
   "tests": [
     {
       "kind": "rule",
-      "time": "2026-11-20T04:05:26Z",
+      "time": "2026-11-22T17:01:39Z",
       "rule_hash": "sha256:102261537cf975dc2f3cd03a28f9c47a868103a6e80dc3846f84b2d08b3e52d6",
       "setup_hash": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
       "key": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
@@ -99,5 +99,5 @@
     }
   ],
   "pass_mark": null,
-  "sha256": "77e002b66b797d273eda0a9395ae9c6013b3821c1e819cd116baf522c5a499eb"
+  "sha256": "2445481bd5e3fc4c090437dd94e181ffa3ac25594a7c940585ace9c575428e00"
 }
