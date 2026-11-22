@@ -1079,13 +1079,13 @@ def _identity_moved(state: State, found) -> bool:
 
 def moved_line(g: dict, drop: int | None) -> str | None:
     """"Did your check move": its one line from the groups' verdicts (outcome), or None when
-    fewer than ROUGH answers of either kind were compared. A group that rose (better), with
-    none worse or not sure, says so instead of "did not get worse"."""
+    fewer than ROUGH answers of either kind were compared. A group whose paired range is all
+    above 0, with none worse or not sure, says it rose instead of "did not get worse"."""
     if min(g[key]["n"] for key, _, _ in SIDES) < targets.ROUGH:
         return None
     kind = outcome(g)
-    if kind == "no_drop" and any(g[key]["verdict"] == "better" for key, _, _ in SIDES):
-        kind = "better"
+    if kind == "no_drop" and any(g[key].get("low", 0) > 0 for key, _, _ in SIDES):
+        kind = "better"  # a group's whole range is above 0: the rise is unlikely a coincidence
     if kind not in MOVED:
         return None
     if drop is None:  # none of the marks' sizes could see a drop: the widest range end

@@ -50,6 +50,7 @@ EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
 WORDS_SHOWN = 5
 WORD_WIDTH = 40  # characters of a word shown
 NO_MATCH, NOT_GRADED, MORE_THAN_ONE, BOTH = "no_match", "not_graded", "ambiguous", "both"
+NO_QUESTION = "no_question"  # a label whose question no answer in the results has
 NO_GRADE = "no_grade"  # a label in the results with no answer text: no graded line has its id
 NO_DECISION = "no_decision"
 NO_TEXT = derive_record_id(None, None)  # the id of a label with no answer text
@@ -59,6 +60,8 @@ SKIPPED = (  # (reason, one, many): said in this order
      "{n} don't match any answer in your results (the answer text must be the same)"),
     (NO_GRADE, "{n} label is for an answer that is not in your results",
      "{n} labels are for answers that are not in your results"),
+    (NO_QUESTION, "{n} is for a question that is not in your results",
+     "{n} are for questions that are not in your results"),
     (NOT_GRADED, "{n} is for an answer your LLM-as-a-judge didn't grade Pass or Fail",
      "{n} are for answers your LLM-as-a-judge didn't grade Pass or Fail"),
     (MORE_THAN_ONE, ("{n} matches more than one answer (add a question column to tell them "
@@ -648,7 +651,10 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
                     # a question that is none of theirs, and the same words in an answer the
                     # judge never graded: it is that answer's label
                     ungraded = not _blank(question) and _digest(text) in left_text
-                    plan.skip(NOT_GRADED if ungraded else MORE_THAN_ONE)
+                    asked = _text(question) if not _blank(question) else None
+                    unknown = asked is not None and asked not in {_text(a.input) for a in answers}
+                    plan.skip(NOT_GRADED if ungraded else NO_QUESTION if unknown
+                              else MORE_THAN_ONE)
                     continue
             if not hits:
                 plan.skip(NOT_GRADED if text and _digest(text) in left_text else NO_MATCH)

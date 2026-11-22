@@ -453,3 +453,57 @@ def test_labels_for_answers_the_judge_never_graded_are_said_so_not_as_duplicates
     assert ("Skipped 3 labels: 3 are for answers your LLM-as-a-judge didn't grade Pass or Fail"
             in text), out
     assert "match more than one answer" not in text
+
+
+def test_labels_for_questions_that_are_not_in_the_results_say_so(here, capsys):
+    """Three questions have no line in the results (the answers were refused), and their
+    labels carry a reply that many graded answers share: "not in your results", never "match
+    more than one answer"."""
+    reply = "I can't help with that."
+    n = 40
+    outputs = [reply if i < 30 else answer(i) for i in range(n)]
+    table_project(here, [i % 2 == 0 for i in range(n)], outputs=outputs, model="gpt-4.1-mini")
+    tasks = [task(i, [(7, "Pass" if i % 2 == 0 else "Fail")], [],
+                  data={"input": question(i), "output": outputs[i]}) for i in range(n)]
+    tasks += [task(n + k, [(7, "Fail")], [],
+                   data={"input": f"A refused question {k}?", "output": reply})
+              for k in range(3)]
+    write(here / "people.json", tasks)
+    _, out = run(capsys, *PAGE, "--labels", "people.json")
+    text = flat(out)
+    assert "Added 40 marks from people.json" in text, out
+    assert "Skipped 3 labels: 3 are for questions that are not in your results" in text, out
+    assert "match more than one answer" not in text
+
+
+def _rose(now_right: int) -> dict:
+    """The groups of a re-check: 217 answers marked Fail that the old judge got right on 190
+    and wrong on 27; `now_right` of the 27 are right now and none turned wrong; 230 marked
+    Pass, right before and now."""
+    from judgekeeper import check
+
+    marked = {f"f{i}": "fail" for i in range(217)} | {f"p{i}": "pass" for i in range(230)}
+    old = {f"f{i}": "fail" if i < 190 else "pass" for i in range(217)}
+    old |= {f"p{i}": "pass" for i in range(230)}
+    new = dict(old)
+    for i in range(190, 190 + now_right):
+        new[f"f{i}"] = "fail"
+    return check.groups(marked, old, new)
+
+
+def test_a_rise_with_a_range_above_zero_says_agrees_more_though_not_a_big_one():
+    from judgekeeper import check
+
+    g = _rose(21)
+    assert g["failed"]["now_right"] == 21 and g["failed"]["now_wrong"] == 0
+    assert g["failed"]["verdict"] == "no_drop"  # the group verdicts are as before
+    assert check.moved_line(g, None) == (
+        "Your LLM-as-a-judge now agrees with your people more than before, on the 447 answers "
+        "they labelled.")
+
+
+def test_a_change_with_a_range_that_includes_zero_says_did_not_get_worse():
+    from judgekeeper import check
+
+    g = _rose(1)
+    assert check.moved_line(g, None).startswith("Your LLM-as-a-judge did not get worse on the 447")
