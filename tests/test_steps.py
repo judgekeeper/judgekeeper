@@ -306,6 +306,35 @@ def test_reviewer_guesses_from_a_jsonl_file(here, capsys):
     assert saved["run_level"]["tpr"]["p"] == 15 / 20
 
 
+def test_the_newest_time_in_the_reviewer_file_is_the_fingerprints(here, capsys):
+    export = save(here, project())
+    rows = []
+    for i in range(40):
+        row = {"id": f"r{i}", "first_wrong_step": reviewer_first(i), "model": "my-reviewer"}
+        if i == 3:
+            row["created_at"] = "2026-11-22T05:00:00Z"
+        if i == 7:
+            row["timestamp"] = "2026-11-22T07:30:00Z"
+        if i == 9:
+            row["created_at"] = "2026-11-21T01:00:00Z"
+        rows.append(json.dumps(row))
+    (here / "g.jsonl").write_text("\n".join(rows) + "\n", encoding="utf-8")
+    code, _, err = run(capsys, "steps", str(export), "--reviewer", "g.jsonl")
+    assert code == 0, err
+    saved = result(here)["reviewers"][0]
+    assert saved["fingerprint"]["created_at"] == "2026-11-22T07:30:00Z"
+    assert "created_at" not in saved["unknown_fields"]
+
+
+def test_no_time_in_the_reviewer_file_leaves_the_fingerprint_time_unknown(here, capsys):
+    export = save(here, project())
+    rows = [json.dumps({"id": f"r{i}", "first_wrong_step": reviewer_first(i)})
+            for i in range(40)]
+    (here / "g.jsonl").write_text("\n".join(rows) + "\n", encoding="utf-8")
+    run(capsys, "steps", str(export), "--reviewer", "g.jsonl")
+    assert result(here)["reviewers"][0]["fingerprint"]["created_at"] is None
+
+
 def test_a_reviewer_file_matches_a_task_with_no_run_id_by_its_task_id(here, capsys):
     tasks = project(ids=False)
     export = save(here, tasks)

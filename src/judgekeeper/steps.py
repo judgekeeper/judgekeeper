@@ -278,7 +278,8 @@ def read_export(path: Path, wanted_name: str | None = None) -> Export:
 def read_guesses(path: Path) -> tuple[dict, dict]:
     """(reviewer -> run id -> number, reviewer -> fingerprint fields given) from a JSONL file
     of {id, first_wrong_step, model}; a line may also say provider, snapshot, prompt_hash,
-    rubric_version or temperature."""
+    rubric_version or temperature, and when it was judged (created_at or timestamp; the
+    newest of a reviewer's lines is its fingerprint's created_at)."""
     guesses: dict[str, dict] = {}
     given: dict[str, dict] = {}
     text = textio.read_utf8(path, StepsError)
@@ -300,7 +301,11 @@ def read_guesses(path: Path) -> tuple[dict, dict]:
         guesses.setdefault(name, {})[str(row["id"])] = row[STEP_FIELD]
         keep = {k: row[k] for k in ("provider", "snapshot", "prompt_hash", "rubric_version",
                                     "temperature") if k in row}
-        given.setdefault(name, keep)
+        entry = given.setdefault(name, keep)
+        stamp = next((row[k] for k in ("created_at", "timestamp")
+                      if isinstance(row.get(k), str) and row[k].strip()), None)
+        if stamp and stamp > (entry.get("created_at") or ""):
+            entry["created_at"] = stamp  # the newest line's time is the fingerprint's
     return guesses, given
 
 
