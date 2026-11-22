@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Label Studio: judgekeeper now reads a Label Studio export (JSON, JSON_MIN or CSV) as the people's labels and, when the export holds full predictions, as the check to measure. The labels become your marks, so you don't mark those answers again. `--tool label-studio` names it, and `--metric NAME` picks the question when a project has more than one with choices. An export where predictions are saved as ids only has no check in it: judgekeeper says so and how to give the results of the check you want to measure (`judgekeeper RESULTS --labels EXPORT`).
+- A check that is not an LLM-as-a-judge (a Label Studio prediction, or a rule in your code in a records file) is called "your check" in what judgekeeper prints. Words for an LLM-as-a-judge are unchanged.
+- After a change to a check that is not an LLM-as-a-judge, `judgekeeper check` says whether your check moved, when at least 15 answers of each kind were compared.
+- A mark brought from Label Studio keeps the person's number (`who`) and the time (`labeled_at`), never an email or a name, and `marks.jsonl` keeps a hash of the labels that were imported.
+
 ## 1.3.0 (2026-11-22)
 
 - Did your change make it worse? On results with grades, `judgekeeper` now also compares the newest results with the last ones it read, question by question, using the grades in them, not your marks. It says how many were fixed, broke and stayed the same, then whether the change helped, made it worse, or can't tell yet, and exits 1 only when it made it worse. `--before FILE` compares with that file instead, such as the results from `main` in CI. A question is matched by its own test-case id where the results have one (an `id` column, promptfoo test descriptions, Inspect AI sample ids, DeepEval test case names, `judgekeeper.record()`'s `target_id`), else by its text. The last results are kept in `.judgekeeper/last-graded.json` as hashes and grades only.
