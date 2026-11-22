@@ -6,6 +6,7 @@
 - A check that is not an LLM-as-a-judge (a Label Studio prediction, or a rule in your code in a records file) is called "your check" in what judgekeeper prints. Words for an LLM-as-a-judge are unchanged.
 - After you change your LLM-as-a-judge or any other check, `judgekeeper check` says whether it moved on the answers your people labelled, when at least 15 of each kind were compared. For an LLM-as-a-judge it reads "Your LLM-as-a-judge moved: ...", "... did not get worse on ..." or "... now agrees with your people more than before, ..."; for another check, "Your check" in the same lines.
 - A mark brought from Label Studio keeps the person's number (`who`) and the time (`labeled_at`), never an email or a name, and `marks.jsonl` keeps a hash of the labels that were imported.
+- New command `judgekeeper steps` for agents. On a JSONL file of agent runs it writes a Label Studio import file and labelling setup in `.judgekeeper/steps/`, where people label each run's first wrong step (0 if all fine). On the Label Studio export of that project it says how often your reviewer finds the same first wrong step as your people: for the runs that went wrong or were fine, TPR, TNR and kappa; for the step, how often it names the same one, and one within a step; each with a range. The reviewer's guesses come from the export's predictions or from a JSONL file given with `--reviewer`. The result is saved in `.judgekeeper/steps/result.json`. Of each annotation only the person's numeric user id is kept.
 
 ## 1.3.0 (2026-11-22)
 

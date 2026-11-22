@@ -97,10 +97,13 @@ MLflow, or a CSV, TSV or JSONL file with these columns:
   (input and output alone work too: you mark each answer Pass or Fail)"""
 FIX_HELP = ("show where your LLM-as-a-judge goes wrong, help you write a better rule and test "
             "it on marks kept aside")
+STEPS_HELP = ("for agents: label the first wrong step of each run in Label Studio, then see "
+              "how often your reviewer finds the same one")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", FIX_HELP),
     ("check", "re-check your LLM-as-a-judge on your marks after a change"),
+    ("steps", STEPS_HELP),
 )
 HELP_WIDTH = 80
 # Commands that no longer exist (the CI gate, setup, start and the rest): each prints one line
@@ -343,6 +346,20 @@ def _parser() -> argparse.ArgumentParser:
     fx.add_argument("--new", action="store_true",
                     help="start a new set of marks kept aside, made of the next marks you make")
     p.commands["fix"] = fx
+
+    st = sub.add_parser("steps", parents=[common], description=STEPS_HELP, help=STEPS_HELP)
+    st._positionals.title, st._optionals.title = "Arguments", "Options"
+    st.add_argument("path", nargs="?", default=".", metavar="PATH",
+                    help="your agent runs (a JSONL file, one run per line with an id and its "
+                         "steps) to make the Label Studio screen, or the Label Studio export "
+                         "(JSON) of that project to see the numbers")
+    st.add_argument("--reviewer", metavar="FILE",
+                    help="your reviewer's guesses as a JSONL file, one line per run: "
+                         '{"id": ..., "first_wrong_step": ..., "model": ...}; else the '
+                         "predictions in the export")
+    st.add_argument("--model", metavar="NAME",
+                    help="the reviewer to look at, when the export holds several")
+    p.commands["steps"] = st
     return p
 
 
@@ -417,7 +434,14 @@ def cmd_front(args) -> int:
                      labels=args.labels, given=args.path is not None, before=args.before)
 
 
-COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, None: cmd_front}
+def cmd_steps(args) -> int:
+    from judgekeeper import steps
+
+    return steps.run(args.path, reviewer=args.reviewer, model=args.model)
+
+
+COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, "steps": cmd_steps,
+            None: cmd_front}
 
 
 def keep_programs_out_of_project(path: str) -> None:
@@ -455,7 +479,7 @@ def hide_project_keys(path: str) -> None:
 
 # The options that take a value: the word after one is never the command
 VALUED = ("--tool", "--metric", "--experiment", "--tracking-uri", "--pass-if", "--label-map",
-          "--judge-model", "--port")
+          "--judge-model", "--port", "--reviewer", "--model")
 
 
 def command_first(args_list: list[str]) -> list[str]:
