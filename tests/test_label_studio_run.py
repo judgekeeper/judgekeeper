@@ -360,16 +360,18 @@ def test_the_moved_line_needs_fifteen_labels_of_each_kind():
     from judgekeeper import check
 
     assert check.moved_line(_g(14, 14, 3), None) is None
-    assert check.moved_line(_g(20, 20, 2), None).startswith("Your check moved: on the 40 answers")
-    assert check.moved_line(_g(20, 20, 20), None).startswith("Your check did not move on the 40")
+    assert check.moved_line(_g(20, 20, 2), None).startswith(
+        "Your LLM-as-a-judge moved: on the 40 answers")
+    assert check.moved_line(_g(20, 20, 20), None).startswith(
+        "Your LLM-as-a-judge did not move on the 40")
 
 
 def test_the_moved_line_says_too_early_when_the_labels_cannot_rule_a_drop_out():
     from judgekeeper import check
 
     assert check.moved_line(_g(20, 20, 18), None) == (
-        "Too early to tell whether your check moved. These 40 labels can't rule out a drop of "
-        "up to 27 points.")
+        "Too early to tell whether your LLM-as-a-judge moved. These 40 labels can't rule out a "
+        "drop of up to 27 points.")
     assert check.moved_line(_g(20, 20, 18), 31).endswith("up to 31 points.")
 
 
@@ -377,3 +379,49 @@ def test_the_moved_line_stays_quiet_when_agreement_rose():
     from judgekeeper import check
 
     assert check.moved_line(_g(30, 5, 28), None) is None
+
+
+def test_the_moved_line_says_check_for_a_check_that_is_not_an_llm():
+    from judgekeeper import check
+
+    grader_words.use(CODE)
+    try:
+        said = grader_words.swap(check.moved_line(_g(20, 20, 2), None))
+    finally:
+        grader_words.use(LLM)
+    assert said.startswith("Your check moved: on the 40 answers your people labelled")
+
+
+# Two LLM-as-a-judge setups on the same labelled answers --------------------------------------
+
+def judged(path, verdicts, model):
+    lines = [{"schema_version": 2, "target_id": f"c{i}", "name": "Safe wording",
+              "annotator_kind": "LLM", "label": "pass" if v else "fail",
+              "input": question(i), "output": answer(i), "evaluator": {"model": model}}
+             for i, v in enumerate(verdicts)]
+    path.write_text("".join(json.dumps(x) + "\n" for x in lines), encoding="utf-8")
+    return path
+
+
+def test_two_llm_judges_on_labels_from_label_studio_say_your_llm_as_a_judge_moved(here, capsys):
+    people, close = words(60, right=0.9)
+    far = ["Pass" if w == "Fail" else "Fail" for w in people]
+    tasks = [task(i, [(7, h)], [], data={"input": question(i), "output": answer(i)})
+             for i, h in enumerate(people)]
+    write(here / "people.json", tasks)
+    (here / "setups").mkdir()
+    judged(here / "setups" / "sonnet.jsonl", [w == "Pass" for w in close], "claude-sonnet-5-5")
+    code, out = run(capsys, "setups/sonnet.jsonl", *PAGE, "--labels", "people.json")
+    assert code == 0, out
+    assert "Added 60 marks from people.json" in out
+    assert "Your check" not in out and "your check" not in out.replace("your check's", "")
+    main(["--stop"])
+    judged(here / "setups" / "haiku.jsonl", [w == "Pass" for w in far[:40] + close[40:]],
+           "claude-haiku-4-5")
+    code, out = run(capsys, "check", "setups/haiku.jsonl")
+    text = flat(out)
+    assert code == 1, out
+    assert "Your LLM-as-a-judge's model changed: claude-sonnet-5-5" in text
+    assert ("Your LLM-as-a-judge moved: on the 60 answers your people labelled, it agrees "
+            "with them less than before.") in text
+    assert "Your check moved" not in text

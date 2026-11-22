@@ -44,7 +44,7 @@ from judgekeeper import (
     weighted,
 )
 from judgekeeper.fingerprint import utc_now
-from judgekeeper.records import LLM, RecordsError
+from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_once, scrub_value
 from judgekeeper.start_label import FOLDER, Workspace, every_marked, next_marks, out_of_reach
 from judgekeeper.textio import (
@@ -119,14 +119,15 @@ NAME_ONLY = {"theirs": "another person's home folder",
 PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
                  "LLM-as-a-judge look better than it is.")
 ONE_RUN = "One run, so a small change may be a coincidence."
-# Did the check move? Said for a check that is not an LLM-as-a-judge, when its setup changed
+# Did the check move? Said when its setup changed. Written for an LLM-as-a-judge: for another
+# check grader_words.swap says "check" (links.said, _print).
 MOVED = {
-    "worse": ("Your check moved: on the {n} answers your people labelled, it agrees with them "
-              "less than before."),
-    "no_drop": ("Your check did not move on the {n} answers your people labelled. If your "
-                "scores changed, look at your app's answers first."),
-    "not_sure": ("Too early to tell whether your check moved. These {n} labels can't rule out a "
-                 "drop of up to {d} points."),
+    "worse": ("Your LLM-as-a-judge moved: on the {n} answers your people labelled, it agrees "
+              "with them less than before."),
+    "no_drop": ("Your LLM-as-a-judge did not move on the {n} answers your people labelled. If "
+                "your scores changed, look at your app's answers first."),
+    "not_sure": ("Too early to tell whether your LLM-as-a-judge moved. These {n} labels can't "
+                 "rule out a drop of up to {d} points."),
 }
 NONE_IN = ("None of your {n} is in your new results. judgekeeper matches a marked answer "
            "only when the question and the answer text are the same, word for word.")
@@ -2209,8 +2210,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
                                  g["failed"]["old"])
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
-    if found.grader != LLM and (changed or _identity_moved(state, found)):
-        moved = moved_line(g, drop)  # a check that is not an LLM-as-a-judge
+    if changed or _identity_moved(state, found):
+        moved = moved_line(g, drop)
         if moved:
             said.para(moved)
             said.say()
