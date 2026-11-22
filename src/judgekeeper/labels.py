@@ -103,6 +103,17 @@ class Label:
     input: object = None
     id: str | None = None
     key: str | None = None
+    who: object = None  # Label Studio: the number it gives the person who labelled
+    labeled_at: str | None = None  # Label Studio: when they did
+
+
+class Labels(list):
+    """The labels read, and `notes`: what the file said about them (people who disagreed...),
+    said once under Find."""
+
+    def __init__(self, items=(), notes=None):
+        super().__init__(items)
+        self.notes = list(notes or [])
 
 
 def _plain(command: Callable[..., str] | None) -> Callable[..., str]:
@@ -246,6 +257,8 @@ def read_file(path: Path, label_map: dict | None = None,
     by `target_id` (read_records_file)."""
     from judgekeeper import find
 
+    if find.classify_file(path) == "label-studio":  # people's labels in Label Studio
+        return read_label_studio_file(path, label_map, pool, metric, mine, command, given)
     if pool is not None and path.suffix.lower() in find.JSONL_SUFFIXES \
             and find.is_records(_first_columns(path)):
         return read_records_file(path, pool, metric, mine, command, given)
@@ -292,6 +305,49 @@ def read_file(path: Path, label_map: dict | None = None,
                          input=_scrubbed(row.get(in_col)) if in_col else None,
                          id=None if _blank(given_id) else str(given_id)))
     return out
+
+
+LS_QUESTIONS = ("{file} has more than one question with choices ({names}). judgekeeper uses "
+                "the one named like the grade it checks, {metric}: rename one of them in your "
+                "labeling setup, or export a project with one question.")
+
+
+def read_label_studio_file(path: Path, label_map: dict | None, pool, metric: str | None,
+                           mine: str | dict | None, command: Callable[..., str] | None,
+                           given: str | None) -> Labels:
+    """The people's labels in a Label Studio export (full JSON, JSON_MIN or CSV) as labels:
+    each names its answer by the task's id (with the same answer text), else by its question
+    and answer text (_match). With several questions, the one named like `metric`."""
+    from judgekeeper.readers.label_studio import NeedsMetric, NoAnswerKey, read_label_studio
+    from judgekeeper.records import HUMAN, RecordsError
+
+    name = path.name
+    try:
+        try:
+            records = read_label_studio(path)
+        except NeedsMetric as e:
+            if e.asked is not None or metric not in e.names:
+                raise LabelsStop([LS_QUESTIONS.format(
+                    file=name, names=", ".join(_word(n) for n in e.names),
+                    metric=_word(metric or ""))]) from None
+            records = read_label_studio(path, metric)
+    except NoAnswerKey as e:
+        raise LabelsStop([scrub(str(e)),
+                          ("Name the answer `output`, `answer` or `response` in each task's "
+                           "data, then run again.")]) from None
+    except RecordsError as e:
+        raise LabelsStop([scrub(str(e))]) from None
+    people = [r for r in records if r.annotator_kind == HUMAN]
+    if not people:
+        raise LabelsStop([f"No labels in {name}.", *records.notes])
+    read = read_marks([r.label for r in people], label_map, name, mine, given or name, command)
+    out = []
+    for r, mark in zip(people, read, strict=True):
+        if mark is None:
+            continue
+        out.append(Label(mark=mark, output=_scrubbed(r.output), input=_scrubbed(r.input),
+                         id=r.target_id, who=r.metadata.get("who"), labeled_at=r.created_at))
+    return Labels(out, records.notes)
 
 
 def _first_columns(path: Path) -> list[str]:
@@ -404,8 +460,9 @@ def _read_humans(humans: list, pool, metric: str | None, name: str,
         humans = [h for h in humans if h[0] not in named or h[2] == metric]
     read = read_marks([value for _, value, _ in humans], pool.label_map, name, mine, given,
                       command)
-    return [Label(mark=mark, key=key) for (key, _, _), mark in zip(humans, read, strict=True)
-            if mark is not None]
+    info = getattr(pool, "human_info", {})
+    return [Label(mark=mark, key=key, **info.get(key, {}))
+            for (key, _, _), mark in zip(humans, read, strict=True) if mark is not None]
 
 
 def _quoted(names) -> str:
@@ -486,6 +543,7 @@ class Plan:
 
     marks: dict[str, str] = field(default_factory=dict)
     skipped: dict[str, int] = field(default_factory=dict)
+    info: dict[str, dict] = field(default_factory=dict)  # answer id: who, labeled_at
 
     def skip(self, reason: str, n: int = 1) -> None:
         self.skipped[reason] = self.skipped.get(reason, 0) + n
@@ -601,6 +659,12 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         if both & set(ids):
             plan.skip(BOTH)
     plan.marks = {i: next(iter(wanted[i])) for i in order if i in wanted and i not in both}
+    for label, ids in targets_of:
+        given = {k: v for k, v in (("who", label.who), ("labeled_at", label.labeled_at))
+                 if v is not None}
+        for i in ids:
+            if given and i in plan.marks:
+                plan.info.setdefault(i, given)
     return plan
 
 
@@ -615,7 +679,7 @@ class Added:
     same: int = 0  # answers already marked as the label says
 
 
-def add(ws, plan: Plan, source: str) -> Added:
+def add(ws, plan: Plan, source: str, by: str = marks.BY_FILE) -> Added:
     """The plan's marks as lines of marks.jsonl (one import, one sitting), only for answers
     with no mark that counts; an answer marked otherwise keeps its mark (counted in `kept`)."""
     from judgekeeper.start_label import begin_marks
@@ -632,12 +696,28 @@ def add(ws, plan: Plan, source: str) -> Added:
             out.same += have[answer_id] == mark
             continue
         lines.append(marks.imported_line(answer_id, mark, groups.get(answer_id), sitting,
-                                         source))
+                                         source, by, **plan.info.get(answer_id, {})))
         out.marks += 1
         out.passed += mark == "pass"
         out.failed += mark == "fail"
     marks.append_all(ws.marks, lines)
     return out
+
+
+def keep_set(ws, plan: Plan, rows: dict, source: str) -> None:
+    """Keep in marks.jsonl's header a hash of the label set an import brought (anchors'
+    canonical hashing over each answer's input, output and label), under the file's name:
+    a later export of the same labels is told by it."""
+    from judgekeeper import anchors
+
+    items = [{"id": i, "input": rows[i].get("input"), "output": rows[i].get("output"),
+              "human_label": mark} for i, mark in plan.marks.items() if i in rows]
+    if not items:
+        return
+    manifest = anchors.build_manifest(items)
+    marks.update_header(ws.marks, "label_sets", {source: {
+        "labels": manifest["item_count"], "distribution": manifest["label_distribution"],
+        "sha256": manifest["sha256"]}})
 
 
 def said(added: Added, plan: Plan, source: str) -> list[str]:
@@ -693,7 +773,7 @@ def by_group(m: marks.Marks, ids, groups: dict[str, str]) -> dict:
         g = groups.get(i)
         if (ids is not None and i not in ids) or g not in out:
             continue
-        by = "file" if m.last[i].get("by") == marks.BY_FILE else "page"
+        by = "file" if m.last[i].get("by") in marks.IMPORTED_BY else "page"
         out[g][by][0 if mark == "pass" else 1] += 1
     return out
 

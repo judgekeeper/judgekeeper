@@ -17,6 +17,7 @@ def link(path, shown: str | None = None, line: int | None = None) -> str:
 def said(text: str) -> str:
     """A line judgekeeper says, ready to print: credentials scrubbed and control characters
     dropped (redact.one_line)."""
+    from judgekeeper.grader_words import swap
     from judgekeeper.redact import one_line, scrub
 
-    return one_line(scrub(text))
+    return one_line(scrub(swap(text)))

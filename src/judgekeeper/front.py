@@ -56,7 +56,7 @@ from judgekeeper.label import DEFAULT_PORT, is_open, is_page, read_lock
 from judgekeeper.links import link
 from judgekeeper.mark_page import SEE_FIRST, SEE_READY
 from judgekeeper.normalise import NormaliseError, _numeric, parse_pass_if
-from judgekeeper.records import RecordsError
+from judgekeeper.records import LLM, RecordsError
 from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
@@ -158,6 +158,8 @@ PATH_TO_GRADES = ("Have an LLM-as-a-judge? Save its Pass or Fail in a verdict co
                   "with promptfoo, DeepEval, Inspect AI or MLflow.")
 PATH_GRADES = ("{file} has LLM-as-a-judge grades, so judgekeeper checks your LLM-as-a-judge "
                "against your marks.")
+PATH_GRADES_CHECK = ("{file} has grades from your check, so judgekeeper checks it against "
+                     "your marks.")  # a check that is not an LLM-as-a-judge (start.grader_of)
 PATH_TABLE_TO_ANSWERS = ("To check your AI's answers instead, use a copy of the file without "
                          "the {column} column.")
 PATH_TOOL_TO_ANSWERS = ("To check your AI's answers instead, save them in a CSV file with input "
@@ -234,7 +236,7 @@ SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run
          "mlflow": "MLflow keeps the LLM-as-a-judge's assessments once mlflow.genai.evaluate() "
                    "runs."}
 OTHERS = 3  # other projects named when run from a folder that holds several
-FILE_TOOLS = ("table", "promptfoo", "deepeval", "inspect")  # each results file is one run
+FILE_TOOLS = ("table", "promptfoo", "deepeval", "inspect", "label-studio")  # each results file is one run
 FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (fail) too much
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -277,6 +279,8 @@ class FrontTalk(start.Talk):
         self.labels: str | None = None
         self.labels_read: list | None = None
         self.labels_from: str | None = None
+        self.labels_by = marks.BY_FILE  # marks.jsonl's "by" of those labels
+        self.labels_auto = False  # a Label Studio export's own labels, used without --labels
         self.few_fails = False  # Find said how few answers the LLM-as-a-judge failed
         self.before_damaged = False  # fix/before.json was damaged and this run replaced it
         self.marking = False  # the run is `mark` (_run)
@@ -663,6 +667,8 @@ def _labels_file(talk: FrontTalk) -> Path | None:
 def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None:
     """The labels --labels asks for, read (with the project's label map) before anything is
     written: a word that isn't Pass or Fail stops here."""
+    if talk.labels is None and found.tool == "label-studio" and found.pool.humans:
+        talk.labels, talk.labels_auto = labels_mod.IN_RESULTS, True  # its people's labels
     if talk.labels is None:
         return
     mine = talk.options["label_map"] or _kept_label_map(found.root)  # the person's own map
@@ -674,12 +680,17 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
         if path is None:
             talk.labels_read = labels_mod.in_results(found.pool, found.metric, command, mine)
             talk.labels_from = marks.FROM_RESULTS
+            if found.tool == "label-studio":
+                talk.labels_from = found.results[0].path.name
+                talk.labels_by = marks.BY_LABEL_STUDIO
         else:
             start._read_anyway(talk, path, ("--labels", textio.path_arg(talk.labels)))
             talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine,
                                                     command, talk.labels, found.pool,
                                                     found.metric)
             talk.labels_from = path.name
+            if find.classify_file(path) == "label-studio":
+                talk.labels_by = marks.BY_LABEL_STUDIO
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
 
@@ -702,9 +713,17 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
                             data.get("left"))
     if (stop := labels_mod.nothing_added(plan, talk.labels_from)) is not None:
         raise _labels_stop(talk, stop)
-    added = labels_mod.add(ws, plan, talk.labels_from)
-    _say_lines(talk, labels_mod.said(added, plan, talk.labels_from))
-    talk.say()
+    added = labels_mod.add(ws, plan, talk.labels_from, talk.labels_by)
+    if talk.labels_by == marks.BY_LABEL_STUDIO:
+        labels_mod.keep_set(ws, plan, rows, talk.labels_from)
+    said = labels_mod.said(added, plan, talk.labels_from)
+    if talk.labels_auto and not added.marks and not added.kept:
+        said = []  # its labels came with the results: nothing new needs saying
+    for note in getattr(talk.labels_read, "notes", ()):
+        talk.para(note)
+    if said or getattr(talk.labels_read, "notes", None):
+        _say_lines(talk, said)
+        talk.say()
     talk.labels_read = None  # once
 
 
@@ -2049,7 +2068,7 @@ def path_lines(found: start.Found, about: str | None = None) -> list[str]:
     if not found.graded:
         return [PATH_NO_GRADES.format(file=file), PATH_TO_GRADES]
     table = tool_name(found.tool, [str(found.results[0].rel)]).startswith("your own ")
-    return [PATH_GRADES.format(file=file),
+    return [(PATH_GRADES if found.grader == LLM else PATH_GRADES_CHECK).format(file=file),
             PATH_TABLE_TO_ANSWERS.format(column=_grade_column(found, found.results[0].path))
             if table else PATH_TOOL_TO_ANSWERS]
 
@@ -2371,10 +2390,13 @@ def found_block(found: start.Found, pass_if: str | None = None,
         lines.append(f"Answers:         {_n(answers, 'answer')}")
     if pool.answers and (pool.n_merged or pool.split):
         lines.append(INDENT + repeats_note(answers, pool))
-    lines.append(f"LLM-as-a-judge:  {_judge_value(found)}")
-    if found.model_refused and not found.models:  # so the column is not shown as read
-        lines.append(f"{INDENT}The {found.model_refused} column holds no model's name.")
-    lines += _rule_lines(found)
+    if found.grader != LLM:  # a rule in code, a prediction: no model, no rule to show
+        lines.append(f"Check:           {found.judge}")
+    else:
+        lines.append(f"LLM-as-a-judge:  {_judge_value(found)}")
+        if found.model_refused and not found.models:  # so the column is not shown as read
+            lines.append(f"{INDENT}The {found.model_refused} column holds no model's name.")
+        lines += _rule_lines(found)
     rows = _not_said(read_rows(found, pass_if, mapped), said or [])
     if rows:
         width = max(len(k) for k, _ in rows) + 3

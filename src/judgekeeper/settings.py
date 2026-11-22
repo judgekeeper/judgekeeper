@@ -25,7 +25,7 @@ from judgekeeper.textio import line_ending, read_utf8, write_keeping
 
 FILE = "judgekeeper.toml"
 PASS_OPS = (">=", ">", "<=", "<", "==")
-TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
+TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "label-studio", "table")
 MAP_KEYS = {"each": str, "id": str, "input": str, "output": str, "sides": list, "score": str,
             "reason": str, "kind": str, "judges": list, "model_key": str, "leave_out": bool,
             "pass_mark_key": str}
