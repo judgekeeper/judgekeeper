@@ -4,7 +4,7 @@
 
 - Label Studio: judgekeeper now reads a Label Studio export (JSON, JSON_MIN or CSV) as the people's labels and, when the export holds full predictions, as the check to measure. The labels become your marks, so you don't mark those answers again. `--tool label-studio` names it, and `--metric NAME` picks the question when a project has more than one with choices. An export where predictions are saved as ids only has no check in it: judgekeeper says so and how to give the results of the check you want to measure (`judgekeeper RESULTS --labels EXPORT`).
 - A check that is not an LLM-as-a-judge (a Label Studio prediction, or a rule in your code in a records file) is called "your check" in what judgekeeper prints. Words for an LLM-as-a-judge are unchanged.
-- After you change your LLM-as-a-judge or any other check, `judgekeeper check` says whether it moved on the answers your people labelled, when at least 15 of each kind were compared. For an LLM-as-a-judge it reads "Your LLM-as-a-judge moved: ..."; for another check, "Your check moved: ...".
+- After you change your LLM-as-a-judge or any other check, `judgekeeper check` says whether it moved on the answers your people labelled, when at least 15 of each kind were compared. For an LLM-as-a-judge it reads "Your LLM-as-a-judge moved: ...", "... did not get worse on ..." or "... now agrees with your people more than before, ..."; for another check, "Your check" in the same lines.
 - A mark brought from Label Studio keeps the person's number (`who`) and the time (`labeled_at`), never an email or a name, and `marks.jsonl` keeps a hash of the labels that were imported.
 
 ## 1.3.0 (2026-11-22)

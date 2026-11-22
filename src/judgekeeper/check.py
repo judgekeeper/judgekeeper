@@ -124,8 +124,10 @@ ONE_RUN = "One run, so a small change may be a coincidence."
 MOVED = {
     "worse": ("Your LLM-as-a-judge moved: on the {n} answers your people labelled, it agrees "
               "with them less than before."),
-    "no_drop": ("Your LLM-as-a-judge did not move on the {n} answers your people labelled. If "
-                "your scores changed, look at your app's answers first."),
+    "no_drop": ("Your LLM-as-a-judge did not get worse on the {n} answers your people "
+                "labelled. If your scores changed, look at your app's answers first."),
+    "better": ("Your LLM-as-a-judge now agrees with your people more than before, on the {n} "
+               "answers they labelled."),
     "not_sure": ("Too early to tell whether your LLM-as-a-judge moved. These {n} labels can't "
                  "rule out a drop of up to {d} points."),
 }
@@ -1077,12 +1079,14 @@ def _identity_moved(state: State, found) -> bool:
 
 def moved_line(g: dict, drop: int | None) -> str | None:
     """"Did your check move": its one line from the groups' verdicts (outcome), or None when
-    fewer than ROUGH answers of either kind were compared, or a group rose (better), which
-    "did not move" would not say."""
+    fewer than ROUGH answers of either kind were compared. A group that rose (better), with
+    none worse or not sure, says so instead of "did not get worse"."""
     if min(g[key]["n"] for key, _, _ in SIDES) < targets.ROUGH:
         return None
     kind = outcome(g)
-    if kind not in MOVED or any(g[key]["verdict"] == "better" for key, _, _ in SIDES):
+    if kind == "no_drop" and any(g[key]["verdict"] == "better" for key, _, _ in SIDES):
+        kind = "better"
+    if kind not in MOVED:
         return None
     if drop is None:  # none of the marks' sizes could see a drop: the widest range end
         drop = max(_worst(g[key]["low"]) for key, _, _ in SIDES)

@@ -334,12 +334,12 @@ def test_check_says_the_check_moved_when_it_agrees_less(here, capsys):
             "less than before.") in flat(out)
 
 
-def test_check_says_the_check_did_not_move(here, capsys):
+def test_check_says_the_check_did_not_get_worse(here, capsys):
     people, check = _started(here, capsys)
     export(here / "new.json", people, check, version="judge-v2")
     code, out = run(capsys, "check", "new.json")
     assert code == 0, out
-    assert ("Your check did not move on the 60 answers your people labelled. If your scores "
+    assert ("Your check did not get worse on the 60 answers your people labelled. If your scores "
             "changed, look at your app's answers first.") in flat(out)
 
 
@@ -363,7 +363,7 @@ def test_the_moved_line_needs_fifteen_labels_of_each_kind():
     assert check.moved_line(_g(20, 20, 2), None).startswith(
         "Your LLM-as-a-judge moved: on the 40 answers")
     assert check.moved_line(_g(20, 20, 20), None).startswith(
-        "Your LLM-as-a-judge did not move on the 40")
+        "Your LLM-as-a-judge did not get worse on the 40")
 
 
 def test_the_moved_line_says_too_early_when_the_labels_cannot_rule_a_drop_out():
@@ -375,10 +375,18 @@ def test_the_moved_line_says_too_early_when_the_labels_cannot_rule_a_drop_out():
     assert check.moved_line(_g(20, 20, 18), 31).endswith("up to 31 points.")
 
 
-def test_the_moved_line_stays_quiet_when_agreement_rose():
+def test_the_moved_line_says_so_when_agreement_rose():
     from judgekeeper import check
 
-    assert check.moved_line(_g(30, 5, 28), None) is None
+    assert check.moved_line(_g(30, 5, 28), None) == (
+        "Your LLM-as-a-judge now agrees with your people more than before, on the 60 answers "
+        "they labelled.")
+    grader_words.use(CODE)
+    try:
+        assert grader_words.swap(check.moved_line(_g(30, 5, 28), None)).startswith(
+            "Your check now agrees with your people more than before")
+    finally:
+        grader_words.use(LLM)
 
 
 def test_the_moved_line_says_check_for_a_check_that_is_not_an_llm():
@@ -425,3 +433,23 @@ def test_two_llm_judges_on_labels_from_label_studio_say_your_llm_as_a_judge_move
     assert ("Your LLM-as-a-judge moved: on the 60 answers your people labelled, it agrees "
             "with them less than before.") in text
     assert "Your check moved" not in text
+
+
+def test_labels_for_answers_the_judge_never_graded_are_said_so_not_as_duplicates(here, capsys):
+    """Three answers got no grade (an API refusal), and the same refusal text is also the
+    graded answer of two other questions: their labels are for answers not graded, never
+    "match more than one answer"."""
+    refusal = "I can't help with that."
+    n = 40
+    outputs = [refusal if i in (0, 1) or i >= n else answer(i) for i in range(n + 3)]
+    table_project(here, [i % 2 == 0 for i in range(n)] + [None] * 3, outputs=outputs,
+                  model="gpt-4.1-mini")
+    tasks = [task(i, [(7, "Pass" if i % 2 == 0 else "Fail")], [],
+                  data={"input": question(i), "output": outputs[i]}) for i in range(n + 3)]
+    write(here / "people.json", tasks)
+    _, out = run(capsys, *PAGE, "--labels", "people.json")
+    text = flat(out)
+    assert "Added 40 marks from people.json" in text, out
+    assert ("Skipped 3 labels: 3 are for answers your LLM-as-a-judge didn't grade Pass or Fail"
+            in text), out
+    assert "match more than one answer" not in text

@@ -645,7 +645,10 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
             if not hits:  # no question, or one that finds no answer: by the text alone
                 hits = by_text.get(text, []) if text else []
                 if len({_text(a.input) for a in hits}) > 1:
-                    plan.skip(MORE_THAN_ONE)
+                    # a question that is none of theirs, and the same words in an answer the
+                    # judge never graded: it is that answer's label
+                    ungraded = not _blank(question) and _digest(text) in left_text
+                    plan.skip(NOT_GRADED if ungraded else MORE_THAN_ONE)
                     continue
             if not hits:
                 plan.skip(NOT_GRADED if text and _digest(text) in left_text else NO_MATCH)
