@@ -1,0 +1,274 @@
+[
+ {
+  "id": 105,
+  "data": {
+   "question": "Question 5: how do I reset the widget?",
+   "answer": "Answer 5: hold the button for five seconds."
+  },
+  "annotations": [
+   {
+    "id": 1050,
+    "completed_by": 7,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-10T10:00:00.000000Z",
+    "lead_time": 12.5
+   },
+   {
+    "id": 1051,
+    "completed_by": 8,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-11T10:00:00.000000Z",
+    "lead_time": 13.5
+   }
+  ],
+  "predictions": [
+   {
+    "id": 5005,
+    "model_version": "judge-v1",
+    "score": 0.9,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 106,
+  "data": {
+   "question": "Question 6: how do I reset the widget?",
+   "answer": "Answer 6: hold the button for five seconds."
+  },
+  "annotations": [
+   {
+    "id": 1060,
+    "completed_by": 7,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-10T10:00:00.000000Z",
+    "lead_time": 12.5
+   },
+   {
+    "id": 1061,
+    "completed_by": 8,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-11T10:00:00.000000Z",
+    "lead_time": 13.5
+   }
+  ],
+  "predictions": [
+   {
+    "id": 5006,
+    "model_version": "judge-v1",
+    "score": 0.9,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 107,
+  "data": {
+   "question": "Question 7: how do I reset the widget?",
+   "answer": "Answer 7: hold the button for five seconds."
+  },
+  "annotations": [
+   {
+    "id": 1070,
+    "completed_by": 7,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-10T10:00:00.000000Z",
+    "lead_time": 12.5
+   },
+   {
+    "id": 1071,
+    "completed_by": 8,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": true,
+    "created_at": "2026-11-11T10:00:00.000000Z",
+    "lead_time": 13.5
+   }
+  ],
+  "predictions": [
+   {
+    "id": 5007,
+    "model_version": "judge-v1",
+    "score": 0.9,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 108,
+  "data": {
+   "question": "Question 8: how do I reset the widget?",
+   "answer": "Answer 8: hold the button for five seconds."
+  },
+  "annotations": [
+   {
+    "id": 1080,
+    "completed_by": 7,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-10T10:00:00.000000Z",
+    "lead_time": 12.5
+   },
+   {
+    "id": 1081,
+    "completed_by": 8,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": true,
+    "ground_truth": false,
+    "created_at": "2026-11-11T10:00:00.000000Z",
+    "lead_time": 13.5
+   }
+  ],
+  "predictions": [
+   {
+    "id": 5008,
+    "model_version": "judge-v1",
+    "score": 0.9,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+]

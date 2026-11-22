@@ -11,15 +11,16 @@ from __future__ import annotations
 
 from judgekeeper.readers.deepeval import read_deepeval
 from judgekeeper.readers.inspect_logs import read_inspect
+from judgekeeper.readers.label_studio import read_label_studio
 from judgekeeper.readers.mlflow_store import read_mlflow
 from judgekeeper.readers.promptfoo import read_promptfoo
 from judgekeeper.records import read_records
 
 READERS = {"promptfoo": read_promptfoo, "deepeval": read_deepeval, "inspect": read_inspect,
-           "records": read_records}
+           "label-studio": read_label_studio, "records": read_records}
 PLATFORM_READERS = {"mlflow": read_mlflow}
 TOOLS = (*READERS, *PLATFORM_READERS)
 
 __all__ = ["PLATFORM_READERS", "READERS", "TOOLS",
-           "read_deepeval", "read_inspect", "read_mlflow", "read_promptfoo",
+           "read_deepeval", "read_inspect", "read_label_studio", "read_mlflow", "read_promptfoo",
            "read_records"]

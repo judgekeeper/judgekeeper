@@ -32,7 +32,7 @@ from judgekeeper.textio import loads, read_regular, write_replacing
 FILE = "judge.json"
 ONE_CALL, PANEL, AGENT = "one call", "panel", "agent"
 FIELDS = ("tool", "tool_version", "version_from", "kind", "models", "vote", "agent",
-          "rule_hash", "prompt_hash", "temperature", "pass_mark", "endpoint")
+          "rule_hash", "prompt_hash", "temperature", "pass_mark", "endpoint", "grader_version")
 NOT_HASHED = ("version_from",)  # where the version was read is not the judge
 TOOL_ONLY = {"tool_version", "prompt_hash"}  # an eval tool update may change its own prompt
 # The package each eval tool is installed as: npm for promptfoo, PyPI for the others
@@ -75,7 +75,10 @@ def of(found) -> dict:
             "rule_hash": rule_hash(scrub(found.rule)), "prompt_hash": fp.get("prompt_hash"),
             "temperature": fp.get("temperature"),
             "pass_mark": {"mark": pm["mark"], "op": pm["op"]} if pm else None,
-            "endpoint": fp.get("endpoint")})
+            "endpoint": fp.get("endpoint"),
+            # only a check that is a prediction has one: no other setup's hash changes
+            **({"grader_version": found.grader_version}
+               if getattr(found, "grader_version", None) else {})})
 
 
 def version_of(found) -> tuple[str | None, str | None]:
@@ -406,6 +409,8 @@ def changes(old: dict, new: dict) -> list[str]:
         out.append(f"pass mark {_pass_mark(old['pass_mark'])} -> {_pass_mark(new['pass_mark'])}")
     if "endpoint" in differ:
         out.append(f"endpoint {old['endpoint'] or 'default'} -> {new['endpoint'] or 'default'}")
+    if "grader_version" in differ:
+        out.append(f"version {old['grader_version']} -> {new['grader_version']}")
     return out
 
 

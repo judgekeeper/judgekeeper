@@ -1,0 +1,214 @@
+[
+ {
+  "id": 101,
+  "data": {
+   "question": "Question 1: how do I reset the widget?",
+   "answer": "Answer 1: hold the button for five seconds."
+  },
+  "annotations": [
+   {
+    "id": 1010,
+    "completed_by": {
+     "id": 7,
+     "email": "ada.lovelace@example.com",
+     "first_name": "Ada",
+     "last_name": "Lovelace"
+    },
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-10T10:00:00.000000Z",
+    "lead_time": 12.5
+   }
+  ],
+  "predictions": [
+   {
+    "id": 5001,
+    "model_version": "judge-v1",
+    "score": 0.9,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 102,
+  "data": {
+   "question": "Question 2: how do I reset the widget?",
+   "answer": "Answer 2: hold the button for five seconds."
+  },
+  "annotations": [
+   {
+    "id": 1020,
+    "completed_by": {
+     "id": 7,
+     "email": "ada.lovelace@example.com",
+     "first_name": "Ada",
+     "last_name": "Lovelace"
+    },
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-10T10:00:00.000000Z",
+    "lead_time": 12.5
+   }
+  ],
+  "predictions": [
+   {
+    "id": 5002,
+    "model_version": "judge-v1",
+    "score": 0.9,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 103,
+  "data": {
+   "question": "Question 3: how do I reset the widget?",
+   "answer": "Answer 3: hold the button for five seconds."
+  },
+  "annotations": [
+   {
+    "id": 1030,
+    "completed_by": {
+     "id": 7,
+     "email": "ada.lovelace@example.com",
+     "first_name": "Ada",
+     "last_name": "Lovelace"
+    },
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Pass"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-10T10:00:00.000000Z",
+    "lead_time": 12.5
+   }
+  ],
+  "predictions": [
+   {
+    "id": 5003,
+    "model_version": "judge-v1",
+    "score": 0.9,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 104,
+  "data": {
+   "question": "Question 4: how do I reset the widget?",
+   "answer": "Answer 4: hold the button for five seconds."
+  },
+  "annotations": [
+   {
+    "id": 1040,
+    "completed_by": {
+     "id": 7,
+     "email": "ada.lovelace@example.com",
+     "first_name": "Ada",
+     "last_name": "Lovelace"
+    },
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ],
+    "was_cancelled": false,
+    "ground_truth": false,
+    "created_at": "2026-11-10T10:00:00.000000Z",
+    "lead_time": 12.5
+   }
+  ],
+  "predictions": [
+   {
+    "id": 5004,
+    "model_version": "judge-v1",
+    "score": 0.9,
+    "result": [
+     {
+      "from_name": "verdict",
+      "to_name": "answer",
+      "type": "choices",
+      "value": {
+       "choices": [
+        "Fail"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+]

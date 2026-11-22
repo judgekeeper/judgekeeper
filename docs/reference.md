@@ -116,7 +116,7 @@ After your first 10 marks, about 1 in 20 answers comes back a second time, so ju
 
 If you already have Pass/Fail labels, judgekeeper can use them as your marks, so you don't mark those answers again. Then mark more on the page if you need to.
 
-- `judgekeeper --labels your-labels.csv` reads them from a CSV, TSV or JSONL file.
+- `judgekeeper --labels your-labels.csv` reads them from a CSV, TSV or JSONL file, or from a Label Studio export ([Label Studio](#label-studio)).
 - `judgekeeper --labels` uses the labels people gave that are already in your results: promptfoo `human` ratings, MLflow assessments from a HUMAN source, a `human_label` or `label` column in your CSV, TSV or JSONL results file, and `record()` lines with `annotator_kind` `HUMAN`, also when they are in a file of their own and name their answer by `target_id`. A `HUMAN` line with no `name` labels your LLM-as-a-judge when the grades hold only one name. Without the flag, judgekeeper says how many it found and never uses them. Scores edited in Inspect AI are not used: Inspect keeps a person's label only when they change a score, so those labels would be mostly disagreements and make your LLM-as-a-judge look worse than it is. Labels for another question (for example a Tone rating when your LLM-as-a-judge checks something else) are not used. When all your labels are for another name, judgekeeper says so and adds none.
 
 `judgekeeper mark` takes the flag too. Put your project folder first: `judgekeeper evals --labels your-labels.csv`.
@@ -129,7 +129,7 @@ A records JSONL file given to `--labels` is read as records: its `HUMAN` lines f
 
 **The words** are read like grades ([How grades are read](#how-grades-are-read)), with your `--label-map`. A blank label is skipped. A number other than 1 or 0 (`1.0` and `0.0` count as 1 and 0), or a word judgekeeper can't read, stops it before anything is written (exit 3).
 
-**What is left out, and said:** a label for an answer not in your results, for one your LLM-as-a-judge didn't grade Pass or Fail, for an answer that matches more than one answer, or for an answer labelled both Pass and Fail. When none match, it stops (exit 3).
+**What is left out, and said:** a label for an answer not in your results, for a question that is not in your results (its answer text may match many answers, so it is not used), for one your LLM-as-a-judge didn't grade Pass or Fail, for an answer that matches more than one answer, or for an answer labelled both Pass and Fail. When none match, it stops (exit 3).
 
 **Running it again** adds only what is new. An answer you already marked keeps your mark, from the page or an earlier import; when a label differs from your mark, judgekeeper says how many it kept. The same labels again say "Nothing new". You can change an imported mark on the page.
 
@@ -138,6 +138,17 @@ A records JSONL file given to `--labels` is read as records: its `HUMAN` lines f
 Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed (or every answer left to mark there, if fewer are left).
 
 Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 among those it failed, judgekeeper compares them with the imported marks in each group. When they differ too much to be a coincidence (Fisher's exact test, p under 0.025 in either group), the result warns that the numbers may be off. It is a warning, never a stop.
+
+## Label Studio
+
+A Label Studio export is read as your people's labels, and, when it holds predictions in full, as the check to measure. Export from Label Studio as JSON (with predictions in full, not as ids), JSON_MIN or CSV. A `.json` list whose items have `data` and `annotations` or `predictions` is read as Label Studio; so is a JSON_MIN or CSV export with `annotator` and `annotation_id` columns, which is never read as a check's grades.
+
+- **The answer:** the question and answer come from the keys of `data` that are named like an input and an output (`input`, `question`, `prompt`; `output`, `answer`, `response`). With no key for the answer, judgekeeper stops (exit 2), names the keys of `data` (never their values) and says what to do.
+- **What is graded:** only `choices` questions. With several, name one with `--metric NAME`; without it judgekeeper stops (exit 2) and lists the names. Other kinds of question are counted in one line and left out.
+- **People's labels:** the labels of annotations that were not cancelled. With one person, theirs. With several, the one marked `ground_truth`, else the label they all gave; answers they disagree on are left out and counted ("People disagreed on {n} answers; they are left out of this number."). Only the person's number is kept as `who`, with `created_at` as `labeled_at`; emails and names are never read into a file. They become marks (`by: "label-studio"`, `from`: the file's name), counted like marks from the page.
+- **The check:** the predictions, one per `model_version` (the newest; with several versions it says which it used and how to check another). An export that holds only prediction ids has no check in it. Give the results of the check you want to measure, and the export as the labels: `judgekeeper RESULTS --labels EXPORT`.
+- **Words:** a check that is not an LLM-as-a-judge is called "your check". The step 3 result and the notes use the same numbers (kappa, TPR and TNR).
+- **`check`:** after you change your check (an LLM-as-a-judge too: its words are "Your LLM-as-a-judge moved: ...", "Your LLM-as-a-judge did not get worse on ...", "Your LLM-as-a-judge now agrees with your people more than before, ..." and "Too early to tell whether your LLM-as-a-judge moved. ..."), `judgekeeper check NEW` also says, with at least 15 labels of each kind, one of: "Your check moved: on the {n} answers your people labelled, it agrees with them less than before.", "Your check did not get worse on the {n} answers your people labelled. If your scores changed, look at your app's answers first.", "Your check now agrees with your people more than before, on the {n} answers they labelled." (when no group got worse or is unsure and the range of the rise in a group is all above 0) or "Too early to tell whether your check moved. These {n} labels can't rule out a drop of up to {d} points." The exit code does not change.
 
 ## fix: see where your LLM-as-a-judge goes wrong, then test a better rule
 
@@ -216,6 +227,49 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 **How it decides.** It checks the answers you passed and failed as two groups. "Worse": the whole range of the change is a drop. "Better": the whole range of the change is a rise of more than 20 points. "No big drop": the low end is above a 20-point drop. "Not sure": anything else. The new grades come from one run of your eval, so a small change, or a small drop in one group, may be a coincidence. Each group's range is a 90% range, so even when nothing changed, one of the two groups can say "Worse" by coincidence, in up to 5 checks in 100 for each group ([coverage check](examples/coverage/coverage.md)). Mark more answers before acting on one. It exits 1 only when the drop's middle estimate is over 20 points, whichever word it says. Unless it is "Worse" (or "Not sure" when the drop's middle estimate is over 20 points), your marks now test the new LLM-as-a-judge. Results from the LLM-as-a-judge you marked with, after a check of another one, say "back to the one you marked with" on every check (exit 0), and your marks test it again. With the same model and rule as before, it still compares when grades on your marked answers changed, and says first that your LLM-as-a-judge doesn't always grade the same answer the same way; with no grade changed, it says nothing has changed.
 
 **Marks that wait.** If the new results graded only some of your answers, a mark you make later on an answer they didn't grade waits: it is kept but not counted, and the result says how many wait ("your new LLM-as-a-judge has no Pass or Fail grade on those answers yet"). To count them, grade all your answers with your new LLM-as-a-judge, then run `judgekeeper check <new results file>`.
+
+## steps: check an agent reviewer's first wrong step
+
+```
+judgekeeper steps [PATH] [--reviewer FILE] [--model NAME]
+```
+
+| Flag | What it does |
+|---|---|
+| `PATH` | Your agent runs (a JSONL file, one run per line with an id and its steps) to make the Label Studio screen, or the Label Studio export (JSON) of that project to see the numbers |
+| `--reviewer FILE` | Your reviewer's guesses as a JSONL file, one line per run: {"id": ..., "first_wrong_step": ..., "model": ...}; else the predictions in the export |
+| `--model NAME` | The reviewer to look at, when the export holds several |
+
+For agents. A reviewer (an AI that reads a run and says which step went wrong first) can be checked against your people the same way an LLM-as-a-judge is. People label each run in [Label Studio](https://labelstud.io): the number of its **first wrong step**, counting from 1 (step N is the Nth step in the run's `steps` list), or **0 if all steps are fine**. judgekeeper only reads and writes files; it never calls Label Studio or an AI.
+
+**1. Your runs.** A JSONL file, one run per line:
+
+| Key | What it holds |
+|---|---|
+| `id` | The run's id (text or a whole number), different for every run. Needed |
+| `steps` | A list of steps, each `{"role": ..., "content": ...}` (`name` works in place of `role`). The content is text; anything else is written as JSON. Needed |
+| `task` or `input` | What the agent was asked to do. Written as `data.task` and shown above the steps |
+| `outcome` | Allowed and not used |
+
+`judgekeeper steps runs.jsonl` writes `.judgekeeper/steps/label-these.json` (the file to import into Label Studio: one task per run, with the steps in `data.steps` as a numbered dialogue, and the run's id in `data.run_id`) and `.judgekeeper/steps/label-config.xml` (the labelling setup: the steps, and a number box "first wrong step", with 0 for all fine). In Label Studio, make a project from that setup, import the file and label the runs. Give a folder and it reads `runs.jsonl` in it.
+
+**2. Your reviewer's guesses**, in one of two places:
+
+- In the Label Studio project, as predictions on the same tasks (`model_version` names the reviewer; a prediction holds one number box answer). A plain Label Studio export holds only the ids of predictions; export with the full predictions (the export API's `serialization_options` `predictions` `only_id: false`) or use the file below.
+- A JSONL file given with `--reviewer`, one line per run: `{"id": ..., "first_wrong_step": 3, "model": "my-reviewer"}`. The `id` is the run's id (`data.run_id`; else `data.id`; else Label Studio's task id). A line can also say `provider`, `snapshot`, `prompt_hash`, `rubric_version`, `temperature`, and when it was judged (`created_at` or `timestamp`, as text such as `2026-11-22T05:19:21Z`; the newest of a reviewer's lines is saved as the fingerprint's `created_at`); what is not said is saved as unknown. With `--reviewer`, the export's predictions are not used.
+
+**3. The numbers.** `judgekeeper steps export.json` reads the export (the JSON export of that project). A person's label is a not-cancelled annotation with a number box answer. When several people labelled a run, the one marked ground truth stands; else the label they all gave; else the run is left out and counted. A person who labelled a run twice counts once, with the newest. A number that is not a whole number from 0 to the last step is left out and counted. From each annotation only the person's numeric user id is kept (as `who`): never an email, a name or any other field Label Studio may hold about them.
+
+- **Runs that went wrong or were fine** (first wrong step above 0, or 0): how often the reviewer also says a run your people say went wrong went wrong (TPR), how often it says a run your people say was fine was fine (TNR), and kappa, each with its range (TPR and TNR as Wilson ranges, kappa from draws as in [How the numbers are worked out](#how-the-numbers-are-worked-out)).
+- **Which step**, on the runs both say went wrong: how often the reviewer names the same first wrong step as your people, and a step within one of it, each with a Wilson range.
+
+A number needs at least 15 runs of its kind (15 your people say went wrong for TPR, 15 they say were fine for TNR, both for kappa, 15 both say went wrong for the step numbers); with fewer it says so and gives no number. With several reviewers (`model_version`s), each gets its own numbers; `--model NAME` shows one. The result is saved in `.judgekeeper/steps/result.json` with each reviewer's name and fingerprint (fields the export does not hold are unknown), the people's counts, and no step text.
+
+| Exit code | When |
+|---|---|
+| 0 | the screen files were written, or at least one number was given |
+| 2 | a file it can't read or that is not a runs file or a Label Studio export of steps, or `--reviewer` or `--model` with a runs file |
+| 3 | you are needed: no run labelled yet, no reviewer guesses (the `Next:` line says how to give them), or too few runs for any number |
 
 ## Check your AI's answers (no grades)
 
@@ -306,6 +360,7 @@ It looks only in your project folder and up to four folders down (a CSV, TSV or 
 - DeepEval by `.deepeval/` or `deepeval` in your dependencies, and reads `test_run_*.json`, else `.deepeval/.latest_run_full.json`;
 - Inspect AI by `logs/` or `inspect-ai` in your dependencies, and reads `.json` logs, and `.eval` logs with the `inspect` extra;
 - MLflow's local store, `mlruns/` or `mlflow.db`, with the `mlflow` extra;
+- Label Studio by a `.json` export (a list of tasks with `data` and `annotations` or `predictions`), or a JSON_MIN or CSV export with `annotator` and `annotation_id`;
 - A CSV, TSV or JSONL file in the project folder or up to one folder down, with `input` and `output` columns, a `verdict` column if an LLM-as-a-judge graded them, and at most 200 columns. A `judge_model` (or `model`) column names the model when each value is a name, not a grade or a rule's name. A row with more filled cells than the header stops it and names the line. One it can't read is left out, with one line saying how many;
 - the lines `judgekeeper.record()` saved in `.judgekeeper/records/`.
 
@@ -399,7 +454,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `start.json` | The results files, the LLM-as-a-judge's fingerprint, counts, the seed, the answers' order and batches |
 | `pool.jsonl` | Each answer to mark: id, input, output, batch |
 | `pool-judge.jsonl` | Your LLM-as-a-judge's grade on every answer, with the fingerprint |
-| `marks.jsonl` | One line per click on the page, or per label brought with `--labels` (id, mark, time, and for a label the file's name; no answer text), and your reasons |
+| `marks.jsonl` | One line per click on the page, or per label brought with `--labels` or from a Label Studio export (id, mark, time, and for a label the file's name and, from Label Studio, the person's number and the time; no answer text), and your reasons. The first line keeps a hash of each set of labels brought |
 | `reasons.json` | Your own reason buttons (at most 8) |
 | `server.json`, `page.json` | The open page: port, process, token, and a secret that only closes it. Removed when it stops |
 | `page.log` | What the page wrote in the background |
@@ -408,6 +463,8 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `link-said.json` | How many marks came through a printed link when the terminal last said so, so it says it again only when that changes |
 | `result.json`, `report.html` | The result: every number, your counts, the fingerprint and the date. In `result.json`, `labels.correct` and `labels.wrong` count the answers you marked Pass and Fail (not what your LLM-as-a-judge got right or wrong), and `groups.pass.correct` and `groups.fail.correct` count the answers you marked Pass among those it passed and failed |
 | `history/` | Earlier results, with the same fields as `result.json` |
+| `steps/label-these.json`, `steps/label-config.xml` | With `judgekeeper steps` on a runs file: the runs to import into Label Studio, and the labelling setup |
+| `steps/result.json` | With `judgekeeper steps` on a Label Studio export: how often the reviewer finds the same first wrong step as your people, with the reviewer's fingerprint. No step text |
 | `history.jsonl` | With an LLM-as-a-judge: one line per result, fix test, check and new set of marks kept aside: counts and numbers, no answer text. Not written for answers with no grades |
 | `anchors.jsonl`, `anchors.manifest.json` | The answers you marked, as a fixed set with its sha256 |
 | `fix/split.json` | Which marks are kept aside, the seed, and every test on them, with its sha256 |

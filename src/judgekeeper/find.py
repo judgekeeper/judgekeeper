@@ -31,9 +31,10 @@ from pathlib import Path
 
 from judgekeeper import keys, recorder, textio
 
-TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
+TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "label-studio", "table")
 NAMES = {"records": "judgekeeper.record()", "promptfoo": "promptfoo", "deepeval": "DeepEval",
-         "inspect": "Inspect AI", "mlflow": "MLflow", "table": "a CSV, TSV or JSONL file"}
+         "inspect": "Inspect AI", "mlflow": "MLflow", "label-studio": "Label Studio",
+         "table": "a CSV, TSV or JSONL file"}
 EXTRAS = {"inspect": "inspect", "mlflow": "mlflow"}
 
 MAX_FILES = 5000
@@ -190,9 +191,30 @@ def _results_like(path: Path) -> bool:
             and bool(_RESULTS_WORDS.search(path.stem)))
 
 
+# A Label Studio export: a list of tasks, each with `data` and its annotations or predictions
+_LS_LIST = re.compile(r'\[\s*\{')
+_LS_DATA = re.compile(r'"data"\s*:\s*\{')
+_LS_RESULTS = re.compile(r'"(?:annotations|predictions)"\s*:\s*\[')
+_LS_FLAT = re.compile(r'"annotator"\s*:')  # a JSON_MIN export: a row per annotation
+_LS_FLAT_ID = re.compile(r'"annotation_id"\s*:')
+
+
+def _label_studio_columns(columns) -> bool:
+    """The columns of a Label Studio CSV export: an `annotator` and an `annotation_id`."""
+    from judgekeeper.readers.label_studio import is_flat_columns
+
+    return is_flat_columns(columns)
+
+
 def sniff_json(head: bytes) -> str | None:
     """The tool that wrote a JSON file, from its first bytes, or None."""
     text = head.decode("utf-8", errors="replace").lstrip("﻿ \t\r\n")
+    if text.startswith("["):
+        if not _LS_LIST.match(text):
+            return None
+        full = _LS_DATA.search(text) and _LS_RESULTS.search(text)
+        flat = _LS_FLAT.search(text) and _LS_FLAT_ID.search(text)
+        return "label-studio" if full or flat else None
     if not text.startswith("{"):
         return None
     # Inspect first: its logs also have a "results" object (the scores) and "stats". An "eval"
@@ -518,6 +540,8 @@ def classify_file(path: Path) -> str | None:
         return "records"
     if suffix in TABLE_SUFFIXES:
         columns = table_columns(path)
+        if suffix in (".csv", ".tsv") and _label_studio_columns(columns):
+            return "label-studio"  # a person's labels, never a judge's verdicts
         return "table" if is_table(columns) or answers_only(path) else None
     if suffix == ".json":
         if DEEPEVAL_RUN.fullmatch(path.name) or path.name in DEEPEVAL_COPIES:
@@ -677,6 +701,8 @@ class _Walk:
             columns = table_columns(path)
             if suffix in JSONL_SUFFIXES and is_records(columns):  # judgekeeper.record()'s format
                 self.add("records", path, size)
+            elif suffix in (".csv", ".tsv") and _label_studio_columns(columns):
+                self.add("label-studio", path, size)  # never read as a table of verdicts
             elif is_table(columns):
                 why = table_problem(path, size, columns)
                 if why is None:

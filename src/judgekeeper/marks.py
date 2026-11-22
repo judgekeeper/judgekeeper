@@ -50,7 +50,9 @@ MARKS = ("pass", "fail", "skip", None)
 MAX_SECONDS = 3600
 BY = "page"
 BY_FILE = "file"  # a label brought with --labels
-COUNTED_BY = (BY, BY_FILE)
+BY_LABEL_STUDIO = "label-studio"  # a label brought from a Label Studio export
+IMPORTED_BY = (BY_FILE, BY_LABEL_STUDIO)  # the marks that were not made on the page
+COUNTED_BY = (BY, *IMPORTED_BY)
 FROM_RESULTS = "results"  # "from" of the labels already in the results
 STAMPS = ("by", "at", "sitting")
 PRINTED = "printed"
@@ -117,13 +119,20 @@ def repeat_line(item_id: str, mark: str | None, group: str | None, seconds, sitt
             "slot": slot}
 
 
-def imported_line(item_id: str, mark: str, group: str | None, sitting: str, source: str) -> dict:
+def imported_line(item_id: str, mark: str, group: str | None, sitting: str, source: str,
+                  by: str = BY_FILE, who=None, labeled_at: str | None = None) -> dict:
     """One label brought with --labels as a line of marks.jsonl: no seconds, `source` the
-    file's base name (never a path) or FROM_RESULTS."""
+    file's base name (never a path) or FROM_RESULTS. From Label Studio (`by`), `who` is the
+    number Label Studio gives the person (never more) and `labeled_at` when they labelled."""
     if mark not in ("pass", "fail"):
         raise ValueError("an imported mark must be pass or fail")
-    return {"id": item_id, "mark": mark, "group": group, "at": utc_now(), "seconds": None,
-            "sitting": sitting, "by": BY_FILE, "from": source}
+    line = {"id": item_id, "mark": mark, "group": group, "at": utc_now(), "seconds": None,
+            "sitting": sitting, "by": by, "from": source}
+    if who is not None:
+        line["who"] = who
+    if labeled_at is not None:
+        line["labeled_at"] = labeled_at
+    return line
 
 
 def _line(data: dict) -> str:
@@ -183,6 +192,27 @@ def begin(path: str | Path, head: dict) -> None:
     path = Path(path)
     _refuse_links(path)
     write_replacing(path, _line(head))
+
+
+def update_header(path: str | Path, key: str, value: dict) -> None:
+    """Set `key` of marks.jsonl's header (its first line) to `value` for the label set an
+    import brought: each name under `key` (a file's base name) keeps its own entry. Every mark
+    after the header stays as written."""
+    path = Path(path)
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    except OSError:
+        return
+    try:
+        head = loads(lines[0]) if lines else None
+    except ValueError:
+        head = None
+    if not isinstance(head, dict) or head.get("marks") != VERSION:
+        return
+    sets = head.get(key) if isinstance(head.get(key), dict) else {}
+    head[key] = {**sets, **value}
+    _refuse_links(path)
+    write_replacing(path, _line(head) + "".join(lines[1:]))
 
 
 def append(path: str | Path, data: dict) -> None:
@@ -408,7 +438,7 @@ def imported(m: Marks, ids=None) -> dict | None:
     many, how many Pass and Fail, and where from (each import's "from", first seen first);
     None when there are none."""
     lines = [m.last[i] for i in m.counted() if (ids is None or i in ids)]
-    lines = [x for x in lines if x["by"] == BY_FILE]
+    lines = [x for x in lines if x["by"] in IMPORTED_BY]
     if not lines:
         return None
     sources = [x.get("from") for x in lines if isinstance(x.get("from"), str) and x["from"]]

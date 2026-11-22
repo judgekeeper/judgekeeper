@@ -85,7 +85,8 @@ def test_a_wrong_question_falls_back_to_the_answer(here, capsys):
     assert "Added 1 mark from mine.csv (0 Pass, 1 Fail)." in flat(out), out
 
 
-def test_a_wrong_question_with_an_answer_text_twice_is_more_than_one(here, capsys):
+def test_a_question_not_in_the_results_with_an_answer_text_twice_is_not_in_your_results(
+        here, capsys):
     _same_text_twice(here)
     write_labels(here / "mine.csv", [
         {"output": answer(0), "label": "fail", "question": "Not this question?"},
@@ -93,8 +94,17 @@ def test_a_wrong_question_with_an_answer_text_twice_is_more_than_one(here, capsy
     _, out = run(capsys, "--labels", "mine.csv")
     text = flat(out)
     assert "Added 1 mark from mine.csv (0 Pass, 1 Fail)." in text, out
+    assert "Skipped 1 label: 1 is for a question that is not in your results" in text, out
+
+
+def test_a_question_in_the_results_with_an_answer_text_twice_is_more_than_one(here, capsys):
+    _same_text_twice(here)
+    write_labels(here / "mine.csv", [
+        {"output": answer(0), "label": "fail", "question": question(2)},
+        {"output": answer(5), "label": "fail", "question": question(5)}])
+    _, out = run(capsys, "--labels", "mine.csv")
     assert ("Skipped 1 label: 1 matches more than one answer (add a question column to tell "
-            "them apart)") in text, out
+            "them apart)") in flat(out), out
 
 
 def test_the_right_question_still_tells_answers_with_the_same_text_apart(here, capsys):
