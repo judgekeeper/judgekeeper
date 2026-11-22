@@ -77,7 +77,8 @@ PAGE_FLAGS = ("--port", "--no-browser")
 
 MESSAGE = ("The keeper of human judgment for AI.\n"
            "See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
-           "agent reviewer) agrees with your people, and see when that changes.")
+           "agent reviewer) agrees with your people, down to each step, and see when "
+           "that changes.")
 STEPS = """\
 Read. Measure. Fix. Re-check.
 

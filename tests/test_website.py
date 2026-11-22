@@ -389,8 +389,8 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
 SHARE_ALT = ("The judgekeeper logo and the words: The keeper of human judgment for AI. "
              "Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
 HOME_DESCRIPTION = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code "
-                    "rule, an agent reviewer) agrees with your people, and see when that "
-                    "changes.")
+                    "rule, an agent reviewer) agrees with your people, down to each step, "
+                    "and see when that changes.")
 HOME_MORE = (" Read. Measure. Fix. Re-check. Open source; it reads the results "
              "your eval tool saved.")
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}

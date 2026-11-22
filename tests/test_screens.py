@@ -323,10 +323,11 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:28] == [
+    assert lines[:29] == [
         "The keeper of human judgment for AI.",
         "See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an",
-        "agent reviewer) agrees with your people, and see when that changes.",
+        "agent reviewer) agrees with your people, down to each step, and see when that",
+        "changes.",
         "",
         "Read. Measure. Fix. Re-check.",
         "",
@@ -353,7 +354,7 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[28:34] == [
+    assert lines[29:35] == [
         "  fix     show where your LLM-as-a-judge goes wrong, help you write a better",
         "          rule and test it on marks kept aside",
         "  check   see if your check still agrees with your marks after a change",

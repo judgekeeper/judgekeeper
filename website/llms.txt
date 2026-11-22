@@ -1,6 +1,6 @@
 # judgekeeper
 
-> The keeper of human judgment for AI. See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, and see when that changes. Read. Measure. Fix. Re-check. An LLM-as-a-judge is an AI model that grades the answers of another AI model, Pass or Fail, with a rule. judgekeeper shows how often it agrees with you. It is an open-source command-line tool that runs on your own computer.
+> The keeper of human judgment for AI. See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, down to each step, and see when that changes. Read. Measure. Fix. Re-check. An LLM-as-a-judge is an AI model that grades the answers of another AI model, Pass or Fail, with a rule. judgekeeper shows how often it agrees with you. It is an open-source command-line tool that runs on your own computer.
 
 ## Pages
 

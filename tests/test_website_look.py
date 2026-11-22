@@ -523,7 +523,7 @@ def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
     assert buttons == [("start.html", {"b-main"}, "Get started"),
                        ("check.html", {"b-side"}, "Try the Read step in your browser")]
     sub_line = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
-                "agent reviewer) agrees with your people, and see when that changes.")
+                "agent reviewer) agrees with your people, down to each step, and see when that changes.")
     assert [_flat(p) for p in _all(hero, "p", None)
             if not any("jk-card" in a.classes() for a in p.ancestors())] == [sub_line]
     # the chosen step's green line, which gives way while another word is hovered or focused
@@ -1595,7 +1595,7 @@ def test_testing_a_new_rule_is_said_for_every_eval_tool():
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
     short = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
-             "agent reviewer) agrees with your people, and see when that changes.")
+             "agent reviewer) agrees with your people, down to each step, and see when that changes.")
     assert meta == [short + (" Read. Measure. Fix. Re-check. Open source; it reads "
                              "the results your eval tool saved."), short, short]
     for json_ld in (el for el in _els(HOME) if el.attrs.get("type") == "application/ld+json"):

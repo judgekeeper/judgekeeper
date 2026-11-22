@@ -15,7 +15,7 @@
   </p>
 </div>
 
-See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, and see when that changes.
+See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, down to each step, and see when that changes.
 
 An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong. No LLM-as-a-judge? judgekeeper can also check the answers of your chatbot, agent or any AI that answers questions (see below).
 
@@ -43,6 +43,7 @@ Using a coding agent? Give it this page and tell it: "Follow this to run judgeke
 3. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside. It makes no AI call: you grade the marked answers again with your own eval tool, which may use your API key.
 4. **Re-check:** after you change the model or the rule, grade your marked answers again (`judgekeeper fix` writes them to `.judgekeeper/fix/marked-answers.csv`). `judgekeeper check <new results file>` shows if it still agrees with you.
    - Changed your AI, not the LLM-as-a-judge? `judgekeeper results.json --before main-results.json` compares the grades in two results question by question and exits 1 when the change made it worse, or 3 when nothing could be compared ([how](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#did-your-change-make-it-worse)).
+   - Checking an agent? `judgekeeper steps` helps you label the first wrong step of each run in Label Studio, then shows how often your reviewer finds the same one.
 
 In your project, judgekeeper reads your results files and writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
