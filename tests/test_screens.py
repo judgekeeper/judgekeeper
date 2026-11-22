@@ -190,7 +190,7 @@ def test_screen_4_mark_more(here, capsys):
     assert code == 0
     assert lines == [
         *HEAD,
-        "Step 1 of 4: Read (mark more answers)",
+        "Step 1 of 4: Read (more answers)",
         "",
         *PATH,
         "You marked 37 answers so far: 20 Pass, 17 Fail.",

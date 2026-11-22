@@ -3200,7 +3200,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if opened is not None and opened.server is not None:
             page.serve(opened.server)
         return EXIT_OK
-    talk.say(STEP.format(n=1, name="Read (mark more answers)" if marking and enough
+    talk.say(STEP.format(n=1, name="Read (more answers)" if marking and enough
                                 else "Read (mark your answers)"))
     talk.say()
     _say_head(talk, head)
@@ -3693,7 +3693,7 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     n = n_pass + n_fail
     enough = n >= no_grades.MIN_MARKS
     every = bool(session.items) and all(i["label"] for i in session.items)
-    talk.say(STEP.format(n=1, name="Read (mark more answers)" if marking and enough
+    talk.say(STEP.format(n=1, name="Read (more answers)" if marking and enough
                                 else "Read (mark your answers)"))
     talk.say()
     if talk.found is not None:

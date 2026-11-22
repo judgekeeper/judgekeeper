@@ -194,7 +194,7 @@ def test_enough_marks_open_the_page_and_leave_the_result_to_judgekeeper(here, ca
     _click(ws, 41)  # enough (20 in each group), with 1 answer left to mark
     code, out, err = run(capsys, "mark")
     assert code == 0, out
-    assert "Step 1 of 4: Read (mark more answers)" in out
+    assert "Step 1 of 4: Read (more answers)" in out
     assert "You marked 41 answers so far: " in out and "not enough" not in out
     assert "Each new mark makes your numbers more precise." in _flat(out)
     assert "Your marks:" not in out and "Kappa" not in out
