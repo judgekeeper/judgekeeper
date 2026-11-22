@@ -491,3 +491,96 @@ def test_the_first_line_is_the_version(here, capsys):
     shutil.copy(FIXTURES / "runs.jsonl", here / "runs.jsonl")
     _, out, _ = run(capsys, "steps", "runs.jsonl")
     assert out.splitlines()[0] == f"judgekeeper {__version__}"
+
+
+# Tool calls ------------------------------------------------------------------------------
+
+def _written_steps(here, capsys, steps):
+    (here / "runs.jsonl").write_text(json.dumps({"id": "a", "steps": steps}) + "\n",
+                                     encoding="utf-8")
+    code, _, err = run(capsys, "steps", "runs.jsonl")
+    assert code == 0, err
+    out = json.loads((here / ".judgekeeper/steps/label-these.json").read_text(encoding="utf-8"))
+    return [s["content"] for s in out[0]["data"]["steps"]]
+
+
+def test_an_openai_tool_call_is_written_as_a_line(here, capsys):
+    call = {"id": "c1", "type": "function",
+            "function": {"name": "search", "arguments": '{"q": "x"}'}}
+    shown = _written_steps(here, capsys, [
+        {"role": "assistant", "content": "", "tool_calls": [call], "secret_key": "NOPE"},
+        {"role": "assistant", "content": "Looking.", "tool_calls": [call, call]}])
+    assert shown[0] == 'Tool call: search({"q": "x"})'
+    assert shown[1] == 'Looking.\nTool call: search({"q": "x"})\nTool call: search({"q": "x"})'
+    assert "NOPE" not in json.dumps(shown)
+
+
+def test_anthropic_content_blocks_are_written_as_text_and_tool_lines(here, capsys):
+    shown = _written_steps(here, capsys, [
+        {"role": "assistant", "content": [
+            {"type": "text", "text": "I will look it up."},
+            {"type": "tool_use", "id": "t1", "name": "search", "input": {"q": "x"}}]},
+        {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "t1", "content": "Found it."}]},
+        {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "t1",
+             "content": [{"type": "text", "text": "Found"}, {"type": "text", "text": "it."}]},
+            {"type": "image", "source": "NOPE"}]}])
+    assert shown[0] == 'I will look it up.\nTool call: search({"q": "x"})'
+    assert shown[1] == "Tool result: Found it."
+    assert shown[2] == "Tool result: Found\nit."
+    assert "NOPE" not in json.dumps(shown)
+
+
+def test_arguments_that_are_not_json_are_kept_as_text(here, capsys):
+    shown = _written_steps(here, capsys, [{"role": "assistant", "content": None, "tool_calls": [
+        {"function": {"name": "run", "arguments": "not json"}}]}])
+    assert shown == ["Tool call: run(not json)"]
+
+
+# Guesses for runs that are not there ---------------------------------------------------------
+
+def test_guesses_for_runs_not_in_the_export_are_counted_and_said(here, capsys):
+    export = save(here, project())
+    rows = [{"id": f"r{i}", "first_wrong_step": reviewer_first(i)} for i in range(40)]
+    rows += [{"id": "x1", "first_wrong_step": 1}, {"id": "x2", "first_wrong_step": 0}]
+    (here / "g.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
+    code, out, err = run(capsys, "steps", str(export), "--reviewer", "g.jsonl")
+    assert code == 0, err
+    assert "2 guesses are for runs that are not in export.json." in out
+    assert result(here)["reviewers"][0]["left_out"]["not_in_export"] == 2
+    rows = rows[:40] + rows[40:41]
+    (here / "g.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
+    _, out, _ = run(capsys, "steps", str(export), "--reviewer", "g.jsonl")
+    assert "1 guess is for a run that is not in export.json." in out
+
+
+def test_no_such_line_when_every_guess_is_a_run(here, capsys):
+    export = save(here, project())
+    rows = [{"id": f"r{i}", "first_wrong_step": reviewer_first(i)} for i in range(40)]
+    (here / "g.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
+    _, out, _ = run(capsys, "steps", str(export), "--reviewer", "g.jsonl")
+    assert "not in export.json" not in out
+
+
+# Exports it does not read --------------------------------------------------------------------
+
+LOOKS_LIKE = ("{name} looks like a Label Studio JSON_MIN (or CSV) export. judgekeeper steps "
+              "reads the full JSON export: in Label Studio, export as JSON.")
+
+
+def test_a_json_min_export_is_named(here, capsys):
+    rows = [{"steps": [{"role": "user", "content": "x"}], "id": 13, "first_wrong_step": 2,
+             "annotator": 2, "annotation_id": 21, "lead_time": 3.0}]
+    code, _, err = run(capsys, "steps", str(save(here, rows, "steps_min.json")))
+    assert code == 2 and LOOKS_LIKE.format(name="steps_min.json") in err
+    assert err.strip().splitlines()[-1].startswith("Next:")
+
+
+def test_a_csv_export_is_named_with_or_without_a_reviewer(here, capsys):
+    (here / "steps_csv.csv").write_text("annotation_id,annotator,first_wrong_step,id,steps\n"
+                                        "21,2,2,13,\"[{'role': 'user'}]\"\n", encoding="utf-8")
+    (here / "g.jsonl").write_text('{"id": 13, "first_wrong_step": 1}\n', encoding="utf-8")
+    for extra in ([], ["--reviewer", "g.jsonl"]):
+        code, _, err = run(capsys, "steps", "steps_csv.csv", *extra)
+        assert code == 2 and LOOKS_LIKE.format(name="steps_csv.csv") in err
