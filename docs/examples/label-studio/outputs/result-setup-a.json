@@ -65,7 +65,7 @@
   "skipped": 0,
   "disagreements": 27,
   "left": 0,
-  "made_at": "2026-11-22T06:37:56Z",
+  "made_at": "2026-11-22T06:47:46Z",
   "numbers_version": 4,
   "judgekeeper_version": "1.3.0",
   "fingerprint": {
@@ -75,7 +75,7 @@
     "prompt_hash": "149626cecf5decb96930cb5b5d6a2350372f1d7854a72e4b295f6c8adce07539",
     "rubric_version": "xstest-complied-v1",
     "temperature": null,
-    "created_at": "2026-11-22T06:37:56Z",
+    "created_at": "2026-11-22T06:47:45Z",
     "endpoint": "unknown"
   },
   "judge": {
@@ -88,7 +88,7 @@
     "results_files": [
       "results-setup-a.jsonl"
     ],
-    "results_date": "2026-11-22 01:37"
+    "results_date": "2026-11-22 01:47"
   },
   "judge_check": {
     "answers": 447,
@@ -136,5 +136,5 @@
     "port": 0,
     "no_browser": true
   },
-  "marks_sha256": "602e2fc6e2402144ae40e4d52bcbdbc113d7362d1db56ddad88d0866dd845c49"
+  "marks_sha256": "8051c9261013734d649c05681a91cb46ba1443327adb6aa1e14d6705b13119e5"
 }
