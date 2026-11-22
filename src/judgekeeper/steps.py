@@ -63,6 +63,8 @@ NEXT_AGAIN = ("change your reviewer, save its new guesses as a JSONL file and ru
 
 NOT_EXPORT = ("{name} is not a Label Studio export of the runs judgekeeper steps writes: give "
               "it your runs file (JSONL) or that project's export (JSON).")
+FLAT_EXPORT = ("{name} looks like a Label Studio JSON_MIN (or CSV) export. judgekeeper steps "
+               "reads the full JSON export: in Label Studio, export as JSON.")
 NO_STEPS_IN_EXPORT = ("{name} is a Label Studio export, but its tasks hold no `steps` (they "
                       "hold: {keys}). This reads the export of the project made from "
                       f"{SHOWN}/{TASKS_FILE}.")
@@ -110,6 +112,50 @@ def _text(value) -> str:
     return "" if value is None else json.dumps(value, ensure_ascii=False)
 
 
+def _call_line(name, arguments) -> str:
+    """"Tool call: search({"q": "x"})": arguments given as JSON text are shown as JSON."""
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except ValueError:
+            return f"Tool call: {_text(name)}({arguments})"
+    return f"Tool call: {_text(name)}({'' if arguments is None else _text(arguments)})"
+
+
+def _block_lines(block) -> list[str]:
+    """The readable lines of one content block (Anthropic style): text, a tool call, a tool
+    result. Any other kind of block, and any other key, is left out."""
+    if isinstance(block, str):
+        return [block] if block else []
+    if not isinstance(block, dict):
+        return []
+    kind = block.get("type")
+    if kind == "text" and isinstance(block.get("text"), str):
+        return [block["text"]] if block["text"] else []
+    if kind == "tool_use":
+        return [_call_line(block.get("name"), block.get("input"))]
+    if kind == "tool_result":
+        content = block.get("content")
+        text = ("\n".join(x for b in content for x in _block_lines(b))
+                if isinstance(content, list) else _text(content))
+        return [f"Tool result: {text}"]
+    return []
+
+
+def step_text(step: dict) -> str:
+    """A step as text a person can read: its content (text, or a list of blocks), then one
+    line for each tool call (OpenAI `tool_calls` or Anthropic `tool_use` blocks). Nothing
+    else in the step is written."""
+    content = step.get("content")
+    lines = ([x for b in content for x in _block_lines(b)] if isinstance(content, list)
+             else [_text(content)] if _text(content) else [])
+    for call in step.get("tool_calls") or []:
+        if isinstance(call, dict):
+            fn = call.get("function") if isinstance(call.get("function"), dict) else call
+            lines.append(_call_line(fn.get("name"), fn.get("arguments")))
+    return "\n".join(lines)
+
+
 def read_runs(path: Path) -> list[Run]:
     """The runs in a JSONL file. A problem is said by line number, never by quoting the line."""
     runs: list[Run] = []
@@ -142,7 +188,7 @@ def read_runs(path: Path) -> list[Run]:
             if not isinstance(role, str) or not role.strip():
                 raise StepsError(f"Step {k} on line {number} of {path.name} has no role or "
                                  "name.")
-            out.append({"role": f"{k}. {role}", "content": _text(step.get("content"))})
+            out.append({"role": f"{k}. {role}", "content": step_text(step)})
         asked = next((row[k] for k in ("task", "input") if row.get(k) not in (None, "")), None)
         runs.append(Run(run_id, out, None if asked is None else _text(asked)))
     if not runs:
@@ -239,6 +285,9 @@ def read_export(path: Path, wanted_name: str | None = None) -> Export:
     except ValueError:
         raise StepsError(NOT_EXPORT.format(name=path.name)) from None
     tasks_in = data if isinstance(data, list) else None
+    if tasks_in and all(isinstance(t, dict) and "data" not in t for t in tasks_in) and any(
+            STEP_FIELD in t for t in tasks_in):
+        raise StepsError(FLAT_EXPORT.format(name=path.name))  # JSON_MIN: one flat row each
     if not tasks_in or not all(isinstance(t, dict) and isinstance(t.get("data"), dict)
                                for t in tasks_in):
         raise StepsError(NOT_EXPORT.format(name=path.name))
@@ -330,7 +379,8 @@ def compare(tasks: list[Task], guesses: dict) -> dict:
     """One reviewer's numbers against the people's labels."""
     people, found = [], []
     steps = []
-    left = {"no_guess": 0, "unusable": 0}
+    known = {task.id for task in tasks}
+    left = {"no_guess": 0, "unusable": 0, "not_in_export": len(set(guesses) - known)}
     for task in tasks:
         if task.state != "label":
             continue
@@ -455,6 +505,8 @@ def run(path: str | None = None, reviewer: str | None = None, model: str | None 
                              "export (JSON).")
     elif (bad := textio.not_a_file(file)) is not None:
         raise StepsError(textio.not_a_file_message(file, bad.kind))
+    if file.suffix.lower() == ".csv":
+        raise StepsError(FLAT_EXPORT.format(name=file.name))
     shown = str(given)
     _say(f"judgekeeper {__version__}")
     _say()
@@ -547,6 +599,10 @@ def _numbers(file: Path, shown: str, reviewer: str | None, model: str | None) ->
         if left["no_guess"] or left["unusable"]:
             _say(f"  Left out: {left['no_guess']} with no guess from this reviewer, "
                  f"{left['unusable']} with a guess that is not a step of the run.")
+        if left["not_in_export"]:
+            n = left["not_in_export"]
+            _say(f"  Left out: {n} guess is for a run that is not in {file.name}." if n == 1
+                 else f"  Left out: {n} guesses are for runs that are not in {file.name}.")
     _say()
     _say(f"Saved in {SHOWN}/{RESULT_FILE}.")
     _say()
