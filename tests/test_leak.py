@@ -224,7 +224,7 @@ SETUP_KEY = "sk-ant-api03-FAKESETUPaaaaaaaaaaaaaaaa"
 KEYED_SETUP = {"tool_version": f"1.0 {SETUP_KEY}", "models": [f"m {SETUP_KEY}"],
                "vote": f"mode {SETUP_KEY}", "agent": {"runtime": SETUP_KEY, "can_write": False},
                "temperature": SETUP_KEY, "pass_mark": {"mark": SETUP_KEY, "op": ">="},
-               "endpoint": f"https://x.test/{SETUP_KEY}"}
+               "endpoint": f"https://x.test/{SETUP_KEY}", "grader_version": f"v1 {SETUP_KEY}"}
 
 
 def test_no_field_of_the_judge_setup_is_saved_with_a_key(tmp_path):
