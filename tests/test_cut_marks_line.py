@@ -96,6 +96,6 @@ def test_measure_says_the_cut_line_once(here, capsys):
     _mark_some(ws, 1, start_at=35)  # the cut answer marked again
     code, out, _ = run(capsys, "--no-browser")
     assert code == 0, out
-    assert "Step 3 of 5: Measure" in out
+    assert "Step 2 of 4: Measure" in out
     assert flat(out).count(UNREADABLE) == 1, out
     assert "not made on the page" not in out

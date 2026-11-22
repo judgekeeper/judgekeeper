@@ -16,8 +16,8 @@ import html
 SITE = "https://www.judgekeeper.com/"
 IMAGE = SITE + "assets/social-preview.png"  # the file is website/assets/social-preview.png
 IMAGE_SIZE = (1200, 630)  # made by scripts/make_social_preview.py
-IMAGE_ALT = ("The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. "
-             "Find. Mark. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
+IMAGE_ALT = ("The judgekeeper logo and the words: The keeper of human judgment for AI. "
+             "Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
 
 
 def url(target: str) -> str:

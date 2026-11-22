@@ -59,7 +59,7 @@ def test_nothing_changed_says_so_in_the_agreed_words(here, capsys):
     code, out = run(capsys)
     assert code == 0
     assert out.splitlines()[2:] == [
-        "Step 5 of 5: Re-check", "",
+        "Step 4 of 4: Re-check", "",
         "Results: results.json", "",
         "Your LLM-as-a-judge has not changed since you marked your answers.",
         "Same model, same rule, same eval tool.", "",
@@ -123,7 +123,7 @@ def test_settings_changed_after_the_last_eval_run(here, capsys):
     code, out = run(capsys)
     assert code == 0
     assert out.splitlines()[2:] == [
-        "Step 5 of 5: Re-check", "",
+        "Step 4 of 4: Re-check", "",
         "Results: results.json", "",
         "Your LLM-as-a-judge's settings changed after your last eval run,",
         "so the grades judgekeeper has are out of date.", "",
@@ -398,7 +398,7 @@ def test_a_plain_run_after_a_same_rule_worse_names_it(here, capsys):
     said = _flat(capsys.readouterr().out)
     main(["--stop"])
     capsys.readouterr()
-    assert said.startswith("judgekeeper ") and "Step 3 of 5: Measure" in said
+    assert said.startswith("judgekeeper ") and "Step 2 of 4: Measure" in said
     assert ("Same model and rule as before, yet 16 of your marked answers got a different "
             "grade: your LLM-as-a-judge doesn't always grade the same answer the same way.") in said
     assert ("Your last check found your LLM-as-a-judge in results.json worse, so the numbers "

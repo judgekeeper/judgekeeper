@@ -353,7 +353,7 @@ def _measured(root, capsys, only=None):
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
     for item in session.items[:only]:
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 6})
-    assert "Step 3 of 5: Measure" in _jk(capsys)[1]
+    assert "Step 2 of 4: Measure" in _jk(capsys)[1]
     return ws
 
 
@@ -540,7 +540,7 @@ def test_fix_never_says_the_rule_is_in_a_saved_screen(tmp_path, capsys, monkeypa
     screen = f'Eval tool:       promptfoo\nRule:            "{RULE}"\n'
     (tmp_path / "find.txt").write_text(screen, encoding="utf-8")
     (tmp_path / "run.log").write_text(f"{RULE}\n", encoding="utf-8")
-    (tmp_path / "copy.md").write_text(f"Step 1 of 5: Find\n\n{screen}", encoding="utf-8")
+    (tmp_path / "copy.md").write_text(f"Step 1 of 4: Read\n\n{screen}", encoding="utf-8")
     _, out = _jk(capsys, "fix")
     assert "Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line" in out, out
     assert "find.txt" not in out and "run.log" not in out and "copy.md" not in out
@@ -851,7 +851,7 @@ def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
     assert code == 3, out
     assert ("No eval results found in this folder. Your 50 marks are saved in .judgekeeper/; "
             "they come back when your results file is back.") in flat(out)
-    assert out.count("Step 1 of 5: Find") == 1, out
+    assert out.replace("Step 1 of 4: Read (", "").count("Step 1 of 4: Read") == 1, out
 
 
 # Back to the marked judge ---------------------------------------------------------------------

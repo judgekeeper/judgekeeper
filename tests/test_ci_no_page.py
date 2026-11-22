@@ -81,7 +81,7 @@ def test_ci_step_2_says_one_line_and_starts_nothing(here, capsys, monkeypatch, p
     assert LINE.format(command="judgekeeper results.csv") in flat(out)
     assert OPENING not in out
     assert "marking page is open" not in flat(out)
-    assert "Step 2 of 5: Mark" in out
+    assert "Step 1 of 4: Read (mark your answers)" in out
     assert "You marked" not in out and "A result needs at least" in out  # the counts stay
     assert counts(0, 12, 28) in flat(out)
     assert WORSE in flat(out)

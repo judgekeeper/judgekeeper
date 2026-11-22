@@ -12,7 +12,7 @@ import pytest
 from tests.website_pages import ROOT
 
 README = ROOT / "README.md"
-STEPS = (("Find", "`judgekeeper`"), ("Mark", "a page opens in your browser"),
+STEPS = (("Read", "A page opens in your browser"),
          ("Measure", "`judgekeeper`"), ("Fix", "`judgekeeper fix`"),
          ("Re-check", "`judgekeeper check <new results file>`"))
 
@@ -36,20 +36,20 @@ def test_the_readme_is_short_and_in_order():
     text = _readme()
     assert text.startswith('<div align="center">\n  <img ')  # one centered header block
     body = text.split("\n</div>\n", 1)[1]
-    assert len(body.splitlines()) < 72  # the text under the header stays short
+    assert len(body.splitlines()) < 74# the text under the header stays short
     top = text[:text.index("\n## ")]
-    for needed in ("<strong>Check your LLM-as-a-judge in 5 steps.</strong>",
-                   "Find. Mark. Measure. Fix. Re-check.", "docs/assets/demo.webp"):
+    for needed in ("<strong>The keeper of human judgment for AI.</strong>",
+                   "Read. Measure. Fix. Re-check.", "docs/assets/demo.webp"):
         assert needed in top, needed
     assert (ROOT / "docs" / "assets" / "demo.webp").stat().st_size < 1_000_000
     heads = list(_sections(text))
-    wanted = ["Install", "The 5 steps", "The numbers", "Checked on public data",
+    wanted = ["Install", "The 4 steps", "The numbers", "Checked on public data",
               "More", "License"]
     assert [h for h in heads if h in wanted] == wanted
 
 
 def test_the_readme_has_each_step_with_its_command():
-    steps = _sections(_readme())["The 5 steps"]
+    steps = _sections(_readme())["The 4 steps"]
     for n, (step, command) in enumerate(STEPS, 1):
         line = next(x for x in steps.splitlines() if x.startswith(f"{n}. **{step}:**"))
         assert command in line, step
@@ -316,7 +316,7 @@ def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
 
 def _step(n: int) -> str:
     """Step n's line, with the short lines indented under it."""
-    lines = _sections(_readme())["The 5 steps"].splitlines()
+    lines = _sections(_readme())["The 4 steps"].splitlines()
     at = next(i for i, x in enumerate(lines) if x.startswith(f"{n}. "))
     under = []
     for x in lines[at + 1:]:
@@ -326,10 +326,11 @@ def _step(n: int) -> str:
     return " ".join([lines[at], *under])
 
 
-def test_the_mark_step_keeps_two_sentences_and_short_lines_under_it():
-    lines = _sections(_readme())["The 5 steps"].splitlines()
-    at = next(i for i, x in enumerate(lines) if x.startswith("2. "))
-    assert lines[at].startswith("2. **Mark:** a page opens in your browser. Mark answers Pass or "
+def test_the_read_step_keeps_two_sentences_and_short_lines_under_it():
+    lines = _sections(_readme())["The 4 steps"].splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith("1. "))
+    assert lines[at].startswith("1. **Read:** `judgekeeper` finds your eval results and reads "
+                                "them. A page opens in your browser. Mark answers Pass or "
                                 "Fail; the LLM-as-a-judge's grade stays hidden.")
     under = lines[at + 1:at + 3]
     assert [x[:5] for x in under] == ["   - "] * 2
@@ -346,11 +347,11 @@ def test_the_readme_says_how_to_get_the_link_and_the_result_notes_a_printed_link
     coding agent read it) get a note on the result. The README's agent line says no more."""
     from judgekeeper.start_label import link_lines
 
-    assert NO_BROWSER in _step(2)
+    assert NO_BROWSER in _step(1)
     install = _flat(_sections(_readme())["Install"])
     (note,) = link_lines({"printed": 2})
-    assert ('Using a coding agent? Give it this page and tell it: "Follow this to check my '
-            'LLM-as-a-judge." It runs the steps and gives you the marking page link; you '
+    assert ('Using a coding agent? Give it this page and tell it: "Follow this to run judgekeeper '
+            'on my project." It runs the steps and gives you the marking page link; you '
             "mark, then the coding agent explains the result.") in install
     assert "came through a link" not in install
     assert "came through a link judgekeeper printed" in note

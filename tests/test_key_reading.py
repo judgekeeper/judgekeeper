@@ -337,7 +337,7 @@ def test_without_pyyaml_a_tagged_env_key_never_reaches_disk_or_the_terminal(
     assert code == 0, out + err
     _mark(Workspace(here), {i: "fail" for i in range(3)})
     _, more, err2 = run(capsys, "--no-browser", "--port", "0")  # every answer marked
-    assert "Step 3 of 5: Measure" in more, more + err2
+    assert "Step 2 of 4: Measure" in more, more + err2
     folder = here / ".judgekeeper"
     pool, report = (folder / name for name in ("pool.jsonl", "report.html"))
     assert redact.REDACTED in pool.read_text(encoding="utf-8")
@@ -368,7 +368,7 @@ def test_without_pyyaml_a_value_with_a_bang_or_an_ampersand_is_hidden_whole(
     assert code == 0, out + err
     _mark(Workspace(here), {i: "fail" for i in range(4)})
     _, more, err2 = run(capsys, "--no-browser", "--port", "0")  # every answer marked
-    assert "Step 3 of 5: Measure" in more, more + err2
+    assert "Step 2 of 4: Measure" in more, more + err2
     folder = here / ".judgekeeper"
     assert redact.REDACTED in (folder / "pool.jsonl").read_text(encoding="utf-8")
     assert "Use " in (folder / "report.html").read_text(encoding="utf-8")
@@ -430,7 +430,7 @@ def test_without_pyyaml_an_env_layout_never_reaches_disk_or_the_terminal(
     assert code == 0, out + err
     _mark(Workspace(here), {i: "fail" for i in range(3)})
     _, more, err2 = run(capsys, "--no-browser", "--port", "0")  # every answer marked
-    assert "Step 3 of 5: Measure" in more, more + err2
+    assert "Step 2 of 4: Measure" in more, more + err2
     folder = here / ".judgekeeper"
     assert redact.REDACTED in (folder / "pool.jsonl").read_text(encoding="utf-8")
     assert "Use " in (folder / "report.html").read_text(encoding="utf-8")

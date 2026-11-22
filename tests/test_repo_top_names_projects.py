@@ -123,7 +123,7 @@ def _answers_over_a_project(capsys, monkeypatch, folder, tag):
 
 
 def _listed(said):
-    return said.split("Step 1 of 5: Find ")[1].split(" hold eval results")[0]
+    return said.split("Step 1 of 4: Read ")[1].split(" hold eval results")[0]
 
 
 @pytest.mark.parametrize("loose", [False, True], ids=["alone", "beside-a-loose-folder"])

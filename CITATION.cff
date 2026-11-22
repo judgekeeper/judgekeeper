@@ -8,7 +8,7 @@ authors:
 repository-code: "https://github.com/judgekeeper/judgekeeper"
 url: "https://www.judgekeeper.com"
 license: Apache-2.0
-abstract: "judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong. With no LLM-as-a-judge, it checks your AI's answers directly."
+abstract: "The keeper of human judgment for AI. See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, down to each step, and see when that changes."
 keywords:
   - LLM-as-a-judge
   - evaluation

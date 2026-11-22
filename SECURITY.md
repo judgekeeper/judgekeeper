@@ -24,7 +24,7 @@ judgekeeper skips a `.env` file or promptfoo config that is a link or is over 1 
 - Every change must also come from the page itself: `Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin` when the browser sends it. So other websites can't send marks. A program already running on your computer could, just as it can edit your files.
 - It stops after 30 minutes without use.
 
-The details are in the [reference](docs/reference.md#judgekeeper-find-mark-measure).
+The details are in the [reference](docs/reference.md#judgekeeper-read-and-measure).
 
 ## What judgekeeper writes
 

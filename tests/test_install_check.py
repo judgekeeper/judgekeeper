@@ -434,6 +434,6 @@ def test_the_walk_runs_fix_after_the_result(ic, monkeypatch, tmp_path):
         commands = [args for args, _, _ in main]
         end = commands.index(["--stop"])
         assert commands[end + 1:] == [["fix"], ["check"]]
-        assert main[end + 1][1] == [r"Step 4 of 5: Fix", r"mistakes\.md",
+        assert main[end + 1][1] == [r"Step 3 of 4: Fix", r"mistakes\.md",
                                     r"marked-answers\.csv"]
         assert main[end + 1][2] == (0,)

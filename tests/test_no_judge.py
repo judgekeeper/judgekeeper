@@ -78,7 +78,7 @@ def test_deepeval_metrics_with_no_model_are_rules_in_code(here, capsys):
     text = _flat(out + err)
     assert ("These metrics are rules in code, not an LLM-as-a-judge. judgekeeper checks an "
             "LLM-as-a-judge.") in text
-    assert "Your LLM-as-a-judge" not in text and "Step 2 of 5" not in text
+    assert "Your LLM-as-a-judge" not in text and "(mark your answers)" not in text
     assert code == 3
 
 
@@ -119,7 +119,7 @@ def test_promptfoos_table_output_is_named_never_read(here, capsys):
     assert ("table.json is promptfoo's table output, which doesn't keep the LLM-as-a-judge's own "
             "decisions.") in text
     assert "`promptfoo eval -o results.json`" in text
-    assert "own format" not in text and "Step 2 of 5" not in text
+    assert "own format" not in text and "(mark your answers)" not in text
     assert code == 2
 
 

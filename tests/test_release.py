@@ -68,8 +68,8 @@ def test_versions_agree():
 
 def test_package_description_and_classifiers():
     main = _toml(ROOT / "pyproject.toml")["project"]
-    assert main["description"] == ("Check your LLM-as-a-judge in 5 steps: "
-                                   "Find. Mark. Measure. Fix. Re-check.")
+    assert main["description"] == ("The keeper of human judgment for AI: "
+                                   "Read. Measure. Fix. Re-check.")
     for classifier in ("Operating System :: OS Independent",
                        "Intended Audience :: Developers",
                        "Topic :: Scientific/Engineering :: Artificial Intelligence"):
@@ -320,7 +320,7 @@ def test_practice_release_installs_from_testpypi_on_three_systems():
     steps = _steps_text(job)
     uvx = 'uvx --index-url \\"$INDEX\\" \\"judgekeeper==$VERSION\\"'
     for needed in (f"{uvx} --version", f"{uvx} --help", f"{uvx} --no-browser", f"{uvx} --stop",
-                   "seq 1 30", "sleep 10", "range(1, 41)", "Step 1 of 5: Find",
+                   "seq 1 30", "sleep 10", "range(1, 41)", "Step 1 of 4: Read",
                    "http://127"):
         assert needed in steps, needed
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", " fix", " check"):

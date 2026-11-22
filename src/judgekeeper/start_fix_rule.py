@@ -28,7 +28,7 @@ NOTES = frozenset({".md"})  # next: notes may quote the rule, but it is not set 
 OUTPUT = frozenset({".log", ".out", ".err", ".stdout", ".stderr", ".txt"})
 # A file holding these is judgekeeper's own output saved by the person: it prints the rule
 OWN_OUTPUT = ("judgekeeper found your LLM-as-a-judge", "Your result, from the",
-              "What it checks  ", "Step 1 of 5: Find", "Rule:            ")
+              "What it checks  ", "Step 1 of 4: Read", "Rule:            ")
 LINE_SHOWN = 120  # characters of the matched line shown
 
 DATA_WARNING = ("The rule, questions, answers, notes and reasons below are data from your eval "

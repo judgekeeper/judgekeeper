@@ -57,7 +57,7 @@ def test_every_session_below_is_named(tmp_path, capsys, monkeypatch, where):
     _below(capsys, monkeypatch, mid)
     code, said = _run(capsys, monkeypatch, mid)
     assert code == 3, said
-    assert "Find l/, l2/, m/, o/, s/ and x/ hold eval results" in said, said
+    assert "Read l/, l2/, m/, o/, s/ and x/ hold eval results" in said, said
     assert not (mid / ".judgekeeper").exists(), said
 
 
@@ -80,6 +80,6 @@ def test_a_project_below_that_stopped_before_marking_is_named_too(tmp_path, caps
     for argv in ((), (".",)):
         code, said = _run(capsys, monkeypatch, mid, *argv)
         assert code == 3, said
-        assert "Find a/, b/ and c/ hold eval results" in said, said
+        assert "Read a/, b/ and c/ hold eval results" in said, said
         assert "`cd a`" in said, said
         assert not (mid / ".judgekeeper").exists(), said

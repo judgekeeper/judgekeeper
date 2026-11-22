@@ -235,7 +235,7 @@ def _question_marks(root, person: dict) -> dict[str, bool]:
 
 
 def real_screens(root, capsys, monkeypatch) -> dict[str, list[str]]:
-    """Run the example project through the five steps; what each run printed."""
+    """Run the example project through the steps; what each run printed."""
     monkeypatch.setattr(fix.secrets, "randbelow", lambda n: SEED)
     monkeypatch.setattr(start, "_interactive", lambda: True)
 

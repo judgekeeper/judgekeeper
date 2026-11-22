@@ -76,7 +76,7 @@ PERSON_PASSES = {"good enough": frozenset(range(1, 30)),
                  "too early": frozenset(range(1, 41))}
 RESULT = {"good enough": r"Result: your LLM-as-a-judge is good enough to use\.",
           "needs work": r"Result: your LLM-as-a-judge needs work\."}
-# Every answer marked, with too few Fail marks: no result, and the marks stay in Step 2 (it may
+# Every answer marked, with too few Fail marks: no result, and the marks stay in Step 1 (it may
 # wrap)
 TOO_FEW = (r"You've\s+marked\s+every\s+answer:\s+40\s+Pass,\s+10\s+Fail\.\s+A\s+result\s+"
            r"needs\s+at\s+least\s+15\s+of\s+each\.")
@@ -693,8 +693,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         # Started by uvx, a Next: line that names a command names uvx (uvx_next). The first
         # look's names none: mark, then click "See your result".
         uvx = [uvx_next(self.version)] if self.via == "uvx" else []
-        expect = [r"Step 1 of 5: Find", rf"LLM-as-a-judge: .*{re.escape(JUDGE_NAME[self.tool])}",
-                  decisions, r"Step 2 of 5: Mark",
+        expect = [r"Step 1 of 4: Read", rf"LLM-as-a-judge: .*{re.escape(JUDGE_NAME[self.tool])}",
+                  decisions, r"Step 1 of 4: Read \(mark your answers\)",
                   r"Open this link in your browser to mark answers:\s+http://127\.0\.0\.1:"]
         first = "1" if result == "good enough" else n
         if self.tool == "own-format":
@@ -721,7 +721,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                     r"`[^`]*judgekeeper(@\S+)?\s+mark`\.\s+New\s+answers\s+are\s+added\s+to\s+"
                     r"the\s+ones\s+you\s+marked\.")
             self.mark_step(f"{n}. judgekeeper says the marks can't give a result yet",
-                           self.front(), [TOO_FEW, r"Step 2 of 5: Mark", more],
+                           self.front(), [TOO_FEW, r"Step 1 of 4: Read \(mark your answers\)", more],
                            ok_codes=(3,), cwd=cwd)
         else:
             self.mark_step(f"{n}. judgekeeper prints the result: {result}", self.front(),
@@ -730,7 +730,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                              r"LLM-as-a-judge\s+passed"),  # the count may wrap
                             (r"You\s+failed\s+\d+\s+answers\.\s+Of\s+those,\s+your\s+"
                              r"LLM-as-a-judge\s+passed"),
-                            r"Step 3 of 5: Measure", *uvx], cwd=cwd)
+                            r"Step 2 of 4: Measure", *uvx], cwd=cwd)
         self.mark_step(f"{n}. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"], cwd=cwd)
 
@@ -779,7 +779,7 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         """`judgekeeper fix`: where the judge goes wrong in mistakes.md, and every marked
         answer in marked-answers.csv, to grade again with a new rule."""
         self.run("2. judgekeeper fix: where your judge goes wrong", [*self.jk, "fix"],
-                 expect=[r"Step 4 of 5: Fix", r"mistakes\.md", r"marked-answers\.csv"])
+                 expect=[r"Step 3 of 4: Fix", r"mistakes\.md", r"marked-answers\.csv"])
         answers = self.project / ".judgekeeper" / "fix" / "marked-answers.csv"
         try:
             head = answers.read_text(encoding="utf-8").splitlines()[:1]

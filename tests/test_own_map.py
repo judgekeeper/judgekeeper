@@ -137,7 +137,7 @@ def test_then_judgekeeper_reads_it_without_a_question(tmp_path, capsys, terminal
             "B.output") in " ".join(out.split())
     code, out = check(capsys, tmp_path)  # marking started: straight to marking
     assert code == 0 and len(asked) == before
-    assert "Step 2 of 5: Mark" in out
+    assert "Step 1 of 4: Read (mark your answers)" in out
 
 
 def test_nothing_is_written_before_the_yes(tmp_path, capsys, terminal):

@@ -1,4 +1,4 @@
-"""Check your LLM-as-a-judge: see how often it agrees with human labels."""
+"""The keeper of human judgment for AI: see how often a check agrees with human labels."""
 
 __version__ = "1.3.0"
 

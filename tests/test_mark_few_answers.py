@@ -1,5 +1,5 @@
 """`mark` on a project with fewer answers than a first result needs: the Next line says so in
-the words the Find step uses, never to wait for a link that can't appear."""
+the words the Read step uses, never to wait for a link that can't appear."""
 
 from __future__ import annotations
 

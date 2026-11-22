@@ -134,7 +134,7 @@ def test_the_first_run_finds_the_answers_and_opens_the_marking_page(here, capsys
     code, out, err = run(capsys, "--no-browser")
     assert code == 0, out + err
     said = flat(out)
-    assert "Step 1 of 5: Find" in said and "Step 2 of 5: Mark" in said
+    assert "Step 1 of 4: Read" in said and "Step 1 of 4: Read (mark your answers)" in said
     assert "Answers: 12 answers" in said
     lines = out.splitlines()
     at = lines.index("Answers:         12 answers")
@@ -174,7 +174,7 @@ def test_ten_marks_give_a_result(here, capsys, pages, kind):
     code, out, err = run(capsys, "--no-browser")
     assert code == 0, out + err
     said = flat(out)
-    assert "Step 3 of 5: Measure" in said
+    assert "Step 2 of 4: Measure" in said
     assert "You passed 6 of 10 answers." in said
     assert "LLM-as-a-judge" not in off_path(out, f"results.{kind}")
     for word in ("TPR", "TNR", "Kappa", "kappa", "kept aside", "judgekeeper fix"):
@@ -658,7 +658,7 @@ def test_new_answers_after_every_answer_was_marked_make_a_new_result(here, capsy
     write_answers(here, 22)  # the same 12 and 10 more
     _, out, _ = run(capsys, "--no-browser")
     said = flat(out)
-    assert "Step 2 of 5: Mark" in said and "Found 10 new answers" in said, said
+    assert "Step 1 of 4: Read (mark your answers)" in said and "Found 10 new answers" in said, said
     assert "You passed" not in said and "for a surer number, then run" not in said
     assert "Change a mark" not in _report(here)
     mark(here, ["pass"] * 8 + ["fail"] * 4 + ["pass"] * 10)

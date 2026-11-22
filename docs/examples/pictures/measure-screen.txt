@@ -1,6 +1,6 @@
 judgekeeper 1.3.0
 
-Step 3 of 5: Measure
+Step 2 of 4: Measure
 
 .judgekeeper/records/ has LLM-as-a-judge grades, so judgekeeper
 checks your LLM-as-a-judge against your marks.

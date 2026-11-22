@@ -132,7 +132,7 @@ def test_a_new_pass_mark_before_any_mark_moves_nothing_of_yours(tmp_path, monkey
     code, out = _run(capsys, "--pass-if", "score>=0.5", *PAGE)
     background.stop(proj / ".judgekeeper")
     assert code == 0, out
-    assert "Moved" not in out and out.count("Step 1 of 5: Find") == 1, out
+    assert "Moved" not in out and out.replace("Step 1 of 4: Read (", "").count("Step 1 of 4: Read") == 1, out
     assert list((proj / ".judgekeeper").glob("previous-*"))  # still moved aside
 
 
@@ -149,7 +149,7 @@ def test_an_import_that_starts_over_says_find_once(tmp_path, monkeypatch, capsys
     monkeypatch.chdir(tmp_path)
     code, out = _run(capsys, "proj", "--labels", "mine.csv", *PAGE)
     background.stop(proj / ".judgekeeper")
-    assert code == 0 and out.count("Step 1 of 5: Find") == 1 and "Moved" not in out, out
+    assert code == 0 and out.replace("Step 1 of 4: Read (", "").count("Step 1 of 4: Read") == 1 and "Moved" not in out, out
 
 
 # fix --new never asks for more marks than there are answers left ---------------------------

@@ -1,7 +1,7 @@
 """What the terminal says, screen by screen: the first run (Find, then Mark), `judgekeeper`
 again before a first result, `judgekeeper mark`, nothing found, `--help` and `--stop`.
 
-Rules for every screen: each block has its label ("Step 1 of 5: Find"); "grade", not
+Rules for every screen: each block has its label ("Step 1 of 4: Read"); "grade", not
 "verdict"; lines fit in 80 columns (prose wraps at 64, a command in backticks is never split);
 the folder's name, never its whole path; other tools are ones judgekeeper "can read results
 from"; one `Next:` paragraph at the end that speaks to the person.
@@ -63,7 +63,7 @@ PATH = [  # which path, and how to switch (front.path_lines)
 ]
 FIRST = [
     *HEAD,
-    "Step 1 of 5: Find",
+    "Step 1 of 4: Read",
     "",
     "Eval tool:       promptfoo",
     "File:            results.json",
@@ -80,7 +80,7 @@ FIRST = [
     "Checked: your LLM-as-a-judge gave every answer a clear Pass or",
     "Fail.",
     "",
-    "Step 2 of 5: Mark",
+    "Step 1 of 4: Read (mark your answers)",
     "",
 ]
 NEEDS = [
@@ -117,7 +117,7 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
     promptfoo_project(here, split(23, 17), rubric=RULE)
     code, lines = screen(capsys, "--no-browser")
     assert code == 0
-    at = lines.index("Step 2 of 5: Mark")
+    at = lines.index("Step 1 of 4: Read (mark your answers)")
     assert lines[at + 2:at + 6] == NEEDS
     assert lines[at + 6] == "Open this link in your browser to mark answers:"
     assert lines[at + 7].startswith("http://127.0.0.1:") and "?token=" in lines[at + 7]
@@ -153,7 +153,7 @@ def test_screen_2_again_before_a_first_result(here, capsys):
     assert code == 0
     assert lines == [
         *HEAD,
-        "Step 2 of 5: Mark",
+        "Step 1 of 4: Read (mark your answers)",
         "",
         *PATH,
         "You marked 12 answers so far: 8 Pass, 4 Fail.",
@@ -190,7 +190,7 @@ def test_screen_4_mark_more(here, capsys):
     assert code == 0
     assert lines == [
         *HEAD,
-        "Step 2 of 5: Mark (more answers)",
+        "Step 1 of 4: Read (more answers)",
         "",
         *PATH,
         "You marked 37 answers so far: 20 Pass, 17 Fail.",
@@ -213,7 +213,7 @@ def test_screen_4_every_answer_marked(here, capsys, pages):
     assert code == 0
     assert lines == [
         *HEAD,
-        "Step 2 of 5: Mark",
+        "Step 1 of 4: Read (mark your answers)",
         "",
         *PATH,
         "You have marked all 40 answers.",
@@ -235,7 +235,7 @@ def test_screen_7_a_tool_with_no_results(here, capsys):
     assert code == 3
     assert lines == [
         *HEAD,
-        "Step 1 of 5: Find",
+        "Step 1 of 4: Read",
         "",
         "Found DeepEval in this folder (requirements.txt), but no saved",
         "results yet. DeepEval saves results only when you run deepeval",
@@ -252,7 +252,7 @@ def test_screen_7_promptfoo_with_no_results_file(here, capsys):
     assert code == 3
     assert lines == [
         *HEAD,
-        "Step 1 of 5: Find",
+        "Step 1 of 4: Read",
         "",
         "Found promptfoo in this folder (promptfooconfig.yaml), but no",
         "saved results file yet. promptfoo keeps its results in its own",
@@ -275,7 +275,7 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
     assert code == 3
     assert lines == [
         *HEAD,
-        "Step 1 of 5: Find",
+        "Step 1 of 4: Read",
         "",
         "No eval results found in this folder (my-app). judgekeeper",
         "looked in this folder and up to 4 folders down (CSV, TSV and",
@@ -323,20 +323,24 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:25] == [
-        "Check your LLM-as-a-judge in 5 steps.",
+    assert lines[:29] == [
+        "The keeper of human judgment for AI.",
+        "See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an",
+        "agent reviewer) agrees with your people, down to each step, and see when that",
+        "changes.",
         "",
-        "  1. Find      judgekeeper          finds your eval results and the",
-        "                                    LLM-as-a-judge that graded them",
-        "  2. Mark      in your browser      you mark answers Pass or Fail",
-        "  3. Measure   judgekeeper          shows how often your LLM-as-a-judge agrees",
-        "                                    with you, and where it goes wrong",
-        "  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, change",
-        "                                    its rule, grade your marked answers again,",
-        "                                    and test the new rule on the marks kept",
-        "                                    aside",
-        "  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, grade",
-        "                                    your marked answers again",
+        "Read. Measure. Fix. Re-check.",
+        "",
+        "  1. Read      judgekeeper          reads your eval results; you mark answers",
+        "                                    Pass or Fail in your browser, or bring the",
+        "                                    labels you already have",
+        "  2. Measure   judgekeeper          shows how often your check agrees with you,",
+        "                                    and where it goes wrong",
+        "  3. Fix       judgekeeper fix      if your check needs work, change its rule,",
+        "                                    grade your marked answers again, and test",
+        "                                    the new rule on the marks kept aside",
+        "  4. Re-check  judgekeeper check    after you change your check, grade your",
+        "                                    marked answers again",
         "                                    (.judgekeeper/fix/marked-answers.csv) and",
         "                                    see if it still agrees with you",
         "",
@@ -350,10 +354,10 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[25:31] == [
+    assert lines[29:35] == [
         "  fix     show where your LLM-as-a-judge goes wrong, help you write a better",
         "          rule and test it on marks kept aside",
-        "  check   re-check your LLM-as-a-judge on your marks after a change",
+        "  check   see if your check still agrees with your marks after a change",
         "  steps   for agents: label the first wrong step of each run in Label Studio,",
         "          then see how often your reviewer finds the same one",
         "",
@@ -392,7 +396,7 @@ def test_the_result_is_step_3_and_speaks_to_the_person(here, capsys):
     _mark(here, 20, 17)
     code, lines = screen(capsys)
     assert code == 0
-    assert lines[2:4] == ["Step 3 of 5: Measure", ""]
+    assert lines[2:4] == ["Step 2 of 4: Measure", ""]
     assert ("The marking page is still open. Mark more answers to make these ranges narrower, "
             "so the numbers are more certain.") in " ".join(lines)
     assert lines[-2:] == ["Next: nothing to do. When you change your LLM-as-a-judge or",
@@ -412,7 +416,7 @@ def test_a_switch_to_another_eval_tool_gives_no_check_verdict(here, capsys):
     code, lines = screen(capsys, "check")
     assert code == 3
     assert lines[2:] == [
-        "Step 5 of 5: Re-check",
+        "Step 4 of 4: Re-check",
         "",
         "Your results now come from DeepEval, not promptfoo.",
         "judgekeeper can't compare LLM-as-a-judge results across two eval tools.",
@@ -438,7 +442,7 @@ def test_old_marks_from_another_tool_give_no_mixed_result(here, capsys):
     assert code == 3
     assert "Your marks are for another LLM-as-a-judge" in " ".join(text.split())
     assert "Start over with these results?" in text
-    for word in ("Step 3 of 5", "your LLM-as-a-judge also passed", "Of the answers you passed"):
+    for word in ("Step 2 of 4", "your LLM-as-a-judge also passed", "Of the answers you passed"):
         assert word not in text, word
 
 

@@ -39,8 +39,8 @@ GUIDE = WEBSITE / "start.html"
 PRIVACY = WEBSITE / "privacy.html"
 CHECK = WEBSITE / "check.html"
 NOT_FOUND = WEBSITE / "errors" / "404.html"
-AGENT_LINE = ('Using a coding agent? Give it this page and tell it: "Follow this to check my '
-              'LLM-as-a-judge." It runs the steps and gives you the marking page link; you '
+AGENT_LINE = ('Using a coding agent? Give it this page and tell it: "Follow this to run '
+              'judgekeeper on my project." It runs the steps and gives you the marking page link; you '
               "mark, then the coding agent explains the result.")  # word for word
 TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are [trademarks](https://github.com/"
                   "judgekeeper/judgekeeper/blob/main/TRADEMARKS.md) of Sathvik Thota. The "
@@ -310,7 +310,7 @@ def test_keyboard_focus_shows_a_soft_ring_and_a_click_leaves_none():
     ring = _rule(":focus-visible")
     assert "outline: 2px solid var(--fg)" in ring and "border-radius: 4px" in ring
     assert "border-radius: 12px" in _rule(".jk-card:focus-visible")
-    # the five words show focus with their own green line, so no ring around them
+    # the four words show focus with their own green line, so no ring around them
     assert "outline: none" in _rule(".five a:focus-visible")
     assert ".five a:focus-visible::after" in CSS
     # the one ring is in the text colour; no other focus rule brings back a white box
@@ -326,7 +326,7 @@ COLOUR_ONLY = {"color", "background", "background-color", "border-color", "filte
 
 def test_the_only_motion_is_the_underline_the_typing_and_the_count_up():
     """Hover colours may fade; nothing else moves, slides, turns or appears by itself. The green
-    line under the five words grows, a click on a word scrolls to the steps, the public-dataset
+    line under the four words grows, a click on a word scrolls to the steps, the public-dataset
     tiles grow a green line on hover and their numbers count up once, and the browser check's
     example cards lift 1px on hover (not under reduced motion)."""
     # one animation: the browser check's cursor blinks while it waits for a file
@@ -461,9 +461,8 @@ DEMO = [["Can I return a lamp after 60 days?",
         ["Do you ship to Canada?",
          "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]
 # Each step starts with what you do, in a few plain words
-STEPS = [("find", "Find", "Find your eval results and the LLM-as-a-judge that graded them."),
-         ("mark", "Mark", "Mark your answers Pass or Fail in your browser."),
-         ("measure", "Measure", "See how often your LLM-as-a-judge agrees with you."),
+STEPS = [("find", "Read", "Read your eval results and your labels, such as a Label Studio export, or mark answers Pass or Fail in your browser."),
+         ("measure", "Measure", "See how often your LLM-as-a-judge agrees with you, and how much your people agree with each other."),
          ("fix", "Fix", "Write a better rule and test it on marks kept aside."),
          ("check", "Re-check", "Change your LLM-as-a-judge and see if it still agrees with you.")]
 
@@ -512,19 +511,21 @@ def test_the_demo_card_keeps_one_height():
     assert "flex: 1" in _rule(".jk-card.is-end .jk-end")
 
 
-def test_the_hero_is_the_headline_the_five_words_two_buttons_and_the_demo():
+def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
     hero = _all(_main(HOME), "section", "hero")[0]
     (h1,) = _all(hero, "h1")
-    assert _flat(h1) == "Check your LLM-as-a-judge in 5 steps."
+    assert _flat(h1) == "The keeper of human judgment for AI."
     (five,) = _all(hero, "nav", "five")
     words = [(a.attrs["href"], a.attrs["data-step"], _flat(a)) for a in _all(five, "a")]
     assert words == [("#steps", key, f"{label}.") for key, label, _ in STEPS]
     buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
                if {"b-main", "b-side"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
-                       ("check.html", {"b-side"}, "Try the Find step in your browser")]
-    assert not _all(hero, "p", None) or all(
-        any("jk-card" in a.classes() for a in p.ancestors()) for p in _all(hero, "p"))
+                       ("check.html", {"b-side"}, "Try the Read step in your browser")]
+    sub_line = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
+                "agent reviewer) agrees with your people, down to each step, and see when that changes.")
+    assert [_flat(p) for p in _all(hero, "p", None)
+            if not any("jk-card" in a.classes() for a in p.ancestors())] == [sub_line]
     # the chosen step's green line, which gives way while another word is hovered or focused
     assert "var(--green)" in _rule(".five a::after")
     assert ".five a.is-on::after" in CSS and ".five:hover a.is-on:not(:hover)::after" in CSS
@@ -597,7 +598,7 @@ def test_the_steps_read_cleanly_as_plain_text():
     (tabs,) = _all(_main(HOME), "div", "steplist")
     texts = [" ".join(_raw(b).split()) for b in _all(tabs, "button")]
     assert texts == [f"{n}. {name}: {words}" for n, (_, name, words) in enumerate(STEPS, 1)]
-    assert texts[0] == "1. Find: Find your eval results and the LLM-as-a-judge that graded them."
+    assert texts[0] == "1. Read: Read your eval results and your labels, such as a Label Studio export, or mark answers Pass or Fail in your browser."
     assert "data-nosnippet" in tabs.attrs  # Google leaves the step list out of its snippet
     assert "data-nosnippet" in _by_id(HOME, "demo").attrs  # and the marking demo
     for b in _all(tabs, "button"):
@@ -618,8 +619,8 @@ def test_the_steps_list_picks_a_screen_for_the_terminal():
              for b in buttons]
     assert found == [(key, name + ":", words) for key, name, words in STEPS]  # ": " is hidden
     assert [b.attrs.get("aria-selected") for b in buttons] == [
-        "true", "false", "false", "false", "false"]
-    assert [b.attrs.get("tabindex") for b in buttons] == ["0", "-1", "-1", "-1", "-1"]
+        "true", "false", "false", "false"]
+    assert [b.attrs.get("tabindex") for b in buttons] == ["0", "-1", "-1", "-1"]
     assert [b.attrs.get("id") for b in buttons] == [f"tab-{s}" for s, *_ in STEPS]
     assert {b.attrs.get("role") for b in buttons} == {"tab"}
     assert {b.attrs.get("aria-controls") for b in buttons} == {"term"}
@@ -661,7 +662,7 @@ def test_the_closing_box_points_to_the_browser_check():
     assert _flat(_all(close, "p")[0]) == ("Check your LLM-as-a-judge. Your file stays on your "
                                           "computer.")
     (button,) = _all(close, "a", "b-main")
-    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try the Find step in your browser")
+    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try the Read step in your browser")
 
 
 def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
@@ -757,14 +758,13 @@ def test_the_homes_windows_share_the_guides_slate_and_the_chosen_step_is_green()
 # The Guide ------------------------------------------------------------------------------------
 
 REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
-GUIDE_STEPS = [("step-find", "Find your eval results"),
-               ("step-mark", "Mark your answers Pass or Fail"),
+GUIDE_STEPS = [("step-find", "Read your eval results, then mark answers"),
                ("step-measure", "See how often your LLM-as-a-judge agrees with you"),
                ("step-fix", "Write a better rule and test it"),
                ("step-check", "Re-check after you change your LLM-as-a-judge")]
 
 
-def test_the_guide_is_the_install_the_five_steps_and_three_cards():
+def test_the_guide_is_the_install_the_four_steps_and_three_cards():
     sections = [el for el in _main(GUIDE).children if isinstance(el, Element)]
     assert [s.classes() for s in sections] == [{"hero", "gx-hero"}, {"gx-steps"}, {"gx-more"},
                                                {"gx-more"}]
@@ -824,7 +824,7 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
         "judgekeeper.toml after you say yes. It makes no AI call and needs no API key. "
         "When you grade answers again, your own eval tool makes the calls, with your own key.")
     assert not _all(sections[2], "div", "gx-card")
-    # the steps and the blocks below are as wide as the top section: "The 5 steps." starts
+    # the steps and the blocks below are as wide as the top section: "The 4 steps." starts
     # under "Install", and the blocks end where the install window ends
     assert not [s for s, d in _rules() if ("gx-steps .wrap" in s or "gx-more .wrap" in s)
                 and "max-width" in d]
@@ -902,15 +902,15 @@ def test_the_guides_record_line_saves_what_judgekeeper_reads(tmp_path, monkeypat
     assert (found.pool.n_pass, found.pool.n_fail) == (1, 1)
 
 
-STEP_WORDS = ["Find.", "Mark.", "Measure.", "Fix.", "Re-check."]
+STEP_WORDS = ["Read.", "Measure.", "Fix.", "Re-check."]
 
 
-def test_the_guides_bar_is_the_five_words_and_the_one_in_view_is_green():
-    """The five words of the tagline run across the top of the steps and stay in view, each a
+def test_the_guides_bar_is_the_four_words_and_the_one_in_view_is_green():
+    """The four words of the tagline run across the top of the steps and stay in view, each a
     link to its step, over a thin line that is green up to the step in view. The word of the
     step in view is green, the ones before it a softer green: only a colour, no movement."""
     (rail,) = _all(_main(GUIDE), "nav", "sp-rail")
-    assert rail.attrs["aria-label"] == "The 5 steps"
+    assert rail.attrs["aria-label"] == "The 4 steps"
     links = _all(rail, "a")
     assert [_flat(a) for a in links] == STEP_WORDS
     assert [a.attrs["href"] for a in links] == ["#" + i for i, _ in GUIDE_STEPS]
@@ -998,7 +998,7 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     cmds = {li.attrs["id"]: [_flat(c) for c in _all(li, "code") if c.parent.classes() == {"cmd"}]
             for li in items}
     assert cmds == {"step-find": ["judgekeeper", "judgekeeper path/to/results.json"],
-                    "step-mark": [], "step-measure": ["judgekeeper", "judgekeeper mark"],
+                    "step-measure": ["judgekeeper", "judgekeeper mark"],
                     "step-fix": ["judgekeeper fix", "judgekeeper fix new-results.json"],
                     "step-check": ["judgekeeper check new-results.json"]}
     # the "if" notes: the question, then its answer
@@ -1007,9 +1007,9 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
            for li in items}
     assert ifs == {
         "step-find": [("Nothing found?", ("Run your eval first so it saves its results, or point "
-                                          "judgekeeper to your results file."))],
-        "step-mark": [("Already have Pass/Fail labels?",
-                       ("Run judgekeeper --labels your-labels.csv, or judgekeeper --labels if they "
+                                          "judgekeeper to your results file.")),
+                      ("Already have Pass/Fail labels, for example from Label Studio?",
+                       ("Run judgekeeper --labels your-labels.csv (a Label Studio export works too), or judgekeeper --labels if they "
                         "are in your results. Then mark more if needed."))],
         "step-measure": [("Result says it’s too early to tell?",
                           ("Your LLM-as-a-judge needs more of your marks to be measured. Mark more "
@@ -1029,7 +1029,7 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     assert not [x for x in lines if x.endswith(":")]
     assert not [p for li in items for p in _all(li, "p", "gx-way-h")]
     # a flag or a file name in a note never splits at its hyphens: its code wraps at spaces
-    labels = _all(_all(_by_id(GUIDE, "step-mark"), "dl", "sp-ifs")[0], "code")
+    labels = _all(_all(_by_id(GUIDE, "step-find"), "dl", "sp-ifs")[1], "code")
     assert [[_flat(s) for s in _all(c, "span", "nb")] for c in labels] == [
         ["--labels", "your-labels.csv"], ["--labels"]]
     assert "white-space: nowrap" in _rule(".nb")
@@ -1047,22 +1047,28 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gl-step", _narrow(1100))
     assert "border-top: 0" in _rule(".gl-step:first-child")
     done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
-            for step in ("step-find", "step-mark", "step-measure")}
-    assert done == {"step-find": [], "step-measure": [],
-                    "step-mark": [("When See the numbers so far or See your result appears at "
+            for step in ("step-find", "step-measure")}
+    assert done == {"step-measure": [],
+                    "step-find": [("When See the numbers so far or See your result appears at "
                                    "the top, click it.")]}
     # each step's words, as the person reads them
     said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "gl-body")[0], "p")
                    if not {"done", "gx-small", "gx-tap", "sp-word"} & p.classes()]
-            for step in ("step-mark", "step-measure", "step-fix", "step-check")}
+            for step in ("step-find", "step-measure", "step-fix", "step-check")}
     assert said == {
-        "step-mark": [("Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to "
+        "step-find": [("Run judgekeeper in your project folder. It finds and reads your eval "
+                       "results, and opens the marking page."),
+                      ("Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to "
                        "decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. "
                        "Every mark is saved, so you can stop at any time and come back later.")],
         "step-measure": [("The result page tells you one of three things: your LLM-as-a-judge "
                           "is good enough to use, it needs work, or it’s too early to tell. "
                           "Below that, it lists the answers where you and your LLM-as-a-judge "
-                          "disagreed.")],
+                          "disagreed."),
+                         ("Two or more people marked the same answers? judgekeeper also says "
+                          "how much they agree with each other (kappa, or Krippendorff’s alpha "
+                          "for three or more people), because a check cannot be expected to "
+                          "agree with them more than they agree with each other.")],
         "step-fix": [
             ("Change the rule in your eval tool. Have it grade the answers in "
              ".judgekeeper/fix/marked-answers.csv again, then save the results."),
@@ -1071,7 +1077,10 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
              "depends on how big the change is: see the reference.")],
         "step-check": [
             ("judgekeeper compares the new grades with your marks and tells you if your "
-             "LLM-as-a-judge still agrees with you. You don’t need to mark anything again.")]}
+             "LLM-as-a-judge still agrees with you. You don’t need to mark anything again."),
+            ("Checking an agent? judgekeeper steps helps you label the first wrong step of "
+             "each run in Label Studio, then shows how often your reviewer finds the same "
+             "one.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": [],
@@ -1092,8 +1101,8 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
          "the new results.")]
     # the two pictures sit beside their step's words, each in a window like Home's
     shots = [li.attrs["id"] for li in items for f in _all(li, "figure", "gx-shot")]
-    assert shots == ["step-mark", "step-measure"]
-    for li, title in ((_by_id(GUIDE, "step-mark"), "marking page"),
+    assert shots == ["step-find", "step-measure"]
+    for li, title in ((_by_id(GUIDE, "step-find"), "marking page"),
                       (_by_id(GUIDE, "step-measure"), "result page")):
         (win,) = _all(li, "div", "sp-shot")
         assert "gwin" in win.classes() and _all(win, "figure", "gx-shot")
@@ -1102,13 +1111,13 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     # step has a matching window beside its words; Fix's small line goes under its commands
     for sid in ("step-find", "step-fix", "step-check"):
         (side,) = _all(_by_id(GUIDE, sid), "div", "sp-side")
-        (win,) = _all(side, "div", "gwin")
+        win = _all(side, "div", "gwin")[0]  # Read has the marking page's picture after it
         assert "sp-win" in win.classes() and not _all(win, "figure")
         assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == (
             "your project folder")
         (inner,) = _all(win, "div", "gwin-body")
         assert _all(inner, "div", "sp-cmds"), sid
-    assert len(_all(steps, "div", "gwin")) == 5  # one window a step
+    assert len(_all(steps, "div", "gwin")) == 5  # a window a step, two for Read
     (small,) = _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")
     assert "gwin-body" in small.parent.classes()
     # Find's note stays beside its words: under the commands, it would leave the words short
@@ -1146,16 +1155,15 @@ def test_the_guides_ai_check_says_what_ai_and_what_it_costs_in_few_words():
     one line per step, and what running the AI on the questions may cost."""
     band = _by_id(GUIDE, "ai-check")
     paras = [_flat(p) for p in _all(band, "p") if "gx-small" not in p.classes()]
-    assert paras[:6] == [
+    assert paras[:5] == [
         ("For a chatbot, agent or any AI that answers questions. Save its answers in a CSV, TSV "
          "or JSONL file with input and output columns and no grades."),
-        "1. Find: run judgekeeper in your project folder. It finds your answers.",
-        ("2. Mark: mark each answer Pass or Fail. On the result page, add a reason to the failed "
-         "ones."),
-        "3. Measure: from 10 marks, see how many passed, with a range.",
-        ("4. Fix: judgekeeper saves the failed answers, apart from the half kept aside, with a prompt "
+        ("1. Read: run judgekeeper in your project folder. It finds your answers. Mark each "
+         "answer Pass or Fail. On the result page, add a reason to the failed ones."),
+        "2. Measure: from 10 marks, see how many passed, with a range.",
+        ("3. Fix: judgekeeper saves the failed answers, apart from the half kept aside, with a prompt "
          "for your coding agent to improve your AI’s prompt."),
-        ("5. Re-check: run your AI again and mark the new answers. On the questions kept aside, "
+        ("4. Re-check: run your AI again and mark the new answers. On the questions kept aside, "
          "judgekeeper counts how many were fixed and how many broke, and says whether the change "
          "is more than a coincidence.")]
     small = [_flat(p) for p in _all(band, "p", "gx-small")]
@@ -1340,11 +1348,11 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     left, term = [el for el in _all(section, "div") if el.parent.parent is section]
     assert "ck2-l" in left.classes() and {"term", "ck2-term"} <= term.classes()
     (h1,) = _all(left, "h1")
-    assert _flat(h1) == "Try the Find step in your browser."
+    assert _flat(h1) == "Try the Read step in your browser."
     assert [_flat(s) for s in _all(h1, "span", "nb")] == ["in your browser."]
     titles = re.findall(r'<title>([^<]*)</title>|content="([^"]*\| judgekeeper)"',
                         CHECK.read_text(encoding="utf-8"))
-    assert {a or b for a, b in titles} == {"Try the Find step in your browser | judgekeeper"}
+    assert {a or b for a, b in titles} == {"Try the Read step in your browser | judgekeeper"}
     # the drop box: an upload icon and what to drop; after a file, the file and Clear
     drop = _by_id(CHECK, "fc-drop")
     assert drop.tag == "button" and drop.attrs.get("type") == "button"
@@ -1388,7 +1396,7 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert ghost.attrs.get("aria-hidden") == "true"
     waiting = wait.text()[:wait.text().index(ghost.text())]
     assert " ".join(waiting.split()) == (
-        "$ judgekeeper Step 1 of 5: Find Waiting for your results file. Drop it in the box, or "
+        "$ judgekeeper Step 1 of 4: Read Waiting for your results file. Drop it in the box, or "
         "try an example. ▋")
     result = _by_id(CHECK, "fc-result")
     assert result.attrs.get("aria-live") == "polite" and not result.children
@@ -1552,7 +1560,7 @@ def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
 # The pictures and what fix can test --------------------------------------------------------
 
 def test_guide_page_pictures_after_first_paragraph():
-    for step, picture in (("step-mark", "label.webp"), ("step-measure", "result.webp")):
+    for step, picture in (("step-find", "label.webp"), ("step-measure", "result.webp")):
         side = _all(_by_id(GUIDE, step), "div", "sp-side")[0]
         (img,) = _all(side, "img")
         assert img.attrs["src"] == f"assets/shots/{picture}"
@@ -1568,7 +1576,7 @@ def test_guide_page_pictures_after_first_paragraph():
 def test_on_a_phone_the_guides_pictures_open_full_size():
     """Each picture is a plain link to its file, and a small "Tap to enlarge" under it shows
     on phones only."""
-    for step, picture, page in (("step-mark", "label.webp", "marking"),
+    for step, picture, page in (("step-find", "label.webp", "marking"),
                                 ("step-measure", "result.webp", "result")):
         side = _all(_by_id(GUIDE, step), "div", "sp-side")[0]
         (figure,) = _all(side, "figure", "gx-shot")
@@ -1593,11 +1601,12 @@ def test_testing_a_new_rule_is_said_for_every_eval_tool():
     meta = [el.attrs["content"] for el in parse(HOME).iter()
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
-    short = "See how often your LLM-as-a-judge agrees with you."
-    assert meta == [short + (" 5 steps: Find. Mark. Measure. Fix. Re-check. Open source; it reads "
+    short = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
+             "agent reviewer) agrees with your people, down to each step, and see when that changes.")
+    assert meta == [short + (" Read. Measure. Fix. Re-check. Open source; it reads "
                              "the results your eval tool saved."), short, short]
     for json_ld in (el for el in _els(HOME) if el.attrs.get("type") == "application/ld+json"):
-        assert short in json_ld.text() and "5 steps:" not in json_ld.text()
+        assert short in json_ld.text() and "Read. Measure." not in json_ld.text()
     assert "test it on marks kept aside." in _flat(_by_id(HOME, "tab-fix"))
     assert "promptfoo" not in _flat(_by_id(HOME, "tab-fix"))
     step = _flat(_by_id(GUIDE, "step-fix"))
@@ -1718,7 +1727,7 @@ def test_on_a_phone_the_demo_reads_without_cutting_words():
 def test_on_a_phone_the_text_is_14px_or_more():
     """The labels, the pill, window titles, the terminal and its status bar, code, the
     handy commands and the browser check's result are 14px; the footer, "Tap to enlarge" and the
-    lines under the drop box 15px. The five words never go under 14px, and wrap below 360px."""
+    lines under the drop box 15px. The four words never go under 14px, and wrap below 360px."""
     phone = _narrow(600)
     for selector in (".jk-label, .jk-state, .jk-end-top .jk-again",
                      ".term-bar, .rt-bar, .term-foot, .steplist .n", ".gx-code, .gm-pre",

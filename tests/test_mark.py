@@ -103,7 +103,7 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
     assert code == 0, out
     assert _check(out, err) == NEXT_OPEN
     assert out.splitlines()[2:] == [
-        "Step 2 of 5: Mark",
+        "Step 1 of 4: Read (mark your answers)",
         "",
         *PATH,
         "A result needs at least 15 Pass and 15 Fail marks from you. It",
@@ -144,7 +144,7 @@ def test_too_few_answers_are_marked_anyway(here, capsys, pages):
     promptfoo_project(here, split(6, 4))
     code, out, _ = run(capsys, "mark")
     assert code == 3, out  # the page opens, and too few answers for a result exit 3
-    assert "Step 2 of 5: Mark" in out and "You marked" not in out
+    assert "Step 1 of 4: Read (mark your answers)" in out and "You marked" not in out
 
 
 def test_no_clear_verdict_means_nothing_to_mark(here, capsys, pages):
@@ -194,7 +194,7 @@ def test_enough_marks_open_the_page_and_leave_the_result_to_judgekeeper(here, ca
     _click(ws, 41)  # enough (20 in each group), with 1 answer left to mark
     code, out, err = run(capsys, "mark")
     assert code == 0, out
-    assert "Step 2 of 5: Mark (more answers)" in out
+    assert "Step 1 of 4: Read (more answers)" in out
     assert "You marked 41 answers so far: " in out and "not enough" not in out
     assert "Each new mark makes your numbers more precise." in _flat(out)
     assert "Your marks:" not in out and "Kappa" not in out
@@ -209,7 +209,7 @@ def test_every_answer_marked_after_a_result_points_to_mark(here, capsys, pages):
     run(capsys, "mark")
     _click(start_label.Workspace(here))
     code, out, err = run(capsys)
-    assert code == 0 and "Step 3 of 5: Measure" in out, out
+    assert code == 0 and "Step 2 of 4: Measure" in out, out
     assert (here / ".judgekeeper" / "result.json").is_file()
     code, out, err = run(capsys, "mark")
     assert code == 0, out
@@ -352,7 +352,7 @@ def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
     assert _check(out, err) == COULD_NOT
     said = out[:out.index("Next:")].splitlines()[2:]
     assert [line for line in said if line] == [
-        "Step 2 of 5: Mark",
+        "Step 1 of 4: Read (mark your answers)",
         *PATH[:-1],
         "A result needs at least 15 Pass and 15 Fail marks from you. It",
         "also needs 20 marks on answers your LLM-as-a-judge passed and 20",

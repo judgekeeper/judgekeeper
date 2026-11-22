@@ -1,12 +1,12 @@
 [project]
 name = "judgekeeper"
 version = "1.3.0"
-description = "Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check."
+description = "The keeper of human judgment for AI: Read. Measure. Fix. Re-check."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [{ name = "Sathvik Thota" }]
-keywords = ["llm", "llm-as-a-judge", "llm-as-judge", "llm-judge", "evaluation", "evals", "llm-evaluation", "human-labels", "rubric", "cohens-kappa", "promptfoo", "deepeval", "inspect-ai", "mlflow"]
+keywords = ["llm", "llm-as-a-judge", "llm-as-judge", "llm-judge", "evaluation", "evals", "llm-evaluation", "human-labels", "rubric", "cohens-kappa", "promptfoo", "deepeval", "inspect-ai", "mlflow", "label-studio", "inter-annotator-agreement", "krippendorff-alpha", "human-judgment", "ai-agents"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",

@@ -239,7 +239,7 @@
     return text.split("\n").map(function (line) {
       var m;
       if ((m = /^(\$ )(.*)$/.exec(line))) return '<span class="t-prompt">' + esc(m[1]) + '</span><span class="t-cmd">' + esc(m[2]) + '</span>';
-      if (/^Step \d of 5: /.test(line)) return '<span class="t-step">' + esc(line) + '</span>';
+      if (/^Step \d of 4: /.test(line)) return '<span class="t-step">' + esc(line) + '</span>';
       if (/^judgekeeper \d/.test(line)) return '<span class="t-dim">' + esc(line) + '</span>';
       if ((m = /^(Result: )(.*)$/.exec(line))) {
         var tone = /needs work|worse/i.test(m[2]) ? "t-warn" : /good enough|better/i.test(m[2]) ? "t-good" : "t-step";

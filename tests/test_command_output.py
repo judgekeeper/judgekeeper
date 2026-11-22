@@ -295,7 +295,7 @@ def test_a_left_out_log_after_marking_comes_after_step_1(here, capsys):
     code, out, _ = run(capsys)
     assert code == 0, out
     left = "logs/2026-10-02_exact.json is left out: no LLM-as-a-judge in it."
-    assert "Step 1 of 5: Find\n\n" + left + "\n\nStep 3 of 5: Measure" in out
+    assert "Step 1 of 4: Read\n\n" + left + "\n\nStep 2 of 4: Measure" in out
 
 
 def test_a_subfolder_with_no_judge_still_says_step_1(here, capsys):
@@ -305,7 +305,7 @@ def test_a_subfolder_with_no_judge_still_says_step_1(here, capsys):
                  judged=False)
     code, out, _ = run(capsys, "sub")
     assert code == 3
-    assert out.startswith("judgekeeper ") and out.splitlines()[2] == "Step 1 of 5: Find", out
+    assert out.startswith("judgekeeper ") and out.splitlines()[2] == "Step 1 of 4: Read", out
 
 
 def test_a_file_left_out_is_followed_by_a_blank_line(here, capsys):
@@ -324,7 +324,7 @@ def test_a_file_left_out_is_followed_by_a_blank_line(here, capsys):
     at = next(i for i, x in enumerate(lines) if x.startswith("Eval tool:"))
     assert lines[at - 1] == "", out
     assert all(len(x) <= 80 for x in lines), out
-    assert _before(out, "Step 1 of 5: Find", "left out") and _before(out, "left out", "Eval tool")
+    assert _before(out, "Step 1 of 4: Read", "left out") and _before(out, "left out", "Eval tool")
 
 
 # Said once: promptfoo's default grader, and the MLflow command -----------------------------------
@@ -875,7 +875,7 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
         code, out, err = run(capsys, *command)
         assert code == 2, out + err
         assert ".latest_run_full.json is damaged: its only row has a damaged field." in err
-        assert out.splitlines()[2:4] == ["Step 1 of 5: Find", ""], out
+        assert out.splitlines()[2:4] == ["Step 1 of 4: Read", ""], out
 
 # The result page says what fix does, for every LLM-as-a-judge ---------------------------------
 

@@ -4,7 +4,7 @@
     python scripts/make_social_preview.py --chrome PATH    # a Chrome or Chromium to use
 
 It writes a small page with the site's colours and fonts (website/assets/fonts/): the logo at
-left with a small ™ at its top right, and at right the headline, the five steps and the two
+left with a small ™ at its top right, and at right the headline, the four steps and the two
 install commands. Headless Chrome takes it as a 1200 x 630 PNG. scripts/share_preview.py holds
 the picture's size and alt text.
 Standard library only.
@@ -53,8 +53,8 @@ h1 {{ font-size: 64px; line-height: 1.04; letter-spacing: -.028em; font-weight: 
 </style></head><body>
 <div class="mark"><div class="logo">{logo}</div><span class="tm">™</span></div>
 <div>
-<h1>Check your<br>LLM-as-a-judge<br>in 5 steps.</h1>
-<p class="steps">Find. Mark. Measure. Fix. Re-check.</p>
+<h1>The keeper of<br>human judgment<br>for AI.</h1>
+<p class="steps">Read. Measure. Fix. Re-check.</p>
 <div class="cmds"><div class="cmd"><b>$</b> pip install judgekeeper</div><div class="cmd"><b>$</b> uvx judgekeeper</div></div>
 </div>
 </body></html>

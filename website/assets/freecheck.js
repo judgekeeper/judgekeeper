@@ -1466,7 +1466,7 @@
     var command = termLine([['t-prompt', '$ '], ['t-cmd', 'judgekeeper']]);
     command.classList.add('ln-cmd');  // one line on a phone too, never "$" above the command
     pre.appendChild(command);
-    pre.appendChild(termLine([['t-step', 'Step 1 of 5: Find']]));
+    pre.appendChild(termLine([['t-step', 'Step 1 of 4: Read']]));
     pre.appendChild(termLine([[null, '']]));
   }
   function termNext(pre, text) {

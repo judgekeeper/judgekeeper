@@ -330,7 +330,7 @@ def test_a_folder_inside_a_project_never_starts_marks_on_another_folders_answers
     _repo_with_sessions(here / "inner", capsys, monkeypatch, names, marker=None)
     code, out, err = run(capsys, "--no-browser")
     assert code == 3, out + err
-    assert out.splitlines()[:3] == [f"judgekeeper {__version__}", "", "Step 1 of 5: Find"], out
+    assert out.splitlines()[:3] == [f"judgekeeper {__version__}", "", "Step 1 of 4: Read"], out
     assert "already hold" in flat(out) and "your judgekeeper session" in flat(out), out
     assert "To check it, run" not in flat(out)
     assert not (here / "inner" / ".judgekeeper").exists()
@@ -583,7 +583,7 @@ def test_measure_with_every_answer_marked_does_not_offer_the_page(here, capsys):
     person = {i: "fail" for i in (0, 1, 2)} | {i: "pass" for i in (20, 21, 22)}
     _mark(Workspace(here), person)
     code, out, _ = run(capsys)
-    assert "Step 3 of 5: Measure" in out
+    assert "Step 2 of 4: Measure" in out
     assert "Result: your LLM-as-a-judge is good enough to use." in out
     assert "still open" not in out and "To mark more answers" not in out
     assert "How often your LLM-as-a-judge agrees with you:" in out  # the numbers too
@@ -830,7 +830,7 @@ def test_a_plain_run_back_on_the_marked_file_names_the_page_after_its_step(
     out = flat(said)
     assert code == 0 and stopped, out + err
     assert CLOSED_BACK in out, out
-    assert out.index("Step 3 of 5: Measure") < out.index(CLOSED_BACK), out
+    assert out.index("Step 2 of 4: Measure") < out.index(CLOSED_BACK), out
     assert out.index("back to the one you marked with") < out.index(CLOSED_BACK), out
     _page_line_stands_apart(said)
 
@@ -949,7 +949,7 @@ def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
     newest results here"."""
     _checked_outside(here, capsys, worse=False)
     out = flat(run(capsys)[1])
-    assert "Step 3 of 5: Measure ../outside/results.csv has LLM-as-a-judge grades" in out, out
+    assert "Step 2 of 4: Measure ../outside/results.csv has LLM-as-a-judge grades" in out, out
     assert f"{PATH_TABLE} This result is about your LLM-as-a-judge in " in out, out
     assert "Reading" not in out and "the newest" not in out, out
 
@@ -1466,7 +1466,7 @@ def test_a_result_about_the_checked_file_names_no_other_file_read(here, capsys, 
     run(capsys, "--stop")
     out = flat(out + err)
     assert code == 0, out
-    assert ("Step 3 of 5: Measure .judgekeeper/fix/new.csv has LLM-as-a-judge grades, so "
+    assert ("Step 2 of 4: Measure .judgekeeper/fix/new.csv has LLM-as-a-judge grades, so "
             "judgekeeper checks your LLM-as-a-judge against your marks. "
             f"{PATH_TABLE} This result is about your LLM-as-a-judge in "
             ".judgekeeper/fix/new.csv, the file your last check read. Result:") in out, out

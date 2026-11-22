@@ -114,7 +114,7 @@ def _screens() -> dict[str, str]:
 @pytest.mark.version_number  # each screen shows the version line
 def test_the_home_terminal_has_a_screen_for_each_step_and_the_fix_test():
     screens = _screens()
-    assert list(screens) == ["find", "mark", "measure", "fix", "fix_test", "check"]
+    assert list(screens) == ["find", "measure", "fix", "fix_test", "check"]
     for name, text in screens.items():
         lines = text.splitlines()
         command = {"fix": "judgekeeper fix", "fix_test": "judgekeeper fix new-rule.json",

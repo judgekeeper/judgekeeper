@@ -1,6 +1,6 @@
 # judgekeeper reference
 
-Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. The [README](../README.md) walks through them; this page has every command, flag, file and exit code. How each eval tool's results are read is in [eval-tools.md](eval-tools.md).
+The keeper of human judgment for AI: Read. Measure. Fix. Re-check. The [README](../README.md) walks through them; this page has every command, flag, file and exit code. How each eval tool's results are read is in [eval-tools.md](eval-tools.md).
 
 An LLM-as-a-judge is a model that grades your eval's answers by a rule you wrote. Each run ends with one `Next:` line that says what to do.
 
@@ -8,7 +8,7 @@ An LLM-as-a-judge is a model that grades your eval's answers by a rule you wrote
 
 In your project folder, in its virtual environment, `pip install judgekeeper`, then `judgekeeper`. Or with [uv](https://docs.astral.sh/uv/), which needs no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14 is supported. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[inspect]" judgekeeper` or `uvx --from "judgekeeper[mlflow]" judgekeeper`). With uv, type `uvx judgekeeper` wherever these pages say `judgekeeper`.
 
-## judgekeeper: find, mark, measure
+## judgekeeper: read and measure
 
 ```
 judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
@@ -21,7 +21,7 @@ Each run does the next step. A result needs at least 15 Pass and 15 Fail marks f
 
 | What is there | What `judgekeeper` does |
 |---|---|
-| Nothing marked yet | Find: names your eval tool, the answers, your LLM-as-a-judge and its rule, and checks its grades with no AI call. Mark: opens the marking page. |
+| Nothing marked yet | Read: names your eval tool, the answers, your LLM-as-a-judge and its rule, checks its grades with no AI call, and opens the marking page. |
 | Not enough marks yet | Opens the marking page again. |
 | Every answer marked, too few of one kind | Says so (a result needs 15 of each). Run your eval on more questions, then `judgekeeper mark`. |
 | Enough marks | Measure: how often your LLM-as-a-judge agrees with you, saved as `.judgekeeper/report.html`. |
@@ -85,7 +85,7 @@ With results that have grades (from an LLM-as-a-judge or from code), each plain 
 - Fixed: Fail before, Pass now. Broke: Pass before, Fail now. A question with several answers is fixed when one failed before and all pass now, and broke when all passed before and one fails now. The rest are the same.
 - After the usual output it says how many were fixed, broke and stayed the same, then "Your change helped", "Your change made it worse", or "Can't tell yet" with which way it leans: clear when the exact two-sided sign test on fixed against broke is under 5% ([How the numbers are worked out](#how-the-numbers-are-worked-out)). With fewer than 5 questions in both, it always says "Can't tell yet".
 - It exits 1 on "Your change made it worse" and 3 when nothing could be compared, so a pipeline never passes on nothing. With `--before` or in CI, the exit code comes only from the comparison: 1 for worse, 3 for nothing to compare, else 0. Having too few marks does not change it, so results of any size can gate a pipeline.
-- In CI (one of `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE`, `TF_BUILD` or `JENKINS_URL` set to something other than empty, `false` or `0`), judgekeeper opens no page and no browser, and says so in one line where Step 2 would open it.
+- In CI (one of `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE`, `TF_BUILD` or `JENKINS_URL` set to something other than empty, `false` or `0`), judgekeeper opens no page and no browser, and says so in one line where Step 1 would open the marking page.
 - It keeps the last results in `.judgekeeper/last-graded.json` as hashes and grades only. Another LLM-as-a-judge or another setup of it (model, rule, pass mark, label map), or a file changed by hand, starts it again: those grades say nothing about a change to your AI. After another setup it says this run is the new starting point.
 - With `--before`, two results graded by different setups of the LLM-as-a-judge (when both say which model, rule or prompt graded them) are not compared: it says so and exits 3. A grade word in the `--before` file that it can't tell as Pass or Fail stops the run the same way as one in your results.
 
@@ -150,7 +150,7 @@ A Label Studio export is read as your people's labels, and, when it holds predic
 - **How much your people agree:** when two or more people labelled the same answers, judgekeeper says how much they agree with each other, in the terminal and as `people` in `result.json`. It counts every answer that two or more people labelled, also those they disagreed on (those are left out of the marks, not of this number). It is said and saved even when your people agree on no answer, so no mark comes of the export. With two people it is Cohen's kappa; with three or more, Krippendorff's alpha for Pass and Fail, which allows answers that not every person labelled. Each comes with a range from drawing the answers again 2,000 times with a fixed seed, as the other ranges do. With fewer than 10 answers labelled by more than one person, there is no number, and the terminal says so. It also says how many answers each person labelled, and, for each person (the 10 with the most answers; the rest are in `result.json`), the check against them: kappa, and how often the check says Pass when they say Pass and Fail when they say Fail, on the answers that person labelled (not corrected for how the answers were picked). A check can't be expected to agree with your people more than they agree with each other. Raw agreement is never shown alone. `people` holds `people`, `answers`, `shared`, `per_person`, `enough`, `measure` (`kappa` or `alpha`), `value`, `interval`, `level`, `draws`, `seed` and `vs_check` (by person: `n`, `kappa`, `tpr`, `tnr`). Each person is a Label Studio number, never an email or a name.
 - **Asking for more labels:** when the labels from Label Studio are too few for a result, judgekeeper writes `.judgekeeper/ask/` and says: "Import .judgekeeper/ask/label-these.json into Label Studio, label them, export, and run judgekeeper again." `label-these.json` is a Label Studio import file of the next answers the marking page would show, `{"data": {"id", "input", "output"}}` each, with no grade and no prediction, so nobody is swayed by what the check said. `label-config.xml` is a labeling screen for it: the input and output, a Pass or Fail choice named `verdict`, and a `reason` box. `picks.json` keeps each pick's group and `chance` (how many were picked in its group over how many the group holds), so the numbers stay weighted by group when the labels come back; it is never imported. The marking page opens as it always does.
 - **The check:** the predictions, one per `model_version` (the newest; with several versions it says which it used and how to check another). An export that holds only prediction ids has no check in it. Give the results of the check you want to measure, and the export as the labels: `judgekeeper RESULTS --labels EXPORT`.
-- **Words:** a check that is not an LLM-as-a-judge is called "your check". The step 3 result and the notes use the same numbers (kappa, TPR and TNR).
+- **Words:** a check that is not an LLM-as-a-judge is called "your check". The step 2 result and the notes use the same numbers (kappa, TPR and TNR).
 - **`check`:** after you change your check (an LLM-as-a-judge too: its words are "Your LLM-as-a-judge moved: ...", "Your LLM-as-a-judge did not get worse on ...", "Your LLM-as-a-judge now agrees with your people more than before, ..." and "Too early to tell whether your LLM-as-a-judge moved. ..."), `judgekeeper check NEW` also says, with at least 15 labels of each kind, one of: "Your check moved: on the {n} answers your people labelled, it agrees with them less than before.", "Your check did not get worse on the {n} answers your people labelled. If your scores changed, look at your app's answers first.", "Your check now agrees with your people more than before, on the {n} answers they labelled." (when no group got worse or is unsure and the range of the rise in a group is all above 0) or "Too early to tell whether your check moved. These {n} labels can't rule out a drop of up to {d} points." The exit code does not change.
 
 ## fix: see where your LLM-as-a-judge goes wrong, then test a better rule

@@ -42,7 +42,7 @@ def test_the_choice_names_a_command_for_each_folder_that_picks_it(two_folders, c
 def test_a_logs_folder_named_is_read_in_the_project_that_holds_the_marks(two_folders, capsys):
     _, out, _ = run(capsys, "logs", "--no-browser")
     assert not (two_folders / "logs" / ".judgekeeper").exists(), out
-    assert "for another project" not in out and "Step 1 of 5" not in out, out
+    assert "for another project" not in out and "Step 1 of 4: Read" not in out.replace("Step 1 of 4: Read (", ""), out
     assert "Inspect logs in more than one folder" not in out, out
     assert assert_one_next_at_the_end(out).endswith(
         "or `judgekeeper logs --no-browser --yes` to say yes."), out

@@ -152,7 +152,7 @@ MODEL_WRITTEN = "Your LLM-as-a-judge's model is written down now: {model}."
 WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
 DEFAULT_GRADER_NOTE = "came from promptfoo's default grader"  # readers.promptfoo's warning
-STEP = "Step {n} of 5: {name}"
+STEP = "Step {n} of 4: {name}"
 # Which path judgekeeper takes and why, and how to switch: once a run (path_lines)
 PATH_NO_GRADES = ("{file} has no LLM-as-a-judge grades, so judgekeeper checks your AI's "
                   "answers: you mark each one Pass or Fail.")
@@ -270,7 +270,7 @@ class FrontTalk(start.Talk):
         self.store: str | None = None  # the MLflow store chosen at a terminal
         self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
         self.step: str | None = None  # said before the first line, when there is one (go)
-        self.find_said = False  # "Step 1 of 5: Find" was said in this run
+        self.find_said = False  # "Step 1 of 4: Read" was said in this run
         self.path_said = False  # path_lines were said in this run
         self.switched: str | None = None  # _switched_line, said once
         self.nested: str | None = None  # _nested_here with no grades, said once (_say_nested)
@@ -422,7 +422,7 @@ class FrontTalk(start.Talk):
             step, self.step = self.step, None
             super().say(step)
             super().say()
-            self.find_said = self.find_said or step == STEP.format(n=1, name="Find")
+            self.find_said = self.find_said or step == STEP.format(n=1, name="Read")
 
     def run_there(self, rel: str, *extra: str) -> str | None:
         """"run `<command>` in <folder>/" for the file `rel` in the folder given, when that
@@ -497,11 +497,11 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
         if not path.exists() and not uri.startswith(start.SERVERS):
             raise not_found(path, talk.path)  # no step ran: the error alone
         if talk.labels is not None or not marking and not _started(path):  # an import
-            talk.say(STEP.format(n=1, name="Find"))  # always says something: Find, now
+            talk.say(STEP.format(n=1, name="Read"))  # always says something: Find, now
             talk.say()
             talk.find_said = True
         else:  # said only when Find has something to say (a file left out, an error)
-            talk.step = STEP.format(n=1, name="Find")
+            talk.step = STEP.format(n=1, name="Read")
         from judgekeeper.check import texts_once
 
         try:
@@ -623,7 +623,7 @@ def _find_anew(talk: FrontTalk, ws: Workspace, found: start.Found) -> bool:
         background.stop(ws.dir)
     _move_aside(talk, ws)
     if not talk.find_said:  # Find's label once per run
-        talk.say(STEP.format(n=1, name="Find"))
+        talk.say(STEP.format(n=1, name="Read"))
         talk.say()
     return True
 
@@ -1261,7 +1261,7 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     if all(_numeric(v) for v in values):
         if not terminal and (rule := _rule_in_use(found)) != PASS_IF:  # measured: it is saved
             again = talk.command(*keep, "--pass-if", rule)
-            talk.step = None  # a saved pass mark: past Find, so no "Step 1 of 5: Find" above it
+            talk.step = None  # a saved pass mark: past the first block, so no "Step 1 of 4: Read" above it
             talk.para(PASS_MARK_AGAIN.format(rule=_saved_pass_mark(found)["rule"]))
             raise talk.stop(EXIT_QUESTION, f"run `{again}`.")
         talk.say(f"Your LLM-as-a-judge's decisions are scores ({_shown(values)}), and the results "
@@ -3034,7 +3034,7 @@ def _waiting(talk: FrontTalk, ws: Workspace, found: start.Found, head: list[str]
 def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
                 head: list[str], then: str | None = None) -> int:
     """Every answer is marked and a kind is still short: said, and no page (exit 3)."""
-    talk.say(STEP.format(n=2, name="Mark"))
+    talk.say(STEP.format(n=1, name="Read (mark your answers)"))
     talk.say()
     _say_head(talk, head)
     first, step = _all_marked_lines(talk, ws, counts, saved)
@@ -3182,7 +3182,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
 def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
           enough: bool, head: list[str], marking: bool, first: bool,
           then: str | None = None) -> int:
-    """Step 2: the count so far and the page, opened in the browser (its link printed with
+    """Step 1, marking: the count so far and the page, opened in the browser (its link printed with
     --no-browser). `judgekeeper` again before a first result keeps a page that is still open
     (its tab still works); `mark`, and --no-browser, show it again with the same link
     (page.open_new)."""
@@ -3192,7 +3192,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     items = session.items
     command = _command_of(talk, saved)
     if marking and n and n == len(items):
-        talk.say(STEP.format(n=2, name="Mark"))
+        talk.say(STEP.format(n=1, name="Read (mark your answers)"))
         talk.say()
         head = _path_first(talk, head)  # its other head lines come after the count
         some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
@@ -3226,7 +3226,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if opened is not None and opened.server is not None:
             page.serve(opened.server)
         return EXIT_OK
-    talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
+    talk.say(STEP.format(n=1, name="Read (more answers)" if marking and enough
+                                else "Read (mark your answers)"))
     talk.say()
     _say_head(talk, head)
     waits = _waits(ws, session) if n else None  # no line asks for a mark that can only wait
@@ -3480,13 +3481,13 @@ def _fix_command(talk: FrontTalk) -> str:
 def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
             head: list[str], check: bool = False, elsewhere: bool = False,
             compare: bool = False, worse_said: bool = False) -> int:
-    """Step 3: the result from the marks, saved; whether the page is open. `check`: the
+    """Step 2: the result from the marks, saved; whether the page is open. `check`: the
     judge changed since the marks, so the Next: line is `judgekeeper check`. `elsewhere`: the
     marks test a file a check read elsewhere (_checked_file): a plain `check` would read the
     older results here, so the next one is given the new results file. `compare`: graded
     again with the same model and rule (REGRADED): the check that compares is the Next.
     `worse_said`: the head named the check that found the newer grades worse (HELD_WORSE)."""
-    talk.say(STEP.format(n=3, name="Measure"))
+    talk.say(STEP.format(n=2, name="Measure"))
     talk.say()
     _say_head(talk, head)
     from judgekeeper import check as checking
@@ -3758,7 +3759,7 @@ def _no_grades_block(found: start.Found) -> list[str]:
 
 def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait: bool,
                     marking: bool, first: bool, new: int = 0) -> int:
-    """Step 2 with no grade: the marks so far and the marking page; with every answer marked
+    """Step 1, marking, with no grade: the marks so far and the marking page; with every answer marked
     and too few for a result, what comes next (exit 3). `new`: answers new since the last
     results, said first."""
     counts = session.counts()
@@ -3766,7 +3767,8 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     n = n_pass + n_fail
     enough = n >= no_grades.MIN_MARKS
     every = bool(session.items) and all(i["label"] for i in session.items)
-    talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
+    talk.say(STEP.format(n=1, name="Read (more answers)" if marking and enough
+                                else "Read (mark your answers)"))
     talk.say()
     if talk.found is not None:
         _say_path(talk, talk.found)
@@ -3841,10 +3843,10 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
 
 def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
                       wait: bool, new: int = 0, closed: bool = False) -> int:
-    """Step 3 with no grade: how many answers the person passed and the reasons they gave,
+    """Step 2 with no grade: how many answers the person passed and the reasons they gave,
     saved in result.json; nothing about an LLM-as-a-judge. `new`: answers new since the last
     results, said first. `closed`: this run closed the marking page open (PAGE_CLOSED)."""
-    talk.say(STEP.format(n=3, name="Measure"))
+    talk.say(STEP.format(n=2, name="Measure"))
     talk.say()
     if talk.found is not None:
         _say_path(talk, talk.found)

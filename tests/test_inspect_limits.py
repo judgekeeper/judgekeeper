@@ -595,7 +595,7 @@ def test_ctrl_c_while_samples_are_read_says_only_stopped(tmp_path):
                          stderr=subprocess.PIPE, text=True)
     try:
         for line in p.stdout:  # reading starts after the step's name
-            if line.startswith("Step 1 of 5: Find"):
+            if line.startswith("Step 1 of 4: Read"):
                 break
         time.sleep(1)
         p.send_signal(signal.SIGINT)

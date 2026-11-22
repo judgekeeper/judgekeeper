@@ -386,10 +386,12 @@ SITE = "https://www.judgekeeper.com/"
 SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url", "og:image",
               "og:image:width", "og:image:height", "og:image:alt", "twitter:card",
               "twitter:title", "twitter:description", "twitter:image"]
-SHARE_ALT = ("The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. "
-             "Find. Mark. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
-HOME_DESCRIPTION = "See how often your LLM-as-a-judge agrees with you."
-HOME_MORE = (" 5 steps: Find. Mark. Measure. Fix. Re-check. Open source; it reads the results "
+SHARE_ALT = ("The judgekeeper logo and the words: The keeper of human judgment for AI. "
+             "Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
+HOME_DESCRIPTION = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code "
+                    "rule, an agent reviewer) agrees with your people, down to each step, "
+                    "and see when that changes.")
+HOME_MORE = (" Read. Measure. Fix. Re-check. Open source; it reads the results "
              "your eval tool saved.")
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}
 
@@ -531,7 +533,7 @@ def test_the_home_page_has_one_search_data_block():
     assert len(blocks) == 1
     data = json.loads(blocks[0].text())
     assert [n["name"] for n in data["@graph"]] == ["judgekeeper", "judgekeeper"]
-    assert data["@graph"][1]["description"] == "See how often your LLM-as-a-judge agrees with you."
+    assert data["@graph"][1]["description"] == HOME_DESCRIPTION
     assert not {"offers", "aggregateRating", "author"} & set(data["@graph"][1])
     for page in pages():
         if page.name != "index.html":
@@ -618,17 +620,17 @@ def test_caddy_sends_the_check_page_the_stricter_policy():
 def test_home_links_to_the_check_page_twice():
     links = [el for el in parse(WEBSITE / "index.html").iter()
              if el.tag == "a" and el.attrs.get("href") == "check.html"]
-    assert [" ".join(a.text().split()) for a in links] == ["Try the Find step in your browser"] * 2
+    assert [" ".join(a.text().split()) for a in links] == ["Try the Read step in your browser"] * 2
     assert "https://www.judgekeeper.com/check.html" in (WEBSITE / "sitemap.xml").read_text(
         encoding="utf-8")
-    assert "- [Try the Find step in your browser](https://www.judgekeeper.com/check.html): " in (
+    assert "- [Try the Read step in your browser](https://www.judgekeeper.com/check.html): " in (
         WEBSITE / "llms.txt").read_text(encoding="utf-8")
     assert "Check in your browser" not in (WEBSITE / "llms.txt").read_text(encoding="utf-8")
 
 
 def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
     text = " ".join(parse(CHECK).text().split())
-    for words in ("Try the Find step in your browser.",
+    for words in ("Try the Read step in your browser.",
                   "Drop your results file here or click to choose one",
                   "promptfoo · DeepEval · CSV · TSV · JSONL",
                   "Waiting for your results file.",

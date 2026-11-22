@@ -1,12 +1,16 @@
 # judgekeeper
 
-> Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. An LLM-as-a-judge is an AI model that grades the answers of another AI model, Pass or Fail, with a rule. judgekeeper shows how often it agrees with you. It is an open-source command-line tool that runs on your own computer.
+> The keeper of human judgment for AI. See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, down to each step, and see when that changes. Read. Measure. Fix. Re-check. An LLM-as-a-judge is an AI model that grades the answers of another AI model, Pass or Fail, with a rule. judgekeeper shows how often it agrees with you. It is an open-source command-line tool that runs on your own computer.
+
+- Label Studio: judgekeeper reads a Label Studio export as your labels, and with too few labels it writes a Label Studio import file with the few answers to label next.
+- People agreement: with two or more people on the same answers, judgekeeper also says how much they agree with each other (kappa, or Krippendorff's alpha for three or more people).
+- Agents: `judgekeeper steps` helps you label the first wrong step of each run in Label Studio, then shows how often your reviewer finds the same one.
 
 ## Pages
 
-- [Home](https://www.judgekeeper.com/): what judgekeeper is, a demo of the marking page, and what each of the 5 steps prints in the terminal.
-- [Guide](https://www.judgekeeper.com/start.html): install (`pip install judgekeeper`, or `uvx judgekeeper` with uv), the 5 steps, Pass/Fail labels you already have (`judgekeeper --labels your-labels.csv`), why no API key is needed, your own CSV, TSV or JSONL file or `judgekeeper.record()`, checking your AI's answers with no LLM-as-a-judge, and handy commands.
-- [Try the Find step in your browser](https://www.judgekeeper.com/check.html): drop a results file from promptfoo or DeepEval, or your own CSV, TSV or JSONL file, and see judgekeeper's first step on it. The file is read in the page and never sent anywhere.
+- [Home](https://www.judgekeeper.com/): what judgekeeper is, a demo of the marking page, and what each of the 4 steps prints in the terminal.
+- [Guide](https://www.judgekeeper.com/start.html): install (`pip install judgekeeper`, or `uvx judgekeeper` with uv), the 4 steps, Pass/Fail labels you already have (`judgekeeper --labels your-labels.csv`), why no API key is needed, your own CSV, TSV or JSONL file or `judgekeeper.record()`, checking your AI's answers with no LLM-as-a-judge, and handy commands.
+- [Try the Read step in your browser](https://www.judgekeeper.com/check.html): drop a results file from promptfoo or DeepEval, or your own CSV, TSV or JSONL file, and see judgekeeper's first step on it. The file is read in the page and never sent anywhere.
 - [Privacy](https://www.judgekeeper.com/privacy.html): what this website and judgekeeper do with your data.
 
 ## More
