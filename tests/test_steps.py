@@ -33,7 +33,7 @@ def run(capsys, *argv):
 
 
 def result(here: Path) -> dict:
-    return json.loads((here / ".judgekeeper" / "steps" / "result.json").read_text("utf-8"))
+    return json.loads((here / ".judgekeeper" / "steps" / "result.json").read_text(encoding="utf-8"))
 
 
 # A made-up project of 40 runs: people say 20 are fine and 20 went wrong. The reviewer finds
@@ -104,14 +104,14 @@ def test_runs_make_the_import_file_the_screen_and_a_next_line(here, capsys):
     code, out, err = run(capsys, "steps", str(runs))
     assert code == 0, err
     folder = here / ".judgekeeper" / "steps"
-    tasks = json.loads((folder / "label-these.json").read_text("utf-8"))
+    tasks = json.loads((folder / "label-these.json").read_text(encoding="utf-8"))
     assert [t["data"]["run_id"] for t in tasks] == ["run-1", "run-2", "3"]
     first = tasks[0]["data"]["steps"]
     assert len(first) == 4 and first[0]["content"] == "Book a table for two at Luma Cafe."
     assert [s["role"] for s in first] == ["1. user", "2. assistant", "3. tool", "4. assistant"]
     assert json.loads(tasks[2]["data"]["steps"][0]["content"]) == {"call": "calc",
                                                                    "args": [1, 2]}
-    config = (folder / "label-config.xml").read_text("utf-8")
+    config = (folder / "label-config.xml").read_text(encoding="utf-8")
     flat = config.replace("\n", "").replace("  ", "")
     assert flat.startswith("<View>") and flat.endswith(CONFIG_END)
     assert "<Paragraphs" in flat and flat.index("<Header") < flat.index("<Paragraphs")
@@ -125,17 +125,17 @@ def test_a_task_in_the_runs_is_shown_above_the_steps_and_step_n_is_the_nth(here,
     shutil.copy(FIXTURES / "runs.jsonl", here / "runs.jsonl")
     run(capsys, "steps", "runs.jsonl")
     folder = here / ".judgekeeper" / "steps"
-    tasks = json.loads((folder / "label-these.json").read_text("utf-8"))
+    tasks = json.loads((folder / "label-these.json").read_text(encoding="utf-8"))
     assert [t["data"]["task"] for t in tasks] == ["Book a table for two at Luma Cafe.", "", ""]
-    config = (folder / "label-config.xml").read_text("utf-8")
+    config = (folder / "label-config.xml").read_text(encoding="utf-8")
     assert '<Text name="task" value="$task"/>' in config
     assert config.index("$task") < config.index("<Paragraphs")
     assert tasks[0]["data"]["steps"][2]["role"].startswith("3. ")  # step 3 = steps[2]
     (here / "plain.jsonl").write_text(
         '{"id": "a", "steps": [{"role": "user", "content": "x"}]}\n', encoding="utf-8")
     run(capsys, "steps", "plain.jsonl")
-    assert "task" not in (folder / "label-config.xml").read_text("utf-8").replace("Task", "")
-    assert "task" not in json.loads((folder / "label-these.json").read_text("utf-8"))[0]["data"]
+    assert "task" not in (folder / "label-config.xml").read_text(encoding="utf-8").replace("Task", "")
+    assert "task" not in json.loads((folder / "label-these.json").read_text(encoding="utf-8"))[0]["data"]
 
 
 def test_an_export_with_data_task_and_steps_and_no_run_id_reads_by_task_id(here, capsys):
@@ -149,7 +149,7 @@ def test_an_export_with_data_task_and_steps_and_no_run_id_reads_by_task_id(here,
     code, _, err = run(capsys, "steps", str(export), "--reviewer", "g.jsonl")
     assert code == 0, err
     assert result(here)["reviewers"][0]["run_level"]["tpr"]["p"] == 15 / 20
-    assert "Made up request" not in (here / ".judgekeeper/steps/result.json").read_text("utf-8")
+    assert "Made up request" not in (here / ".judgekeeper/steps/result.json").read_text(encoding="utf-8")
     code, _, err = run(capsys, "steps", str(export))  # predictions matched by the task id too
     assert code == 0, err
 
@@ -409,7 +409,7 @@ def test_who_is_a_number_and_no_personal_field_is_kept(here, capsys):
     export = save(here, tasks)
     code, out, err = run(capsys, "steps", str(export))
     assert code == 0, err
-    everything = out + err + (here / ".judgekeeper/steps/result.json").read_text("utf-8")
+    everything = out + err + (here / ".judgekeeper/steps/result.json").read_text(encoding="utf-8")
     for leak in ("ada.lovelace", "Ada", "Lovelace", "adal", "example.com"):
         assert leak not in everything
     assert sorted(result(here)["people"]["who"]) == ["7", "8"]
@@ -419,13 +419,13 @@ def test_an_object_with_no_id_is_no_who(here, capsys):
     person = {"email": "ada.lovelace@example.com"}
     run(capsys, "steps", str(save(here, [task(0, [annotation(person, 1)], run_id="a")])))
     assert result(here)["people"]["who"] == {}
-    assert "ada.lovelace" not in (here / ".judgekeeper/steps/result.json").read_text("utf-8")
+    assert "ada.lovelace" not in (here / ".judgekeeper/steps/result.json").read_text(encoding="utf-8")
 
 
 def test_the_result_keeps_no_step_text(here, capsys):
     export = save(here, project())
     run(capsys, "steps", str(export))
-    assert "made up step" not in (here / ".judgekeeper/steps/result.json").read_text("utf-8")
+    assert "made up step" not in (here / ".judgekeeper/steps/result.json").read_text(encoding="utf-8")
 
 
 def test_the_reviewer_name_in_a_line_is_one_clean_line(here, capsys):
