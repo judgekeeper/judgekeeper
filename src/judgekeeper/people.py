@@ -43,6 +43,7 @@ COUNTS_LINE = "Answers labelled by each person: {people}."
 AGAINST_LINE = "Your check against user {who}, on {answers}: kappa {kappa}. {pass_} {fail}."
 PASS_CLAUSE = "When user {who} says Pass, your check also says Pass {tpr} of the time;"
 FAIL_CLAUSE = "when user {who} says Fail, it also says Fail {tnr} of the time"
+OTHERS_LINE = "Your check against the other {others} is in .judgekeeper/result.json."
 NO_PASS_CLAUSE = "User {who} passed none of these answers;"  # no Pass to find: no rate
 NO_FAIL_CLAUSE = "user {who} failed none of these answers"
 
@@ -269,7 +270,11 @@ def lines(block: dict | None) -> list[str]:
     if len(named) > SHOW_PEOPLE:
         shown += f" and {len(named) - SHOW_PEOPLE} more"
     out.append(COUNTS_LINE.format(people=shown))
-    for who, a in (block.get("vs_check") or {}).items():
+    against = block.get("vs_check") or {}
+    # the SHOW_PEOPLE with the most answers (a tie: by their numbers); the rest only in result.json
+    first = sorted(against, key=lambda who: (-against[who]["n"], _order(who)))[:SHOW_PEOPLE]
+    for who in (w for w in against if w in first):
+        a = against[who]
         pass_ = (NO_PASS_CLAUSE if a["tpr"] is None else PASS_CLAUSE).format(
             who=who, tpr=_share(a["tpr"]))
         fail = (NO_FAIL_CLAUSE if a["tnr"] is None else FAIL_CLAUSE).format(
@@ -277,4 +282,7 @@ def lines(block: dict | None) -> list[str]:
         out.append(AGAINST_LINE.format(
             who=who, kappa="n/a" if a["kappa"] is None else _two(a["kappa"]),
             answers=plural(a["n"], "answer"), pass_=pass_, fail=fail))
+    if len(against) > SHOW_PEOPLE:
+        k = len(against) - SHOW_PEOPLE
+        out.append(OTHERS_LINE.format(others="person" if k == 1 else f"{k} people"))
     return out

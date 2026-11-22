@@ -98,3 +98,43 @@ def test_kappa_undefined_stays_n_a_and_never_says_unknown_of_the_time():
     line = _against(None, None, kappa=None)
     assert "kappa n/a." in line and "unknown" not in line
     assert "passed none of these answers" in line and "failed none of these answers" in line
+
+
+def _crowd(n_people: int, answers=lambda who: 12 - who % 3):
+    """Many people on the answers: person `who` labelled the first `answers(who)` of 12."""
+    ratings = [(f"i{k}", str(who), "pass" if (k + who) % 3 else "fail")
+               for who in range(n_people) for k in range(answers(who))]
+    check = {f"i{k}": ("pass" if k % 2 else "fail") for k in range(12)}
+    return people.analyse(ratings, check)
+
+
+def _about(out):
+    return [x for x in out if x.startswith("Your check against user ")]
+
+
+def test_the_check_against_each_person_is_cut_at_ten_people_with_the_most_answers():
+    block = _crowd(13)
+    assert len(block["vs_check"]) == 13  # all of them stay in the result
+    out = people.lines(block)
+    shown = {x.split(",")[0].removeprefix("Your check against user ") for x in _about(out)}
+    counts = {w: v["n"] for w, v in block["vs_check"].items()}
+    cut = set(counts) - shown
+    assert len(shown) == 10 and len(cut) == 3
+    assert min(counts[w] for w in shown) >= max(counts[w] for w in cut)
+    assert out[-1] == "Your check against the other 3 people is in .judgekeeper/result.json."
+
+
+def test_ten_people_or_fewer_get_every_line_and_no_cut_line():
+    out = people.lines(_crowd(10))
+    assert len(_about(out)) == 10
+    assert not any("is in .judgekeeper/result.json" in x for x in out)
+
+
+def test_one_person_cut_is_named_as_a_person_not_a_count_of_people():
+    out = people.lines(_crowd(11, answers=lambda who: 12))
+    assert out[-1] == "Your check against the other person is in .judgekeeper/result.json."
+
+
+def test_the_people_shown_keep_the_order_of_their_numbers_when_they_tie():
+    out = people.lines(_crowd(13, answers=lambda who: 12))
+    assert [x.split(",")[0].split()[-1] for x in _about(out)] == [str(i) for i in range(10)]
