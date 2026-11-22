@@ -70,7 +70,7 @@ def test_the_first_run_uses_the_labels_in_the_export_as_marks(here, capsys):
     assert {x["from"] for x in rows} == {"export.json"}
     assert {x["who"] for x in rows} == {7}
     assert all(x["labeled_at"].startswith("2026-11-1") for x in rows)
-    assert all(x["seconds"] is None for x in rows)
+    assert all(x["seconds"] == 12.5 for x in rows)  # the time the person took
     assert head["label_sets"]["export.json"]["labels"] == 60
     assert len(head["label_sets"]["export.json"]["sha256"]) == 64
 

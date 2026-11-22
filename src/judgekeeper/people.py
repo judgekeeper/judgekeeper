@@ -14,12 +14,15 @@ person labelled.
 
 from __future__ import annotations
 
+import json
 import random
 from collections import Counter, defaultdict
+from pathlib import Path
 
 from judgekeeper import metrics, weighted
-from judgekeeper.textio import plural
+from judgekeeper.textio import jsonl_lines, loads, plural, write_replacing
 
+FILE = "people.jsonl"  # in .judgekeeper/: what each person said, for the agreement numbers
 MIN_SHARED = 10  # answers labelled by two or more people, before any number is given
 LEVEL = weighted.LEVEL
 SEED = weighted.SEED
@@ -192,6 +195,44 @@ def analyse(ratings, check: dict[str, str] | None, positive: str = "pass",
         return None
     out["vs_check"] = against_check(ratings, check, positive, negative) if check else {}
     return out
+
+
+# The file the ratings are kept in -----------------------------------------------------------
+
+def save(path: str | Path, source: str, ratings) -> None:
+    """Keep `ratings` ((answer id, person, mark): one line each, the person only a number)
+    of the import `source` (a file's base name) in `path`, replacing what an earlier run of the
+    same file kept and leaving other files' lines; no file when none is left."""
+    path = Path(path)
+    kept = [x for x in _lines(path) if x.get("from") != source]
+    new = [{"id": i, "who": who, "mark": mark, "from": source} for i, who, mark in ratings]
+    lines = [json.dumps(x, ensure_ascii=False) for x in kept + new]
+    if lines:
+        write_replacing(path, "\n".join(lines) + "\n")
+    elif path.is_file() or path.is_symlink():
+        path.unlink()
+
+
+def _lines(path: Path) -> list[dict]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return []
+    out = []
+    for raw in jsonl_lines(text):
+        try:
+            x = loads(raw) if raw.strip() else None
+        except ValueError:
+            continue
+        if isinstance(x, dict) and all(isinstance(x.get(k), str) for k in ("id", "mark")) \
+                and x.get("who") is not None:
+            out.append(x)
+    return out
+
+
+def load(path: str | Path) -> list[tuple[str, str, str]]:
+    """(answer id, person, mark) of every line `save` kept; [] when there is no file."""
+    return [(x["id"], str(x["who"]), x["mark"]) for x in _lines(Path(path))]
 
 
 # The lines ------------------------------------------------------------------------------------

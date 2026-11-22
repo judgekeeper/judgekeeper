@@ -108,6 +108,15 @@ class Label:
     key: str | None = None
     who: object = None  # Label Studio: the number it gives the person who labelled
     labeled_at: str | None = None  # Label Studio: when they did
+    seconds: float | None = None  # Label Studio: how long they took
+    annotation: int | None = None  # Label Studio: the number of the annotation
+    # Label Studio: the labels of the same person this one replaced, oldest first, each
+    # {"mark", "labeled_at", "seconds", "annotation"}
+    earlier: tuple = ()
+    # Label Studio, two or more people on one answer: what each said, (person, mark). A
+    # `people_only` label is no mark: it only finds its answer, for how much people agree
+    raters: tuple = ()
+    people_only: bool = False
 
 
 class Labels(list):
@@ -343,14 +352,41 @@ def read_label_studio_file(path: Path, label_map: dict | None, pool, metric: str
     people = [r for r in records if r.annotator_kind == HUMAN]
     if not people:
         raise LabelsStop([f"No labels in {name}.", *records.notes])
-    read = read_marks([r.label for r in people], label_map, name, mine, given or name, command)
+    rated = list(getattr(records, "ratings", ()))
+    earlier = [e["word"] for r in people for e in r.metadata.get("earlier", ())]
+    read = iter(read_marks([r.label for r in people] + earlier + [r.label for r in rated],
+                           label_map, name, mine, given or name, command))
+    marks_of = [next(read) for _ in people]
+    then = {id(r): [_earlier(e, next(read)) for e in r.metadata.get("earlier", ())]
+            for r in people}
+    said = [next(read) for _ in rated]
     out = []
-    for r, mark in zip(people, read, strict=True):
+    for r, mark in zip(people, marks_of, strict=True):
         if mark is None:
             continue
         out.append(Label(mark=mark, output=_scrubbed(r.output), input=_scrubbed(r.input),
-                         id=r.target_id, who=r.metadata.get("who"), labeled_at=r.created_at))
+                         id=r.target_id, who=r.metadata.get("who"), labeled_at=r.created_at,
+                         seconds=r.metadata.get("seconds"),
+                         annotation=r.metadata.get("annotation"),
+                         earlier=tuple(e for e in then[id(r)] if e)))
+    by_task: dict[str, list] = {}
+    for r, mark in zip(rated, said, strict=True):
+        if mark in ("pass", "fail"):
+            by_task.setdefault(r.target_id, []).append((r, mark))
+    for task_id, given_by in by_task.items():
+        first = given_by[0][0]
+        out.append(Label(mark="", output=_scrubbed(first.output), input=_scrubbed(first.input),
+                         id=task_id, people_only=True,
+                         raters=tuple((r.metadata["who"], mark) for r, mark in given_by)))
     return Labels(out, records.notes)
+
+
+def _earlier(e: dict, mark: str | None) -> dict | None:
+    """A label a person replaced, as a Label keeps it; None for a word that is no Pass or Fail."""
+    if mark not in ("pass", "fail"):
+        return None
+    return {"mark": mark, "labeled_at": e.get("at"), "seconds": e.get("seconds"),
+            "annotation": e.get("annotation")}
 
 
 def _first_columns(path: Path) -> list[str]:
@@ -461,11 +497,29 @@ def _read_humans(humans: list, pool, metric: str | None, name: str,
     if metric is not None:
         named = {key for key, _, label_name in humans if label_name == metric}
         humans = [h for h in humans if h[0] not in named or h[2] == metric]
-    read = read_marks([value for _, value, _ in humans], pool.label_map, name, mine, given,
-                      command)
-    info = getattr(pool, "human_info", {})
-    return [Label(mark=mark, key=key, **info.get(key, {}))
-            for (key, _, _), mark in zip(humans, read, strict=True) if mark is not None]
+    info = {k: dict(v) for k, v in getattr(pool, "human_info", {}).items()}
+    replaced = [(k, e) for k, v in info.items() for e in v.get("earlier", ())]
+    rated = list(getattr(pool, "people", ()))
+    read = iter(read_marks([value for _, value, _ in humans] + [e["word"] for _, e in replaced]
+                           + [value for _, _, value in rated], pool.label_map, name, mine,
+                           given, command))
+    marks_of = [next(read) for _ in humans]
+    then: dict[str, list] = {k: [] for k in info}
+    for k, e in replaced:
+        then[k].append(_earlier(e, next(read)))
+    said = [next(read) for _ in rated]
+    for k, v in info.items():
+        if "earlier" in v:
+            v["earlier"] = tuple(e for e in then[k] if e)
+    out = [Label(mark=mark, key=key, **info.get(key, {}))
+           for (key, _, _), mark in zip(humans, marks_of, strict=True) if mark is not None]
+    by_answer: dict[str, list] = {}
+    for (key, who, _), mark in zip(rated, said, strict=True):
+        if mark in ("pass", "fail"):
+            by_answer.setdefault(key, []).append((who, mark))
+    out += [Label(mark="", key=key, people_only=True, raters=tuple(given_by))
+            for key, given_by in by_answer.items()]
+    return out
 
 
 def _quoted(names) -> str:
@@ -546,7 +600,9 @@ class Plan:
 
     marks: dict[str, str] = field(default_factory=dict)
     skipped: dict[str, int] = field(default_factory=dict)
-    info: dict[str, dict] = field(default_factory=dict)  # answer id: who, labeled_at
+    info: dict[str, dict] = field(default_factory=dict)  # answer id: who, labeled_at, ...
+    # what each person said on an answer two or more people labelled: (answer id, person, mark)
+    ratings: list[tuple[str, object, str]] = field(default_factory=list)
 
     def skip(self, reason: str, n: int = 1) -> None:
         self.skipped[reason] = self.skipped.get(reason, 0) + n
@@ -623,17 +679,23 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
     plan = Plan()
     for label in found_labels:
         hits: list = []
+        quiet = label.people_only  # finds its answer, and is no mark: nothing it skips is said
+
+        def skip(reason: str, quiet=quiet) -> None:
+            if not quiet:
+                plan.skip(reason)
+
         if label.mark == ERROR:  # no decision, by the person's map
             plan.skip(NO_DECISION)
             continue
-        if not label.mark:  # a blank label cell (read_file)
+        if not label.mark and not quiet:  # a blank label cell (read_file)
             plan.skip(BLANK)
             continue
         if label.key is not None:  # from the results: its answer's own id
             hits = by_base.get(label.key, [])
             if not hits:
-                plan.skip(NOT_GRADED if label.key in left_keys
-                          else NO_GRADE if label.key == NO_TEXT else NO_MATCH)
+                skip(NOT_GRADED if label.key in left_keys
+                     else NO_GRADE if label.key == NO_TEXT else NO_MATCH)
                 continue
         else:
             output, question = _nfc(label.output), _nfc(label.input)
@@ -653,13 +715,16 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
                     ungraded = not _blank(question) and _digest(text) in left_text
                     asked = _text(question) if not _blank(question) else None
                     unknown = asked is not None and asked not in {_text(a.input) for a in answers}
-                    plan.skip(NOT_GRADED if ungraded else NO_QUESTION if unknown
-                              else MORE_THAN_ONE)
+                    skip(NOT_GRADED if ungraded else NO_QUESTION if unknown
+                         else MORE_THAN_ONE)
                     continue
             if not hits:
-                plan.skip(NOT_GRADED if text and _digest(text) in left_text else NO_MATCH)
+                skip(NOT_GRADED if text and _digest(text) in left_text else NO_MATCH)
                 continue
         ids = list(dict.fromkeys(a.id for a in hits))
+        if quiet:
+            plan.ratings += [(i, who, mark) for i in ids for who, mark in label.raters]
+            continue
         targets_of.append((label, ids))
         for i in ids:
             wanted.setdefault(i, set()).add(label.mark)
@@ -669,8 +734,9 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
             plan.skip(BOTH)
     plan.marks = {i: next(iter(wanted[i])) for i in order if i in wanted and i not in both}
     for label, ids in targets_of:
-        given = {k: v for k, v in (("who", label.who), ("labeled_at", label.labeled_at))
-                 if v is not None}
+        given = {k: v for k, v in (("who", label.who), ("labeled_at", label.labeled_at),
+                                   ("seconds", label.seconds), ("annotation", label.annotation),
+                                   ("earlier", label.earlier or None)) if v is not None}
         for i in ids:
             if given and i in plan.marks:
                 plan.info.setdefault(i, given)
@@ -704,8 +770,16 @@ def add(ws, plan: Plan, source: str, by: str = marks.BY_FILE) -> Added:
             out.kept += have[answer_id] != mark
             out.same += have[answer_id] == mark
             continue
+        info = dict(plan.info.get(answer_id, {}))
+        before = None
+        for e in info.pop("earlier", ()):  # a label the person replaced stays, in the line before
+            lines.append(marks.imported_line(
+                answer_id, e["mark"], groups.get(answer_id), sitting, source, by,
+                who=info.get("who"), labeled_at=e["labeled_at"], seconds=e["seconds"],
+                annotation=e["annotation"], supersedes=before))
+            before = e["annotation"]
         lines.append(marks.imported_line(answer_id, mark, groups.get(answer_id), sitting,
-                                         source, by, **plan.info.get(answer_id, {})))
+                                         source, by, supersedes=before, **info))
         out.marks += 1
         out.passed += mark == "pass"
         out.failed += mark == "fail"

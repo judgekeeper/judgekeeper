@@ -103,6 +103,7 @@ def read_label_studio(path: str | Path, metric: str | None = None) -> RecordList
         raise NoAnswerKey(path.name, keys[2])
 
     records = RecordList(ids_derived=False, unit="task")
+    records.ratings = []  # every person's label on a task two or more people labelled
     chosen = _grader_version(tasks, version)
     stats = _Stats()
 
@@ -228,12 +229,16 @@ def _read_task(records: RecordList, t: dict, control: str | None, keys, version:
         records.append(ScoreRecord(
             annotator_kind=CODE, label=label[0], created_at=label[1],
             evaluator={"version": kind}, **common))
-    chosen = _human(t, control, stats)
+    found = _annotations(t, control, stats)
+    chosen = _human(found, stats)
     if chosen is not None:
-        who, word, at, reason = chosen
+        who, word, at, reason, extra = chosen
         records.append(ScoreRecord(
             annotator_kind=HUMAN, label=word, created_at=at, explanation=reason,
-            metadata={"who": who} if who is not None else {}, **common))
+            metadata={**({"who": who} if who is not None else {}), **extra}, **common))
+    for who, word, at in _ratings(found):
+        records.ratings.append(ScoreRecord(
+            annotator_kind=HUMAN, label=word, created_at=at, metadata={"who": who}, **common))
 
 
 def _choice(part: dict, control: str | None, stats: _Stats | None = None) -> str | None:
@@ -288,9 +293,11 @@ def _predictions(t: dict, control: str | None, version: str | None):
             yield version, (word, at if isinstance(at, str) else None)
 
 
-def _human(t: dict, control: str | None, stats: _Stats):
-    """(who, word, time, reason) of the task's one label from people, or None: one person's;
-    of several, the `ground_truth` one, else the one they all gave; otherwise none (counted)."""
+def _annotations(t: dict, control: str | None, stats: _Stats) -> list[dict]:
+    """The task's labels from people, the latest of each person (by `created_at`): each
+    {"who", "word", "at", "reason", "truth", "seconds", "annotation", "earlier"}, `earlier`
+    the labels of that person this one replaced, oldest first. A cancelled annotation and one
+    with no choice are no label."""
     latest: dict = {}
     for n, a in enumerate(t.get("annotations") if isinstance(t.get("annotations"), list) else []):
         if not isinstance(a, dict):
@@ -301,21 +308,69 @@ def _human(t: dict, control: str | None, stats: _Stats):
         who = _person(a)
         key = ("person", who) if who is not None else ("annotation", n)
         at = a.get("created_at") if isinstance(a.get("created_at"), str) else None
-        mine = (who, word, at, _reason(a), a.get("ground_truth") is True)
-        if key not in latest or (at or "") >= (latest[key][2] or ""):
+        mine = {"who": who, "word": word, "at": at, "reason": _reason(a),
+                "truth": a.get("ground_truth") is True, "seconds": _seconds(a.get("lead_time")),
+                "annotation": _annotation_id(a.get("id")), "earlier": []}
+        old = latest.get(key)
+        if old is None:
             latest[key] = mine
-    found = list(latest.values())
+        elif (at or "") >= (old["at"] or ""):
+            mine["earlier"] = [*old["earlier"], _brief(old)]
+            latest[key] = mine
+        else:  # a label read after a later one: the earlier of the two
+            old["earlier"] = sorted([*old["earlier"], _brief(mine)], key=lambda e: e["at"] or "")
+    return list(latest.values())
+
+
+def _brief(label: dict) -> dict:
+    return {k: label[k] for k in ("word", "at", "seconds", "annotation")}
+
+
+def _seconds(value):
+    """The time a person took, as Label Studio saved it (`lead_time`); None when it is not a
+    number of seconds."""
+    ok = isinstance(value, int | float) and not isinstance(value, bool)
+    return value if ok and value >= 0 else None  # a NaN is not >= 0
+
+
+def _annotation_id(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _extra(label: dict) -> dict:
+    """What a person's label keeps beside the number Label Studio gives them: the time they
+    took, the annotation, and the labels of theirs it replaced."""
+    out = {key: label[key] for key in ("seconds", "annotation") if label[key] is not None}
+    if label["earlier"]:
+        out["earlier"] = label["earlier"]
+    return out
+
+
+def _human(found: list[dict], stats: _Stats):
+    """(who, word, time, reason, extra) of the task's one label from people, or None: one
+    person's; of several, the `ground_truth` one, else the one they all gave; otherwise none
+    (counted)."""
     if not found:
         return None
     if len(found) > 1:
-        truth = [x for x in found if x[4]]
+        truth = [x for x in found if x["truth"]]
         if len(truth) == 1:
             found = truth
-        elif len({x[1].strip().lower() for x in found}) > 1:
+        elif len({x["word"].strip().lower() for x in found}) > 1:
             stats.disagreed += 1
             return None
-    who, word, at, reason, _ = found[0]
-    return who, word, at, reason
+    x = found[0]
+    return x["who"], x["word"], x["at"], x["reason"], _extra(x)
+
+
+def _ratings(found: list[dict]) -> list[tuple]:
+    """(who, word, time) of each person's label on a task two or more people labelled: all of
+    them, the ones they disagree on too (the agreement between people is worked out from
+    these)."""
+    named = [x for x in found if x["who"] is not None]
+    if len({x["who"] for x in named}) < 2:
+        return []
+    return [(x["who"], x["word"], x["at"]) for x in named]
 
 
 # What the file said ----------------------------------------------------------------------
@@ -406,22 +461,35 @@ def _read_flat(path: Path, rows: list, metric: str | None) -> RecordList:
             by_task[task_id] = {"question": row.get(ask) if ask else None,
                                 "output": row.get(answer), "people": {}}
         key = who if who is not None else ("row", n)
-        mine = (who, word, at, reason)
+        mine = {"who": who, "word": word, "at": at, "reason": reason, "truth": False,
+                "seconds": _seconds(_number(row.get("lead_time"))),
+                "annotation": _int(row.get("annotation_id")), "earlier": []}
         old = by_task[task_id]["people"].get(key)
-        if old is None or (at or "") >= (old[2] or ""):
+        if old is None:
             by_task[task_id]["people"][key] = mine
+        elif (at or "") >= (old["at"] or ""):
+            mine["earlier"] = [*old["earlier"], _brief(old)]
+            by_task[task_id]["people"][key] = mine
+        else:
+            old["earlier"] = sorted([*old["earlier"], _brief(mine)], key=lambda e: e["at"] or "")
+    records.ratings = []
     disagreed = 0
     for task_id in order:
         task = by_task[task_id]
         found = list(task["people"].values())
-        if len({x[1].strip().lower() for x in found}) > 1:
+        common = {"target_id": task_id, "name": control, "annotator_kind": HUMAN,
+                  "input": task["question"], "output": task["output"]}
+        for who, word, at in _ratings(found):
+            records.ratings.append(ScoreRecord(label=word, created_at=at,
+                                               metadata={"who": who}, **common))
+        if len({x["word"].strip().lower() for x in found}) > 1:
             disagreed += 1
             continue
-        who, word, at, reason = found[0]
+        x = found[0]
         records.append(ScoreRecord(
-            target_id=task_id, name=control, annotator_kind=HUMAN, label=word, created_at=at,
-            explanation=reason, input=task["question"], output=task["output"],
-            metadata={"who": who} if who is not None else {}))
+            label=x["word"], created_at=x["at"], explanation=x["reason"],
+            metadata={**({"who": x["who"]} if x["who"] is not None else {}), **_extra(x)},
+            **common))
     if disagreed:
         many, one = DISAGREED
         records.notes.append(one if disagreed == 1 else many.format(n=disagreed))
@@ -436,3 +504,15 @@ def _int(value):
     if isinstance(value, str) and value.strip().isdigit():
         return int(value.strip())
     return None
+
+
+def _number(value):
+    """A number from a JSON number or a CSV cell; None when it is neither."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return value
+    try:
+        return float(value) if isinstance(value, str) and value.strip() else None
+    except ValueError:
+        return None

@@ -151,3 +151,35 @@ def test_analyse_without_a_check_has_no_vs_check():
     ratings = [(f"i{k}", who, "P" if k % 2 else "F") for k in range(12) for who in ("2", "3")]
     assert people.analyse(ratings, None)["vs_check"] == {}
     assert people.analyse([("i1", "2", "P")], None) is None
+
+
+# The file the ratings are kept in ---------------------------------------------------------
+
+def test_ratings_are_kept_in_a_file_and_read_back(tmp_path):
+    path = tmp_path / "people.jsonl"
+    people.save(path, "export.json", [("a1", 2, "pass"), ("a1", 3, "fail")])
+    assert people.load(path) == [("a1", "2", "pass"), ("a1", "3", "fail")]
+    text = path.read_text(encoding="utf-8")
+    assert '"from": "export.json"' in text and "@" not in text
+
+
+def test_saving_a_file_again_replaces_only_its_own_lines(tmp_path):
+    path = tmp_path / "people.jsonl"
+    people.save(path, "one.json", [("a1", 2, "pass")])
+    people.save(path, "two.json", [("a2", 3, "fail")])
+    people.save(path, "one.json", [("a3", 4, "pass")])
+    assert people.load(path) == [("a2", "3", "fail"), ("a3", "4", "pass")]
+
+
+def test_saving_nothing_removes_the_file_when_it_was_the_last(tmp_path):
+    path = tmp_path / "people.jsonl"
+    people.save(path, "one.json", [("a1", 2, "pass")])
+    people.save(path, "one.json", [])
+    assert not path.exists() and people.load(path) == []
+
+
+def test_a_damaged_line_is_left_out(tmp_path):
+    path = tmp_path / "people.jsonl"
+    path.write_text('{"id": "a1", "who": 2, "mark": "pass", "from": "x"}\nnot json\n'
+                    '{"id": "a2"}\n', encoding="utf-8")
+    assert people.load(path) == [("a1", "2", "pass")]

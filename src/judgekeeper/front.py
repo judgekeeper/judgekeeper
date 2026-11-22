@@ -31,6 +31,7 @@ from pathlib import Path
 
 from judgekeeper import (
     __version__,
+    ask,
     background,
     batches,
     before_after,
@@ -41,6 +42,7 @@ from judgekeeper import (
     no_grades,
     own_format,
     page,
+    people,
     project,
     report_page,
     settings,
@@ -716,6 +718,7 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
     added = labels_mod.add(ws, plan, talk.labels_from, talk.labels_by)
     if talk.labels_by == marks.BY_LABEL_STUDIO:
         labels_mod.keep_set(ws, plan, rows, talk.labels_from)
+        people.save(ws.dir / people.FILE, talk.labels_from, plan.ratings)  # for the numbers
     said = labels_mod.said(added, plan, talk.labels_from)
     if talk.labels_auto and not added.marks and not added.kept:
         said = []  # its labels came with the results: nothing new needs saying
@@ -3226,6 +3229,10 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if waits is not None:
             _say_waits(talk, waits)
         talk.say()
+    if said := _people_lines(ws):  # Label Studio: how much the people agree, before any result
+        for line in said:
+            talk.para(line)
+        talk.say()
     after = "" if waits is not None else PRECISE if enough else BAR if n else SHOWS
     if not n:  # marking starts: what a result needs, before the page opens
         _needs_each_kind(talk, session)
@@ -3246,6 +3253,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     if not ci:
+        talk.say()
+    if not enough and _ask_files(ws, session):  # the same picks, for Label Studio
+        talk.para(ask.NEXT_LINE)
         talk.say()
     next_step = NEXT_MORE if enough else NEXT_MARK
     out_of_reach = not enough and side_out_of_reach(**_each_kind(session))
@@ -3273,6 +3283,42 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
 
 def _pct(x: float) -> str:
     return percent(x)
+
+
+def _people_lines(ws: Workspace) -> list[str]:
+    """The lines on how much the people who labelled in Label Studio agree (people.lines)."""
+    groups = {q["id"]: q["group"] for q in ws.data().get("queue") or []}
+    return people.lines(start_label.people_block(ws, groups))
+
+
+ASK_COUNT = 2 * targets.ROUGH  # answers to ask for: ROUGH of each kind, as the queue is made
+
+
+def _from_label_studio(ws: Workspace, session: StartSession) -> bool:
+    """Whether the labels so far came from Label Studio: a mark it brought, or what its people
+    said (people.jsonl)."""
+    if (ws.dir / people.FILE).is_file():
+        return True
+    last = marks.read(ws.marks).last if ws.marks.is_file() else {}
+    return any(x.get("by") == marks.BY_LABEL_STUDIO for i, x in last.items()
+               if i in session.by_id)
+
+
+def _ask_files(ws: Workspace, session: StartSession) -> bool:
+    """When the labels are too few for a result and they came from Label Studio: the next
+    answers the marking page would show, as `.judgekeeper/ask/` files for Label Studio
+    (ask.py). The page is not changed. Whether the files were written."""
+    if not _from_label_studio(ws, session):
+        return False
+    data = ws.data()
+    marked = session.marked()
+    queue = [q for q in data.get("queue") or [] if q["id"] not in marked
+             and q["id"] in session.raw]
+    text = {q["id"]: (start_label.display(session.raw[q["id"]].get("input")),
+                      start_label.display(session.raw[q["id"]].get("output")))
+            for q in queue[:ASK_COUNT]}
+    picks = ask.picks_from(queue, ASK_COUNT, text, data.get("pool") or {})
+    return bool(ask.write(ws.dir / ask.FOLDER, picks))
 
 
 def marked_all(n: int, did: str) -> str:
@@ -3483,6 +3529,11 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(start_label.wider(r))
         talk.say()  # apart from the lines above: it plays no part in the result
         talk.para(kappa_line(r))
+    said = people.lines(r.get("people"))  # Label Studio: how much the people agree
+    if said:
+        talk.say()
+        for line in said:
+            talk.para(line)
     assumes = labels_mod.assumes_line(r.get("imported"))  # marks brought with --labels
     if assumes:
         talk.say()

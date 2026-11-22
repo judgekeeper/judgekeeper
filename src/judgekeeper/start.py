@@ -559,7 +559,9 @@ class Pool:
     left_from: dict = field(default_factory=dict)  # answer id left: (its file, Answer.case)
     unread: set = field(default_factory=set)  # answers whose grades no label map reads yet
     grader: str = LLM  # the kind of line the check is in (grader_of): LLM, or CODE
-    # who labelled and when, by answer id (a Label Studio label): {"who", "labeled_at"}
+    # what each person said where two or more labelled an answer: (answer id, person, label)
+    people: list = field(default_factory=list)
+    # who labelled and when, by answer id (a Label Studio label): {"who", "labeled_at", ...}
     human_info: dict = field(default_factory=dict)
 
     @property
@@ -685,7 +687,11 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                     if r.metadata.get("who") is not None:  # a Label Studio label
                         pool.human_info[key_of(r)] = {
                             k: v for k, v in (("who", r.metadata["who"]),
-                                              ("labeled_at", r.created_at)) if v is not None}
+                                              ("labeled_at", r.created_at),
+                                              ("seconds", r.metadata.get("seconds")),
+                                              ("annotation", r.metadata.get("annotation")),
+                                              ("earlier", r.metadata.get("earlier")))
+                            if v is not None}
                 continue
             if r.annotator_kind != grader or r.name != metric:
                 continue
@@ -704,6 +710,11 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                     word = str(_verdict_value(r, norm.pass_if)).strip().lower()
                     kind = judge_check.ERROR_GRADE if word == ERROR else judge_check.EMPTY
             groups.setdefault(key_of(r), []).append((r, v, kind))
+        for r in getattr(records, "ratings", ()) if human_labels else ():
+            # what each person said, where two or more people labelled an answer: the numbers
+            # on how much they agree (people.py), never a mark
+            if human_name(r.name, metric, pool.sole) is not None:
+                pool.people.append((key_of(r), r.metadata["who"], _verdict_value(r, None)))
         for key, seen in groups.items():
             for r, _, _ in seen:
                 if r.target_id:
