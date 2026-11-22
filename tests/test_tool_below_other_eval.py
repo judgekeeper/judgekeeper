@@ -119,7 +119,7 @@ def test_a_session_on_the_tools_own_results_is_still_named_with_its_command(
     assert OTHER_EVAL not in said, said
     code, said = _run(capsys, monkeypatch, services, "pf-bot", "--tool", "promptfoo")
     assert OTHER_EVAL not in said, said  # the printed command reads its own results
-    assert "Step 2 of 5: Mark" in said, said
+    assert "Step 1 of 4: Read (mark your answers)" in said, said
 
 
 def test_the_project_whose_session_reads_the_results_is_named_beside_one_that_does_not(

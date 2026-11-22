@@ -160,7 +160,7 @@ def test_a_noted_ctrl_c_stops_before_any_line_and_any_long_read(monkeypatch):
     monkeypatch.setattr(textio, "next_said", False)  # a run under way (cli._main)
     textio.ctrl_c.append(True)
     with pytest.raises(KeyboardInterrupt):
-        textio.said_next("Step 2 of 5: Mark")
+        textio.said_next("Step 1 of 4: Read (mark your answers)")
     assert not textio.ctrl_c
     monkeypatch.setattr(textio, "_clock", lambda: 0.0)
     textio.ctrl_c.append(True)

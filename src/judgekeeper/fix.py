@@ -78,8 +78,8 @@ CLEAR_LINE = (f"Mark about {CLEAR} more answers for a clear answer (at least {FR
 ONLY_LEFT = "Only {n} left to mark. Mark them, or add more answers to your results."
 NONE_LEFT = "No answers are left to mark. Add more answers to your results."
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
-STEP = "Step 4 of 5: Fix"
-STEP_TEST = "Step 4 of 5: Fix (testing your new rule)"
+STEP = "Step 3 of 4: Fix"
+STEP_TEST = "Step 3 of 4: Fix (testing your new rule)"
 RESULT = {
     "better": ("Result: your new rule is better. A difference this large is unlikely to be a "
                "coincidence."),

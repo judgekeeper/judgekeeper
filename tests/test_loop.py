@@ -118,7 +118,7 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
     assert out.splitlines() == [
         f"judgekeeper {__version__}",
         "",
-        "Step 1 of 5: Find",
+        "Step 1 of 4: Read",
         "",
         "Eval tool:       promptfoo",
         "File:            results.json",
@@ -135,7 +135,7 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "Checked: your LLM-as-a-judge gave every answer a clear Pass or",
         "Fail.",
         "",
-        "Step 2 of 5: Mark",
+        "Step 1 of 4: Read (mark your answers)",
         "",
         "A result needs at least 15 Pass and 15 Fail marks from you. It",
         "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
@@ -196,7 +196,7 @@ def test_marking_started_keeps_the_open_page_and_says_the_count(here, capsys, pa
     assert code == 0, out
     assert _check(out, err) == NEXT_KEEP
     assert out.splitlines()[2:] == [
-        "Step 2 of 5: Mark",
+        "Step 1 of 4: Read (mark your answers)",
         "",
         *PATH,
         "You marked 10 answers so far: 5 Pass, 5 Fail.",
@@ -210,7 +210,7 @@ def test_marking_started_keeps_the_open_page_and_says_the_count(here, capsys, pa
         "",
         'Next: mark answers on the page until a "See the numbers so far"',
         "link appears, then click it."]
-    assert "Step 1 of 5" not in out and "Checked:" not in out
+    assert "Step 1 of 4: Read" not in out.replace("Step 1 of 4: Read (", "") and "Checked:" not in out
     assert len(pages[0]) == 1  # the open page stays: its tab still works
 
 
@@ -232,7 +232,7 @@ def test_enough_marks_print_the_result(here, capsys, pages):
                                                  report_page.why_for(r, key))
         return estimate if between == "–" else f"{estimate} (between {between})"
     assert lines[2:26] == [
-        "Step 3 of 5: Measure", "",
+        "Step 2 of 4: Measure", "",
         *PATH,
         f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}",
         "You and your LLM-as-a-judge agreed on all 36 answers.", "",
@@ -398,7 +398,7 @@ def test_new_yes_leaves_a_blank_line_after_moving_the_marks(here, capsys, pages)
     _click(start_label.Workspace(here), 4)
     code, out, _ = run(capsys, "--new", "--yes")
     assert code == 0, out
-    assert re.search(r"Nothing was deleted\.\n\nStep 2 of 5: Mark\n", out), out
+    assert re.search(r"Nothing was deleted\.\n\nStep 1 of 4: Read \(mark your answers\)\n", out), out
 
 
 def _scores_table(root):
@@ -424,12 +424,12 @@ def test_a_new_pass_if_before_any_mark_starts_over_at_once(here, capsys, pages):
     flags = ("--pass-if", "score>=0.5", "--no-browser")
     code, out, _ = run(capsys, *flags)
     assert code == 0, out
-    assert "Step 1 of 5: Find" in out and "Pass at 0.5 or more" in _flat(out), out
+    assert "Step 1 of 4: Read" in out and "Pass at 0.5 or more" in _flat(out), out
     assert "changed since your marks" not in out and START_OVER not in _flat(out)
     assert (ws.data().get("pass_mark") or {}).get("mark") == 0.5
     code, again, _ = run(capsys, *flags)
     assert code == 0 and "changed since your marks" not in again, again
-    assert "Step 1 of 5: Find" not in again and "Moved" not in again
+    assert "Step 1 of 4: Read" not in again.replace("Step 1 of 4: Read (", "") and "Moved" not in again
 
 
 # A new eval run does not ask to start over ------------------------------------------------

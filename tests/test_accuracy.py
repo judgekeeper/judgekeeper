@@ -128,7 +128,7 @@ def test_ready_follows_the_verdict_only():
     assert not hasattr(targets, "line")
 
 
-# The result in the terminal (Step 3 of 5: Measure) -------------------------------------------
+# The result in the terminal (Step 2 of 4: Measure) -------------------------------------------
 
 def _measured(project, capsys, marks, limit: int | None = None, each: int | None = None) -> str:
     """`judgekeeper` once to start marking, the marks (`marks(group, n)`: what the person
@@ -165,7 +165,7 @@ def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
     out = _measured(project, capsys, lambda g, n: g if n > 2 else ("fail" if g == "pass"
                                                                     else "pass"), limit=60)
     lines = out.splitlines()
-    assert "Step 3 of 5: Measure" in lines
+    assert "Step 2 of 4: Measure" in lines
     at = lines.index("How often your LLM-as-a-judge agrees with you (estimates):")
     for line, word in zip(lines[at + 1:at + 3], ("Pass", "Fail"), strict=True):
         assert line.startswith(f"  When you say {word}, it also says {word}: about ")

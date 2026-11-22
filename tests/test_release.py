@@ -320,7 +320,7 @@ def test_practice_release_installs_from_testpypi_on_three_systems():
     steps = _steps_text(job)
     uvx = 'uvx --index-url \\"$INDEX\\" \\"judgekeeper==$VERSION\\"'
     for needed in (f"{uvx} --version", f"{uvx} --help", f"{uvx} --no-browser", f"{uvx} --stop",
-                   "seq 1 30", "sleep 10", "range(1, 41)", "Step 1 of 5: Find",
+                   "seq 1 30", "sleep 10", "range(1, 41)", "Step 1 of 4: Read",
                    "http://127"):
         assert needed in steps, needed
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", " fix", " check"):

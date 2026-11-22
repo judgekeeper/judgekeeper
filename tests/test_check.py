@@ -179,7 +179,7 @@ def test_a_store_folder_is_seen_to_change_deep_inside(tmp_path):
 
 TABLE_HEAD = "Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge"
 SCENE_6 = [
-    "Step 5 of 5: Re-check",
+    "Step 4 of 4: Re-check",
     "",
     "Results: results.json",
     "",

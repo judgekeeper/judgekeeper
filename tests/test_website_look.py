@@ -461,7 +461,7 @@ DEMO = [["Can I return a lamp after 60 days?",
         ["Do you ship to Canada?",
          "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]
 # Each step starts with what you do, in a few plain words
-STEPS = [("find", "Read", "Read your eval results, and mark answers Pass or Fail in your browser."),
+STEPS = [("find", "Read", "Read your eval results and your labels, or mark answers Pass or Fail in your browser."),
          ("measure", "Measure", "See how often your LLM-as-a-judge agrees with you."),
          ("fix", "Fix", "Write a better rule and test it on marks kept aside."),
          ("check", "Re-check", "Change your LLM-as-a-judge and see if it still agrees with you.")]
@@ -521,7 +521,7 @@ def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
     buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
                if {"b-main", "b-side"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
-                       ("check.html", {"b-side"}, "Try the Find step in your browser")]
+                       ("check.html", {"b-side"}, "Try the Read step in your browser")]
     sub_line = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
                 "agent reviewer) agrees with your people, and see when that changes.")
     assert [_flat(p) for p in _all(hero, "p", None)
@@ -598,7 +598,7 @@ def test_the_steps_read_cleanly_as_plain_text():
     (tabs,) = _all(_main(HOME), "div", "steplist")
     texts = [" ".join(_raw(b).split()) for b in _all(tabs, "button")]
     assert texts == [f"{n}. {name}: {words}" for n, (_, name, words) in enumerate(STEPS, 1)]
-    assert texts[0] == "1. Read: Read your eval results, and mark answers Pass or Fail in your browser."
+    assert texts[0] == "1. Read: Read your eval results and your labels, or mark answers Pass or Fail in your browser."
     assert "data-nosnippet" in tabs.attrs  # Google leaves the step list out of its snippet
     assert "data-nosnippet" in _by_id(HOME, "demo").attrs  # and the marking demo
     for b in _all(tabs, "button"):
@@ -662,7 +662,7 @@ def test_the_closing_box_points_to_the_browser_check():
     assert _flat(_all(close, "p")[0]) == ("Check your LLM-as-a-judge. Your file stays on your "
                                           "computer.")
     (button,) = _all(close, "a", "b-main")
-    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try the Find step in your browser")
+    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try the Read step in your browser")
 
 
 def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
@@ -1008,8 +1008,8 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     assert ifs == {
         "step-find": [("Nothing found?", ("Run your eval first so it saves its results, or point "
                                           "judgekeeper to your results file.")),
-                      ("Already have Pass/Fail labels?",
-                       ("Run judgekeeper --labels your-labels.csv, or judgekeeper --labels if they "
+                      ("Already have Pass/Fail labels, for example from Label Studio?",
+                       ("Run judgekeeper --labels your-labels.csv (a Label Studio export works too), or judgekeeper --labels if they "
                         "are in your results. Then mark more if needed."))],
         "step-measure": [("Result says it’s too early to tell?",
                           ("Your LLM-as-a-judge needs more of your marks to be measured. Mark more "
@@ -1341,11 +1341,11 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     left, term = [el for el in _all(section, "div") if el.parent.parent is section]
     assert "ck2-l" in left.classes() and {"term", "ck2-term"} <= term.classes()
     (h1,) = _all(left, "h1")
-    assert _flat(h1) == "Try the Find step in your browser."
+    assert _flat(h1) == "Try the Read step in your browser."
     assert [_flat(s) for s in _all(h1, "span", "nb")] == ["in your browser."]
     titles = re.findall(r'<title>([^<]*)</title>|content="([^"]*\| judgekeeper)"',
                         CHECK.read_text(encoding="utf-8"))
-    assert {a or b for a, b in titles} == {"Try the Find step in your browser | judgekeeper"}
+    assert {a or b for a, b in titles} == {"Try the Read step in your browser | judgekeeper"}
     # the drop box: an upload icon and what to drop; after a file, the file and Clear
     drop = _by_id(CHECK, "fc-drop")
     assert drop.tag == "button" and drop.attrs.get("type") == "button"
@@ -1389,7 +1389,7 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert ghost.attrs.get("aria-hidden") == "true"
     waiting = wait.text()[:wait.text().index(ghost.text())]
     assert " ".join(waiting.split()) == (
-        "$ judgekeeper Step 1 of 5: Find Waiting for your results file. Drop it in the box, or "
+        "$ judgekeeper Step 1 of 4: Read Waiting for your results file. Drop it in the box, or "
         "try an example. ▋")
     result = _by_id(CHECK, "fc-result")
     assert result.attrs.get("aria-live") == "polite" and not result.children

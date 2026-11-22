@@ -197,7 +197,7 @@ jobs:
           CI= GITHUB_ACTIONS= uvx --index-url "$INDEX" "judgekeeper==$VERSION" --no-browser < /dev/null > out.txt 2>&1 || {
             cat out.txt; exit 1; }
           cat out.txt
-          grep -q "Step 1 of 5: Find" out.txt
+          grep -q "Step 1 of 4: Read" out.txt
           grep -Eq "http://127\.0\.0\.1:[0-9]+/\?token=" out.txt
           CI= GITHUB_ACTIONS= uvx --index-url "$INDEX" "judgekeeper==$VERSION" --stop < /dev/null
           # In a fresh folder, with the CI variables as GitHub sets them: no marking page.

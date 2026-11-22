@@ -18,7 +18,7 @@ from tests.website_pages import ROOT, WEBSITE, parse
 
 REFERENCE = ROOT / "docs" / "reference.md"
 EVAL_TOOLS = ROOT / "docs" / "eval-tools.md"
-COMMANDS = {None: "judgekeeper: find, mark, measure",
+COMMANDS = {None: "judgekeeper: read and measure",
             "mark": "mark: mark more answers",
             "fix": "fix: see where your LLM-as-a-judge goes wrong, then test a better rule",
             "check": "check: re-check your LLM-as-a-judge after a change"}
@@ -256,7 +256,7 @@ NEEDS = ("A result needs at least 15 Pass and 15 Fail marks from you. It also ne
 
 def test_the_reference_says_what_a_result_needs_near_its_top():
     text = REFERENCE.read_text(encoding="utf-8")
-    first_command = text.index("## judgekeeper: find, mark, measure")
+    first_command = text.index("## judgekeeper: read and measure")
     second = text.index("\n## ", first_command + 1)
     assert NEEDS in " ".join(text[:second].split())
 
@@ -301,7 +301,7 @@ def test_the_docs_say_the_marking_page_leaves_out_the_documents():
     assert ("The marking page shows the question (`input`) and the answer (`actual_output`), "
             "not the documents your LLM-as-a-judge was given (`retrieval_context`, `context`). "
             "For a faithfulness check, keep those documents open while you mark.") in deepeval
-    marking = _flat(_sections()["judgekeeper: find, mark, measure"])
+    marking = _flat(_sections()["judgekeeper: read and measure"])
     assert ("It shows the question and the answer, not the documents your LLM-as-a-judge was "
             "given, unless they are part of the question (such as a promptfoo var). For a "
             "faithfulness check, keep those documents open while you mark.") in marking

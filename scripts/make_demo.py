@@ -434,7 +434,7 @@ def make(chrome: Chrome, work: Path, folder: Path, out: Path, keep: Path | None)
     try:
         frames.open_terminal(folder.name)
         frames.typed([], "judgekeeper", 350)
-        split = next(n for n, line in enumerate(first) if line.startswith("Step 2 of"))
+        split = next(n for n, line in enumerate(first) if line.startswith("Step 1 of 4: Read (mark"))
         frames.terminal(prompt + first[:split], 1100)
         frames.terminal(prompt + first, 2700)
         start = Page(link)

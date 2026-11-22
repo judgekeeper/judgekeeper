@@ -8,7 +8,7 @@ from judgekeeper import background, start_label
 from judgekeeper.label import is_open
 from tests.test_fixed_and_broke import Project, _mark, _write, here, project  # noqa: F401
 
-MARK = "Step 2 of 5: Mark"
+MARK = "Step 1 of 4: Read (mark your answers)"
 FOUND = "Found 3 new answers since your last results. Mark them to see what changed."
 NEXT = "Next: mark more answers, then run `judgekeeper --no-browser` to see your updated result."
 
@@ -22,7 +22,7 @@ def _change(p: Project, n: int = 3) -> None:
 
 def _opens_the_page(said: str, started: list, before: int) -> None:
     assert MARK in said and FOUND in said, said
-    assert "You passed" not in said and "Step 3 of 5" not in said, said
+    assert "You passed" not in said and "Step 2 of 4" not in said, said
     assert "judgekeeper mark" not in said, said  # no extra command to open it
     assert said.index(FOUND) < said.index(NEXT), said
     assert len(started) == before + 1, started  # the page started for the new answers
@@ -55,7 +55,7 @@ def test_the_page_opens_again_until_the_new_answers_are_marked(project):  # noqa
     assert MARK in said and "3 new answers are waiting to be marked." in said, said
     _mark(project.here, {i: "pass" for i in range(3)})
     said = project.run()
-    assert "Step 3 of 5: Measure" in said and "You passed" in said, said
+    assert "Step 2 of 4: Measure" in said and "You passed" in said, said
 
 
 CLOSED = ("The marking page that was open is closed now: it showed your answers from before. "
@@ -69,7 +69,7 @@ def test_a_run_that_closes_the_page_and_measures_says_so(project):  # noqa: F811
     del project.outs[19]  # an answer gone, none new: the result, with the page closed
     _write(project.here, project.outs)
     said = project.run()
-    assert "Step 3 of 5: Measure" in said and not is_open(ws.dir), said
+    assert "Step 2 of 4: Measure" in said and not is_open(ws.dir), said
     assert said.count(CLOSED) == 1 and said.index(CLOSED) < said.index("Next:"), said
     assert CLOSED not in project.run()  # nothing closed this time
 
@@ -77,7 +77,7 @@ def test_a_run_that_closes_the_page_and_measures_says_so(project):  # noqa: F811
 def test_a_run_that_leaves_the_page_open_says_nothing_of_it(project):  # noqa: F811
     project.first(fails={0, 1, 2}, n=20)
     said = project.run()
-    assert "Step 3 of 5: Measure" in said and "is closed now" not in said, said
+    assert "Step 2 of 4: Measure" in said and "is closed now" not in said, said
 
 
 def test_the_terminal_result_gives_the_rate_and_range_the_page_gives(project):  # noqa: F811

@@ -202,7 +202,7 @@ PAGE_NO_ANSWER_GRADES = ("Your marking page didn't answer, so it may still show 
 SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare LLM-as-a-judge results across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
-STEP = "Step 5 of 5: Re-check"
+STEP = "Step 4 of 4: Re-check"
 
 
 _n = plural  # textio.plural

@@ -51,5 +51,5 @@ def test_a_damaged_pool_is_left_behind_by_starting_over(marked, tmp_path, monkey
     assert code == 2 and "Next: run `judgekeeper --new` to start over" in out, out
     code = main(["--new", "--yes", "--no-browser"])
     out = " ".join("".join(capsys.readouterr()).split())
-    assert code == 0 and "Step 2 of 5: Mark" in out, out
+    assert code == 0 and "Step 1 of 4: Read (mark your answers)" in out, out
     assert list((tmp_path / "deep" / ".judgekeeper").glob("previous-*/pool.jsonl")), out

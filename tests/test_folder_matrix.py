@@ -1552,7 +1552,7 @@ def test_a_folder_that_holds_a_project_never_reads_a_list_from_above(tmp_path, c
     dot = _say(capsys, monkeypatch, proj.parent, ".")
     assert not reads, plain
     assert plain[0] == dot[0] == 3, (plain, dot)
-    first = (lambda s: s.split("Step 1 of 5: Find ")[1].split(". ")[0])
+    first = (lambda s: s.split("Step 1 of 4: Read ")[1].split(". ")[0])
     assert first(plain[1]) == first(dot[1]), (plain, dot)
     assert "ext/" not in plain[1], plain
     assert _files(repo) == before, plain

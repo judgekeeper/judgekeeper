@@ -352,7 +352,7 @@ def test_check_names_what_it_read_and_notes_newer_results_elsewhere(here, capsys
     capsys.readouterr()
     code, out = run(capsys, "check")
     assert code == 0 and out.startswith(
-        f"judgekeeper {__version__} Step 5 of 5: Re-check New results: new.json "), out
+        f"judgekeeper {__version__} Step 4 of 4: Re-check New results: new.json "), out
     assert "Newer" not in out, out
     _inspect_log(here / "logs" / "new2.json", {i: not judge(i) for i in range(N)},
                  "Grade it C or I, any way.", created="2026-10-28T10:00:00+00:00")

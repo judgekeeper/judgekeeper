@@ -116,7 +116,7 @@ def test_promptfoo(here, capsys):
     assert code == 0, out + err
     assert out.splitlines()[:2] == [f"judgekeeper {__version__}", ""]
     assert out.splitlines()[2:14] == [
-        "Step 1 of 5: Find", "",
+        "Step 1 of 4: Read", "",
         "Eval tool:       promptfoo",
         "File:            results.json",
         "Answers:         36 answers",
@@ -398,7 +398,7 @@ def test_without_a_terminal_the_pass_mark_question_names_the_mark_in_use(here, c
     assert f"--pass-if {quote_arg('score>=0.585')}`" in line and "score>=N" not in line, line
     assert front.PASS_MARK_AGAIN.format(rule="score>=0.585") in " ".join(out.split()), out
     assert out.count("--pass-if " + quote_arg("score>=0.585")) == 1, out  # in the Next line only
-    assert "Step 1 of 5" not in out, out  # the pass mark was saved: Find is done
+    assert "Step 1 of 4: Read" not in out.replace("Step 1 of 4: Read (", ""), out  # the pass mark was saved: Find is done
 
 
 def test_words_need_a_label_map(here, capsys):
@@ -665,7 +665,7 @@ def test_at_a_terminal_the_tool_is_asked_and_saved_after_yes(here, capsys, termi
     assert saved["source"] == "promptfoo"
     assert next_lines(out) == [START]
     code, out, _ = run(capsys)  # asked once: now read from judgekeeper.toml
-    assert code == 0 and "Step 2 of 5: Mark" in out and "Saved results from" not in out
+    assert code == 0 and "Step 1 of 4: Read (mark your answers)" in out and "Saved results from" not in out
 
 
 def test_at_a_terminal_no_keeps_judgekeeper_toml_away(here, capsys, terminal):

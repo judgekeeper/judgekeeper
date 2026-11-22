@@ -52,4 +52,4 @@ def test_a_link_named_is_named_as_typed_in_every_command(request, capsys, monkey
             "--no-browser`.") in said, said
     assert "run `judgekeeper results.csv --port 0 --no-browser` again." in said, said
     code, said = _run(capsys, monkeypatch, folder, "mark", "results.csv")
-    assert "Step 2 of 5: Mark" in said and "PATH" not in said, said
+    assert "Step 1 of 4: Read (mark your answers)" in said and "PATH" not in said, said

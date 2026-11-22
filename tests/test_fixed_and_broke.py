@@ -284,7 +284,7 @@ def test_new_answers_not_marked_yet_show_no_counts(project):
     project.first(fails={0, 1, 2, 3}, n=12)
     kept = project.kept()
     said = project.again({kept[0]: None, kept[1]: None}, marked=False)  # 10 still marked
-    assert "Step 2 of 5: Mark" in said and "2 new answers are waiting to be marked." in said
+    assert "Step 1 of 4: Read (mark your answers)" in said and "2 new answers are waiting to be marked." in said
     assert "questions kept aside:" not in said and "You passed" not in said
     assert not _result(project.here).get("since")
     seen = " ".join(_seen(_report(project.here)).split())
@@ -295,7 +295,7 @@ def test_counts_wait_for_every_changed_question_shown_ones_too(project):
     project.first(fails={0, 1, 2, 3}, n=12)
     kept, shown = project.kept(), project.shown()
     said = project.again({i: "pass" for i in kept} | {shown[0]: None})
-    assert "Step 2 of 5: Mark" in said and "1 new answer is waiting to be marked." in said
+    assert "Step 1 of 4: Read (mark your answers)" in said and "1 new answer is waiting to be marked." in said
     assert "questions kept aside:" not in said, said
     _mark(project.here, {shown[0]: "pass"})
     said = project.run()
@@ -328,7 +328,7 @@ def test_a_question_with_spaces_added_and_the_same_answer_is_never_compared(proj
     assert _result(project.here)["since"]["fixed"] == 1
     _write(project.here, project.outs, asked={q: f"What is  question {q}? "})
     said = project.run()
-    assert "Step 2 of 5: Mark" in said and "questions kept aside:" not in said, said
+    assert "Step 1 of 4: Read (mark your answers)" in said and "questions kept aside:" not in said, said
     _mark(project.here, {q: "pass"})
     project.run()
     assert _result(project.here).get("since") is None

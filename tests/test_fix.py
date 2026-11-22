@@ -252,7 +252,7 @@ def test_the_first_run(here, capsys, monkeypatch):
     other = f", and in {failed}, it said Fail where you said Pass" if failed else ""
     lines = out.splitlines()
     flat = " ".join(out.split())
-    assert lines[:5] == [f"judgekeeper {__version__}", "", "Step 4 of 5: Fix", "",
+    assert lines[:5] == [f"judgekeeper {__version__}", "", "Step 3 of 4: Fix", "",
                          "Where your LLM-as-a-judge goes wrong:"]
     # every clue names the LLM-as-a-judge and says Pass and Fail plainly
     assert flat.index("Where your LLM-as-a-judge goes wrong:") < flat.index(
@@ -1083,7 +1083,7 @@ def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdi
     n, right, fixed = _hidden_counts(ws)
     lines = out.splitlines()
     flat = " ".join(out.split())
-    assert lines[2] == "Step 4 of 5: Fix (testing your new rule)"
+    assert lines[2] == "Step 3 of 4: Fix (testing your new rule)"
     assert "New results: regraded.json" in lines
     at = lines.index(f"Your LLM-as-a-judge, tested on the {n} marks kept aside:")
     side = r"    When you say (Pass|Fail): agrees on (\d+) of (\d+)"

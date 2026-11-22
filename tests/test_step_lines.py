@@ -26,7 +26,7 @@ def test_a_project_below_named_on_a_first_run_is_a_paragraph_of_its_own(here, ca
     code, out, _ = run(capsys, "--no-browser", "--port", "0")
     assert code == 0, out
     lines = out.splitlines()
-    at = lines.index("Step 2 of 5: Mark")
+    at = lines.index("Step 1 of 4: Read (mark your answers)")
     assert lines[at - 1] == "" and "proj" in "".join(lines[:at]), out
 
 

@@ -22,8 +22,8 @@
 <meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=33">
-<script src="assets/site.js?v=33" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=34">
+<script src="assets/site.js?v=34" defer></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"judgekeeper","url":"https://www.judgekeeper.com/"},{"@type":"SoftwareApplication","name":"judgekeeper","url":"https://www.judgekeeper.com/","description":"See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, and see when that changes.","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","license":"https://www.apache.org/licenses/LICENSE-2.0","sameAs":["https://github.com/judgekeeper/judgekeeper","https://pypi.org/project/judgekeeper/"]}]}</script>
 </head>
 <body>
@@ -39,7 +39,7 @@
     <h1>The keeper of<br><span class="nb">human judgment</span><br><span class="nb">for AI.</span></h1>
     <p class="gx-lede">See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, and see when that changes.</p>
     <nav class="five" aria-label="The four steps"><a href="#steps" data-step="find" class="is-on">Read.</a><a href="#steps" data-step="measure">Measure.</a><a href="#steps" data-step="fix">Fix.</a><a href="#steps" data-step="check">Re-check.</a></nav>
-    <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Try the Find step in your browser</a></div>
+    <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Try the Read step in your browser</a></div>
   </div>
   <div class="hero-r"><section class="jk-card" id="demo" data-nosnippet tabindex="0" aria-label="Live demo of the marking page">
     <div class="rt-bar jk-bar" aria-hidden="true"><span class="rt-title">marking page</span></div>
@@ -70,7 +70,7 @@
 </div></section>
 <section class="steps" id="steps"><div class="wrap">
   <h2>What each step looks like.</h2>
-  <div class="steps-grid"><div class="steplist" data-nosnippet role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1<span class="sr">. </span></span><span class="t"><b>Read<span class="sr">: </span></b><span class="d">Read your eval results, and mark answers Pass or Fail in your browser.</span></span></button>
+  <div class="steps-grid"><div class="steplist" data-nosnippet role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1<span class="sr">. </span></span><span class="t"><b>Read<span class="sr">: </span></b><span class="d">Read your eval results and your labels, or mark answers Pass or Fail in your browser.</span></span></button>
 <button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2<span class="sr">. </span></span><span class="t"><b>Measure<span class="sr">: </span></b><span class="d">See how often your LLM-as-a-judge agrees with you.</span></span></button>
 <button type="button" role="tab" id="tab-fix" data-step="fix" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">3<span class="sr">. </span></span><span class="t"><b>Fix<span class="sr">: </span></b><span class="d">Write a better rule and test it on marks kept aside.</span></span></button>
 <button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4<span class="sr">. </span></span><span class="t"><b>Re-check<span class="sr">: </span></b><span class="d">Change your LLM-as-a-judge and see if it still agrees with you.</span></span></button>
@@ -86,7 +86,7 @@
     <pre class="term-out" id="t-out" aria-live="off" tabindex="0" role="region" aria-label="What judgekeeper prints">$ judgekeeper
 judgekeeper 1.3.0
 
-Step 1 of 5: Find
+Step 1 of 4: Read
 
 Eval tool:       promptfoo
 File:            results.json
@@ -107,7 +107,7 @@ Your LLM-as-a-judge passed 23 answers and failed 17.
 Checked: your LLM-as-a-judge gave every answer a clear Pass or
 Fail.
 
-Step 2 of 5: Mark
+Step 1 of 4: Read (mark your answers)
 
 A result needs at least 15 Pass and 15 Fail marks from you. It
 also needs 20 marks on answers your LLM-as-a-judge passed and 20
@@ -125,7 +125,7 @@ link appears, then click it.</pre>
 <template data-screen="find">$ judgekeeper
 judgekeeper 1.3.0
 
-Step 1 of 5: Find
+Step 1 of 4: Read
 
 Eval tool:       promptfoo
 File:            results.json
@@ -146,7 +146,7 @@ Your LLM-as-a-judge passed 23 answers and failed 17.
 Checked: your LLM-as-a-judge gave every answer a clear Pass or
 Fail.
 
-Step 2 of 5: Mark
+Step 1 of 4: Read (mark your answers)
 
 A result needs at least 15 Pass and 15 Fail marks from you. It
 also needs 20 marks on answers your LLM-as-a-judge passed and 20
@@ -163,7 +163,7 @@ link appears, then click it.</template>
 <template data-screen="measure">$ judgekeeper
 judgekeeper 1.3.0
 
-Step 3 of 5: Measure
+Step 2 of 4: Measure
 
 results.json has LLM-as-a-judge grades, so judgekeeper checks
 your LLM-as-a-judge against your marks.
@@ -204,7 +204,7 @@ Next: to improve your LLM-as-a-judge's rule, run
 <template data-screen="fix">$ judgekeeper fix
 judgekeeper 1.3.0
 
-Step 4 of 5: Fix
+Step 3 of 4: Fix
 
 Where your LLM-as-a-judge goes wrong:
   Your LLM-as-a-judge made 8 mistakes on the 18 marks used here.
@@ -237,7 +237,7 @@ the results, then run `judgekeeper fix &lt;new results file&gt;`.</template>
 <template data-screen="fix_test">$ judgekeeper fix new-rule.json
 judgekeeper 1.3.0
 
-Step 4 of 5: Fix (testing your new rule)
+Step 3 of 4: Fix (testing your new rule)
 
 New results: new-rule.json
 
@@ -260,7 +260,7 @@ your marks.</template>
 <template data-screen="check">$ judgekeeper check
 judgekeeper 1.3.0
 
-Step 5 of 5: Re-check
+Step 4 of 4: Re-check
 
 Results: results.json
 
@@ -280,6 +280,9 @@ On answers you fail, no drop, though these marks can't rule out
 a drop of up to 19 points.
 
 One run, so a small change may be a coincidence.
+
+Your LLM-as-a-judge moved: on the 37 answers your people
+labelled, it agrees with them less than before.
 
 Next: go back to your old LLM-as-a-judge, or try another change
 and run `judgekeeper check` again.</template>
@@ -314,7 +317,7 @@ and run `judgekeeper check` again.</template>
   <div class="close-box">
     <div><h2>Have eval results?</h2><p>Check your LLM-as-a-judge. Your file stays on your computer.</p>
     <p class="close-prompt" aria-hidden="true"><span class="t-prompt">$</span> <span class="ck-cursor">▍</span></p></div>
-    <a class="b-main" href="check.html">Try the Find step in your browser</a>
+    <a class="b-main" href="check.html">Try the Read step in your browser</a>
   </div></div>
 </div></section>
 </main>

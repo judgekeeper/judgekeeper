@@ -88,7 +88,7 @@ def test_a_check_of_the_marked_file_names_it_as_results(here, capsys):
 
 def test_a_path_that_is_not_there_says_no_step(here, capsys):
     code, said = _main(capsys, "banana")
-    assert code != 0 and "Step 1 of 5" not in said and "banana" in said, said
+    assert code != 0 and "Step 1 of 4: Read" not in said.replace("Step 1 of 4: Read (", "") and "banana" in said, said
 
 
 def test_a_port_the_open_page_kept_is_said(here, capsys):

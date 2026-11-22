@@ -102,7 +102,7 @@ def test_the_fixture_imports_its_labels_by_target_id(here, capsys):
     assert ("Added 36 marks from your results (21 Pass, 15 Fail). Skipped 2 labels: "
             "2 labels are for answers that are not in your results") in out, out
     assert "the answer text must be the same" not in out
-    assert "Step 3 of 5: Measure" in out  # the 36 imported marks give a first result
+    assert "Step 2 of 4: Measure" in out  # the 36 imported marks give a first result
     assert code in (0, 3), out
 
 

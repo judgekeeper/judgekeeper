@@ -197,7 +197,7 @@ def test_answers_read_here_say_how_to_read_the_results_above(repo, capsys, monke
     _answers_only(folder)
     code, said = _run(capsys, monkeypatch, folder)
     assert code == 0 and said.count(TWO_UP) == 1, said
-    assert said.index("has no LLM-as-a-judge grades") < said.index(TWO_UP) < said.index("Step 2")
+    assert said.index("has no LLM-as-a-judge grades") < said.index(TWO_UP) < said.index("Step 1 of 4: Read (mark")
     code, said = _run(capsys, monkeypatch, folder)  # said with Find: not on the runs after it
     assert TWO_UP not in said, said
     code, said = _run(capsys, monkeypatch, folder, ".")  # a PATH given: the person chose

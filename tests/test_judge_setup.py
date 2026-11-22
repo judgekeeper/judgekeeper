@@ -361,7 +361,7 @@ def test_before_any_mark_a_new_model_is_read_anew(tmp_path, monkeypatch, capsys)
     out = capsys.readouterr().out
     saved = json.loads((tmp_path / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
     assert saved["setup"]["models"] == ["anthropic:claude-haiku-4-5"]
-    assert "Step 1 of 5: Find" in out and "changed since your marks" not in out
+    assert "Step 1 of 4: Read" in out and "changed since your marks" not in out
 
 
 def test_an_older_judge_json_is_read_from_the_marks(tmp_path):

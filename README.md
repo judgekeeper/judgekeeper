@@ -38,7 +38,7 @@ Using a coding agent? Give it this page and tell it: "Follow this to run judgeke
 
 1. **Read:** `judgekeeper` finds your eval results and reads them. A page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result.
    - No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the link to open instead.
-   - Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv`, or `judgekeeper --labels` if they are in your results. Then mark more if needed.
+   - Already have Pass/Fail labels, for example from Label Studio? Run `judgekeeper --labels your-labels.csv` (a Label Studio export works too), or `judgekeeper --labels` if they are in your results. Then mark more if needed.
 2. **Measure:** run `judgekeeper` again to see how often it agrees with you.
 3. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside. It makes no AI call: you grade the marked answers again with your own eval tool, which may use your API key.
 4. **Re-check:** after you change the model or the rule, grade your marked answers again (`judgekeeper fix` writes them to `.judgekeeper/fix/marked-answers.csv`). `judgekeeper check <new results file>` shows if it still agrees with you.

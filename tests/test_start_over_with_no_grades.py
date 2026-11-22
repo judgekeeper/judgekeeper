@@ -41,6 +41,6 @@ def test_new_with_yes_moves_the_marks_and_starts_over(here, capsys, pages):
     moved = list(ws.dir.glob("previous-*"))
     assert len(moved) == 1 and (moved[0] / "marks.jsonl").is_file()
     assert not ws.marks.is_file() or not marks.read(ws.marks).counted()
-    assert "Step 2 of 5: Mark" in flat(out)
+    assert "Step 1 of 4: Read (mark your answers)" in flat(out)
     code, out, err = run(capsys, "--no-browser")  # the next run goes on: nothing to move
     assert code == 0 and len(list(ws.dir.glob("previous-*"))) == 1, out + err
