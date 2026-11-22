@@ -350,10 +350,12 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[25:29] == [
+    assert lines[25:31] == [
         "  fix     show where your LLM-as-a-judge goes wrong, help you write a better",
         "          rule and test it on marks kept aside",
         "  check   re-check your LLM-as-a-judge on your marks after a change",
+        "  steps   for agents: label the first wrong step of each run in Label Studio,",
+        "          then see how often your reviewer finds the same one",
         "",
     ]
     assert "Options:" in lines

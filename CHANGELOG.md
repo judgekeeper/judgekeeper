@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New command `judgekeeper steps` for agents. On a JSONL file of agent runs it writes a Label Studio import file and labelling setup in `.judgekeeper/steps/`, where people label each run's first wrong step (0 if all fine). On the Label Studio export of that project it says how often your reviewer finds the same first wrong step as your people: for the runs that went wrong or were fine, TPR, TNR and kappa; for the step, how often it names the same one, and one within a step; each with a range. The reviewer's guesses come from the export's predictions or from a JSONL file given with `--reviewer`. The result is saved in `.judgekeeper/steps/result.json`. Of each annotation only the person's numeric user id is kept.
+
 ## 1.3.0 (2026-11-22)
 
 - Did your change make it worse? On results with grades, `judgekeeper` now also compares the newest results with the last ones it read, question by question, using the grades in them, not your marks. It says how many were fixed, broke and stayed the same, then whether the change helped, made it worse, or can't tell yet, and exits 1 only when it made it worse. `--before FILE` compares with that file instead, such as the results from `main` in CI. A question is matched by its own test-case id where the results have one (an `id` column, promptfoo test descriptions, Inspect AI sample ids, DeepEval test case names, `judgekeeper.record()`'s `target_id`), else by its text. The last results are kept in `.judgekeeper/last-graded.json` as hashes and grades only.
