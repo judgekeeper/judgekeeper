@@ -1,0 +1,102 @@
+judgekeeper 1.3.0
+
+Step 1 of 5: Find
+
+Eval tool:       judgekeeper.record() in your code
+Files:           results-setup-a.jsonl, 1 file
+Answers:         349 answers
+LLM-as-a-judge:  claude-sonnet-5-5
+Rule:            not in your results
+judgekeeper has read from your file:
+  question   each line's input
+  answer     each line's output
+  grade      each line's label
+
+results-setup-a.jsonl has LLM-as-a-judge grades, so judgekeeper
+checks your LLM-as-a-judge against your marks.
+To check your AI's answers instead, save them in a CSV file with
+input and output columns and no verdict column.
+
+Your LLM-as-a-judge passed 223 answers and failed 126.
+Checked: your LLM-as-a-judge gave every answer a clear Pass or
+Fail.
+
+Added 349 marks from label-studio-export.json (175 Pass, 174
+Fail).
+Skipped 1 label:
+  1 doesn't match any answer in your results (the answer text
+  must be the same)
+
+Step 3 of 5: Measure
+
+Result: your LLM-as-a-judge needs work.
+You and your LLM-as-a-judge disagreed on 112 of 349 answers.
+
+  You passed 175 answers. Of those, your LLM-as-a-judge passed
+  143 and failed 32.
+  You failed 174 answers. Of those, your LLM-as-a-judge passed
+  80 and failed 94.
+
+To tell judgekeeper why you disagree on 56 of them, run
+`judgekeeper mark results-setup-a.jsonl --port 0 --no-browser`.
+`judgekeeper fix results-setup-a.jsonl` uses your reasons to
+find where your LLM-as-a-judge goes wrong.
+56 more disagreements are kept aside on purpose, so a new rule
+can be tested on answers you haven't looked at again.
+
+How often your LLM-as-a-judge agrees with you:
+  When you say Pass, it also says Pass: 82% (you marked every answer)
+  When you say Fail, it also says Fail: 54% (you marked every answer)
+
+Kappa (agreement beyond coincidence): 0.36 (you marked every
+answer). It never decides the result.
+
+Your people agree with each other: Krippendorff's alpha 0.20
+(between 0.17 and 0.22), on 349 answers labelled by more than
+one person.
+A check can't be expected to agree with your people more than
+they agree with each other.
+Answers labelled by each person: user 1 (329), user 2 (328),
+user 3 (349), user 4 (349), user 5 (328), user 6 (349), user 7
+(349), user 8 (346), user 9 (314), user 10 (203) and 114 more.
+Your check against user 3, on 349 answers: kappa 0.32. When user
+3 says Pass, your check also says Pass 79% of the time; when
+user 3 says Fail, it also says Fail 53% of the time.
+Your check against user 4, on 349 answers: kappa 0.15. When user
+4 says Pass, your check also says Pass 69% of the time; when
+user 4 says Fail, it also says Fail 48% of the time.
+Your check against user 6, on 349 answers: kappa 0.06. When user
+6 says Pass, your check also says Pass 66% of the time; when
+user 6 says Fail, it also says Fail 41% of the time.
+Your check against user 7, on 349 answers: kappa 0.01. When user
+7 says Pass, your check also says Pass 64% of the time; when
+user 7 says Fail, it also says Fail 67% of the time.
+Your check against user 13, on 349 answers: kappa 0.10. When
+user 13 says Pass, your check also says Pass 66% of the time;
+when user 13 says Fail, it also says Fail 50% of the time.
+Your check against user 14, on 349 answers: kappa 0.30. When
+user 14 says Pass, your check also says Pass 76% of the time;
+when user 14 says Fail, it also says Fail 54% of the time.
+Your check against user 19, on 349 answers: kappa 0.03. When
+user 19 says Pass, your check also says Pass 69% of the time;
+when user 19 says Fail, it also says Fail 37% of the time.
+Your check against user 22, on 349 answers: kappa 0.29. When
+user 22 says Pass, your check also says Pass 73% of the time;
+when user 22 says Fail, it also says Fail 57% of the time.
+Your check against user 23, on 349 answers: kappa 0.31. When
+user 23 says Pass, your check also says Pass 80% of the time;
+when user 23 says Fail, it also says Fail 51% of the time.
+Your check against user 24, on 349 answers: kappa 0.34. When
+user 24 says Pass, your check also says Pass 85% of the time;
+when user 24 says Fail, it also says Fail 52% of the time.
+Your check against the other 114 people is in
+.judgekeeper/result.json.
+
+349 of your marks came from label-studio-export.json. The
+numbers assume those answers were picked at random and labelled
+without looking at your LLM-as-a-judge's grade.
+
+Full report: .judgekeeper/report.html (open it in your browser)
+
+Next: to improve your LLM-as-a-judge's rule, run
+`judgekeeper fix results-setup-a.jsonl`.
