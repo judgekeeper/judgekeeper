@@ -1,0 +1,16 @@
+judgekeeper 1.3.0
+
+Read 250 runs from label-studio-export.json: 250 have a first wrong step from your people.
+
+Reviewer "claude-sonnet-5-5" against your people, on 249 runs both labelled:
+  Runs your people say went wrong: your reviewer also says so for 96% (175 of 182; between 92% and 98%).
+  Runs your people say were fine: your reviewer also says so for 70% (47 of 67; between 58% and 80%).
+  Kappa: 0.71 (between 0.58 and 0.80).
+How often your reviewer finds the same first wrong step as your people, on the 175 runs both say went wrong:
+  The same first wrong step: 57% (100 of 175; between 50% and 64%).
+  Within one step: 70% (123 of 175; between 63% and 77%).
+  Left out: 1 with no guess from this reviewer, 0 with a guess that is not a step of the run.
+
+Saved in .judgekeeper/steps/result.json.
+
+Next: change your reviewer, save its new guesses as a JSONL file and run `judgekeeper steps label-studio-export.json --reviewer NEW-GUESSES.jsonl`.
