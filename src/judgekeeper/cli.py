@@ -75,19 +75,22 @@ NEXT_BUSY = "run `{command}` again."
 NO_PAGE = "`{command}` opens no page, so it takes no --port or --no-browser."
 PAGE_FLAGS = ("--port", "--no-browser")
 
-MESSAGE = "Check your LLM-as-a-judge in 5 steps."
+MESSAGE = ("The keeper of human judgment for AI.\n"
+           "See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
+           "agent reviewer) agrees with your people, and see when that changes.")
 STEPS = """\
-  1. Find      judgekeeper          finds your eval results and the
-                                    LLM-as-a-judge that graded them
-  2. Mark      in your browser      you mark answers Pass or Fail
-  3. Measure   judgekeeper          shows how often your LLM-as-a-judge agrees
-                                    with you, and where it goes wrong
-  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, change
-                                    its rule, grade your marked answers again,
-                                    and test the new rule on the marks kept
-                                    aside
-  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, grade
-                                    your marked answers again
+Read. Measure. Fix. Re-check.
+
+  1. Read      judgekeeper          reads your eval results; you mark answers
+                                    Pass or Fail in your browser, or bring the
+                                    labels you already have
+  2. Measure   judgekeeper          shows how often your check agrees with you,
+                                    and where it goes wrong
+  3. Fix       judgekeeper fix      if your check needs work, change its rule,
+                                    grade your marked answers again, and test
+                                    the new rule on the marks kept aside
+  4. Re-check  judgekeeper check    after you change your check, grade your
+                                    marked answers again
                                     (.judgekeeper/fix/marked-answers.csv) and
                                     see if it still agrees with you"""
 READS = """\
@@ -100,7 +103,7 @@ FIX_HELP = ("show where your LLM-as-a-judge goes wrong, help you write a better 
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", FIX_HELP),
-    ("check", "re-check your LLM-as-a-judge on your marks after a change"),
+    ("check", "see if your check still agrees with your marks after a change"),
 )
 HELP_WIDTH = 80
 # Commands that no longer exist (the CI gate, setup, start and the rest): each prints one line
@@ -134,7 +137,7 @@ class _Parser(argparse.ArgumentParser):
 
 
 class _TopParser(_Parser):
-    """The top-level help: the 5 steps, what judgekeeper reads, the usage, the commands, then
+    """The top-level help: the steps, what judgekeeper reads, the usage, the commands, then
     the options of `judgekeeper` itself."""
 
     def format_help(self) -> str:
@@ -143,7 +146,9 @@ class _TopParser(_Parser):
             text, HELP_WIDTH, initial_indent=f"  {name:<{width}}",
             subsequent_indent=" " * (2 + width), break_on_hyphens=False)]
         usage, _, options = super().format_help().partition("\n\n")
-        lines = [MESSAGE, "", STEPS, "", READS, "", usage.strip(), "", "Commands:", *commands,
+        message = [textwrap.fill(line, HELP_WIDTH, break_on_hyphens=False)
+                   for line in MESSAGE.splitlines()]
+        lines = [*message, "", STEPS, "", READS, "", usage.strip(), "", "Commands:", *commands,
                  "", options.rstrip()]
         return "\n".join(lines) + "\n"
 

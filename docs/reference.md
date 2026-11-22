@@ -1,6 +1,6 @@
 # judgekeeper reference
 
-Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. The [README](../README.md) walks through them; this page has every command, flag, file and exit code. How each eval tool's results are read is in [eval-tools.md](eval-tools.md).
+The keeper of human judgment for AI: Read. Measure. Fix. Re-check. The [README](../README.md) walks through them; this page has every command, flag, file and exit code. How each eval tool's results are read is in [eval-tools.md](eval-tools.md).
 
 An LLM-as-a-judge is a model that grades your eval's answers by a rule you wrote. Each run ends with one `Next:` line that says what to do.
 

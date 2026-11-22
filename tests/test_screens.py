@@ -323,20 +323,23 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:25] == [
-        "Check your LLM-as-a-judge in 5 steps.",
+    assert lines[:28] == [
+        "The keeper of human judgment for AI.",
+        "See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an",
+        "agent reviewer) agrees with your people, and see when that changes.",
         "",
-        "  1. Find      judgekeeper          finds your eval results and the",
-        "                                    LLM-as-a-judge that graded them",
-        "  2. Mark      in your browser      you mark answers Pass or Fail",
-        "  3. Measure   judgekeeper          shows how often your LLM-as-a-judge agrees",
-        "                                    with you, and where it goes wrong",
-        "  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, change",
-        "                                    its rule, grade your marked answers again,",
-        "                                    and test the new rule on the marks kept",
-        "                                    aside",
-        "  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, grade",
-        "                                    your marked answers again",
+        "Read. Measure. Fix. Re-check.",
+        "",
+        "  1. Read      judgekeeper          reads your eval results; you mark answers",
+        "                                    Pass or Fail in your browser, or bring the",
+        "                                    labels you already have",
+        "  2. Measure   judgekeeper          shows how often your check agrees with you,",
+        "                                    and where it goes wrong",
+        "  3. Fix       judgekeeper fix      if your check needs work, change its rule,",
+        "                                    grade your marked answers again, and test",
+        "                                    the new rule on the marks kept aside",
+        "  4. Re-check  judgekeeper check    after you change your check, grade your",
+        "                                    marked answers again",
         "                                    (.judgekeeper/fix/marked-answers.csv) and",
         "                                    see if it still agrees with you",
         "",
@@ -350,10 +353,10 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[25:29] == [
+    assert lines[28:32] == [
         "  fix     show where your LLM-as-a-judge goes wrong, help you write a better",
         "          rule and test it on marks kept aside",
-        "  check   re-check your LLM-as-a-judge on your marks after a change",
+        "  check   see if your check still agrees with your marks after a change",
         "",
     ]
     assert "Options:" in lines

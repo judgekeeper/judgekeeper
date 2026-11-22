@@ -86,8 +86,8 @@ def test_llms_txt_follows_the_word_rules():
 
 def test_the_pages_use_the_words_the_rules_ask_for():
     words = {p.name: _visible(p) for p in pages()}
-    assert "Check your LLM-as-a-judge" in words["index.html"]
-    assert "Check your LLM-as-a-judge" in words["check.html"]
+    assert "The keeper of human judgment for AI." in words["index.html"]
+    assert "The keeper of human judgment for AI." in words["check.html"]  # the share alt
     assert "kept aside" in words["index.html"]  # Home's Fix step
 
 

@@ -1,7 +1,7 @@
 [project]
 name = "judgekeeper"
 version = "1.3.0"
-description = "Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check."
+description = "The keeper of human judgment for AI: Read. Measure. Fix. Re-check."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"

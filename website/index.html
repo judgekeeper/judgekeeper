@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Check your LLM-as-a-judge in 5 steps | judgekeeper</title>
-<meta name="description" content="See how often your LLM-as-a-judge agrees with you. 5 steps: Find. Mark. Measure. Fix. Re-check. Open source; it reads the results your eval tool saved.">
+<title>The keeper of human judgment for AI | judgekeeper</title>
+<meta name="description" content="See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, and see when that changes. Read. Measure. Fix. Re-check. Open source; it reads the results your eval tool saved.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
-<meta property="og:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
-<meta property="og:description" content="See how often your LLM-as-a-judge agrees with you.">
+<meta property="og:title" content="The keeper of human judgment for AI | judgekeeper">
+<meta property="og:description" content="See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, and see when that changes.">
 <meta property="og:url" content="https://www.judgekeeper.com/">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. Find. Mark. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper">
+<meta property="og:image:alt" content="The judgekeeper logo and the words: The keeper of human judgment for AI. Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
-<meta name="twitter:description" content="See how often your LLM-as-a-judge agrees with you.">
+<meta name="twitter:title" content="The keeper of human judgment for AI | judgekeeper">
+<meta name="twitter:description" content="See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, and see when that changes.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="canonical" href="https://www.judgekeeper.com/">
 <meta name="theme-color" content="#0b0c0e">
@@ -24,7 +24,7 @@
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/style.css?v=33">
 <script src="assets/site.js?v=33" defer></script>
-<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"judgekeeper","url":"https://www.judgekeeper.com/"},{"@type":"SoftwareApplication","name":"judgekeeper","url":"https://www.judgekeeper.com/","description":"See how often your LLM-as-a-judge agrees with you.","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","license":"https://www.apache.org/licenses/LICENSE-2.0","sameAs":["https://github.com/judgekeeper/judgekeeper","https://pypi.org/project/judgekeeper/"]}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"judgekeeper","url":"https://www.judgekeeper.com/"},{"@type":"SoftwareApplication","name":"judgekeeper","url":"https://www.judgekeeper.com/","description":"See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, and see when that changes.","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","license":"https://www.apache.org/licenses/LICENSE-2.0","sameAs":["https://github.com/judgekeeper/judgekeeper","https://pypi.org/project/judgekeeper/"]}]}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -36,8 +36,9 @@
 <main id="main">
 <section class="hero"><div class="wrap">
   <div class="hero-l">
-    <h1>Check your<br><span class="nb">LLM-as-a-judge</span><br><span class="nb">in 5 steps.</span></h1>
-    <nav class="five" aria-label="The five steps"><a href="#steps" data-step="find" class="is-on">Find.</a><a href="#steps" data-step="mark">Mark.</a><a href="#steps" data-step="measure">Measure.</a><a href="#steps" data-step="fix">Fix.</a><a href="#steps" data-step="check">Re-check.</a></nav>
+    <h1>The keeper of<br><span class="nb">human judgment</span><br><span class="nb">for AI.</span></h1>
+    <p class="gx-lede">See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, and see when that changes.</p>
+    <nav class="five" aria-label="The four steps"><a href="#steps" data-step="find" class="is-on">Read.</a><a href="#steps" data-step="measure">Measure.</a><a href="#steps" data-step="fix">Fix.</a><a href="#steps" data-step="check">Re-check.</a></nav>
     <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Try the Find step in your browser</a></div>
   </div>
   <div class="hero-r"><section class="jk-card" id="demo" data-nosnippet tabindex="0" aria-label="Live demo of the marking page">
@@ -69,7 +70,11 @@
 </div></section>
 <section class="steps" id="steps"><div class="wrap">
   <h2>What each step looks like.</h2>
-  <div class="steps-grid"><div class="steplist" data-nosnippet role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1<span class="sr">. </span></span><span class="t"><b>Find<span class="sr">: </span></b><span class="d">Find your eval results and the LLM-as-a-judge that graded them.</span></span></button><button type="button" role="tab" id="tab-mark" data-step="mark" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2<span class="sr">. </span></span><span class="t"><b>Mark<span class="sr">: </span></b><span class="d">Mark your answers Pass or Fail in your browser.</span></span></button><button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">3<span class="sr">. </span></span><span class="t"><b>Measure<span class="sr">: </span></b><span class="d">See how often your LLM-as-a-judge agrees with you.</span></span></button><button type="button" role="tab" id="tab-fix" data-step="fix" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4<span class="sr">. </span></span><span class="t"><b>Fix<span class="sr">: </span></b><span class="d">Write a better rule and test it on marks kept aside.</span></span></button><button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">5<span class="sr">. </span></span><span class="t"><b>Re-check<span class="sr">: </span></b><span class="d">Change your LLM-as-a-judge and see if it still agrees with you.</span></span></button></div><div class="term" id="term" role="tabpanel" aria-labelledby="tab-find">
+  <div class="steps-grid"><div class="steplist" data-nosnippet role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1<span class="sr">. </span></span><span class="t"><b>Read<span class="sr">: </span></b><span class="d">Read your eval results, and mark answers Pass or Fail in your browser.</span></span></button>
+<button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2<span class="sr">. </span></span><span class="t"><b>Measure<span class="sr">: </span></b><span class="d">See how often your LLM-as-a-judge agrees with you.</span></span></button>
+<button type="button" role="tab" id="tab-fix" data-step="fix" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">3<span class="sr">. </span></span><span class="t"><b>Fix<span class="sr">: </span></b><span class="d">Write a better rule and test it on marks kept aside.</span></span></button>
+<button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4<span class="sr">. </span></span><span class="t"><b>Re-check<span class="sr">: </span></b><span class="d">Change your LLM-as-a-judge and see if it still agrees with you.</span></span></button>
+</div><div class="term" id="term" role="tabpanel" aria-labelledby="tab-find">
     <div class="term-bar">
       <span class="term-title">example project</span>
       <div class="term-tabs" id="t-tabs" role="tablist" aria-label="Fix" hidden>
@@ -152,27 +157,6 @@ The marking page is open in your browser. It shows the answers
 one at a time. Mark each one Pass or Fail, the way you want your
 LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
 hidden.
-
-Next: mark answers on the page until a "See the numbers so far"
-link appears, then click it.</template>
-<template data-screen="mark">$ judgekeeper
-judgekeeper 1.3.0
-
-Step 2 of 5: Mark
-
-results.json has LLM-as-a-judge grades, so judgekeeper checks
-your LLM-as-a-judge against your marks.
-To check your AI's answers instead, save them in a CSV file with
-input and output columns and no verdict column.
-
-You marked 12 answers so far: 8 Pass, 4 Fail.
-That's not enough for a result yet.
-A result needs at least 15 Pass and 15 Fail marks from you. It
-also needs 20 marks on answers your LLM-as-a-judge passed and 20
-on answers it failed (or all of them, if there are fewer).
-
-The marking page is still open in your browser. The bar at the
-top fills as you mark.
 
 Next: mark answers on the page until a "See the numbers so far"
 link appears, then click it.</template>

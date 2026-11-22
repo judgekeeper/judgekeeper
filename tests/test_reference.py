@@ -274,8 +274,8 @@ def test_the_reference_states_the_whole_rule_for_a_result_and_the_readme_no_part
     assert f"under {front.FEW_FAILS:.0%} of the answers" in NEEDS
     assert NEEDS in " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
     readme = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
-    at = next(i for i, line in enumerate(readme) if line.startswith("3. **Measure:**"))
-    assert not re.search(r"\d", readme[at][len("3."):]), readme[at]
+    at = next(i for i, line in enumerate(readme) if line.startswith("2. **Measure:**"))
+    assert not re.search(r"\d", readme[at][len("2."):]), readme[at]
 
 
 def test_the_reference_says_which_marks_wait_in_the_words_check_uses():

@@ -386,10 +386,12 @@ SITE = "https://www.judgekeeper.com/"
 SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url", "og:image",
               "og:image:width", "og:image:height", "og:image:alt", "twitter:card",
               "twitter:title", "twitter:description", "twitter:image"]
-SHARE_ALT = ("The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. "
-             "Find. Mark. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
-HOME_DESCRIPTION = "See how often your LLM-as-a-judge agrees with you."
-HOME_MORE = (" 5 steps: Find. Mark. Measure. Fix. Re-check. Open source; it reads the results "
+SHARE_ALT = ("The judgekeeper logo and the words: The keeper of human judgment for AI. "
+             "Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
+HOME_DESCRIPTION = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code "
+                    "rule, an agent reviewer) agrees with your people, and see when that "
+                    "changes.")
+HOME_MORE = (" Read. Measure. Fix. Re-check. Open source; it reads the results "
              "your eval tool saved.")
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}
 
@@ -531,7 +533,7 @@ def test_the_home_page_has_one_search_data_block():
     assert len(blocks) == 1
     data = json.loads(blocks[0].text())
     assert [n["name"] for n in data["@graph"]] == ["judgekeeper", "judgekeeper"]
-    assert data["@graph"][1]["description"] == "See how often your LLM-as-a-judge agrees with you."
+    assert data["@graph"][1]["description"] == HOME_DESCRIPTION
     assert not {"offers", "aggregateRating", "author"} & set(data["@graph"][1])
     for page in pages():
         if page.name != "index.html":

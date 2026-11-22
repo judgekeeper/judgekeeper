@@ -4,19 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guide | judgekeeper</title>
-<meta name="description" content="Check your LLM-as-a-judge in 5 steps. The commands to run and what you see.">
+<meta name="description" content="Read. Measure. Fix. Re-check. The commands to run and what you see.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Guide | judgekeeper">
-<meta property="og:description" content="Check your LLM-as-a-judge in 5 steps. The commands to run and what you see.">
+<meta property="og:description" content="Read. Measure. Fix. Re-check. The commands to run and what you see.">
 <meta property="og:url" content="https://www.judgekeeper.com/start.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. Find. Mark. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper">
+<meta property="og:image:alt" content="The judgekeeper logo and the words: The keeper of human judgment for AI. Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Guide | judgekeeper">
-<meta name="twitter:description" content="Check your LLM-as-a-judge in 5 steps. The commands to run and what you see.">
+<meta name="twitter:description" content="Read. Measure. Fix. Re-check. The commands to run and what you see.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="canonical" href="https://www.judgekeeper.com/start.html">
 <meta name="theme-color" content="#0b0c0e">
@@ -49,16 +49,15 @@
       <p class="gx-way-h"><b>With <a href="https://docs.astral.sh/uv/">uv</a></b></p>
       <div class="gx-pair"><div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: uvx judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div>
       <p class="gx-small">Works on macOS, Linux and Windows, with Python 3.11 to 3.14.</p>
-      <p class="gx-small">Using a coding agent? Give it this page and tell it: "Follow this to check my LLM-as-a-judge." It runs the steps and gives you the marking page link; you mark, then the coding agent explains the result.</p>
+      <p class="gx-small">Using a coding agent? Give it this page and tell it: "Follow this to run judgekeeper on my project." It runs the steps and gives you the marking page link; you mark, then the coding agent explains the result.</p>
     </div>
   </div></div>
 </div></section>
 <section class="gx-steps" id="steps"><div class="wrap">
-  <h2>The 5 steps.</h2>
+  <h2>The 4 steps.</h2>
   <div class="sp">
-  <nav class="sp-rail" aria-label="The 5 steps"><ol>
-    <li><a href="#step-find">Find.</a></li>
-    <li><a href="#step-mark">Mark.</a></li>
+  <nav class="sp-rail" aria-label="The 4 steps"><ol>
+    <li><a href="#step-find">Read.</a></li>
     <li><a href="#step-measure">Measure.</a></li>
     <li><a href="#step-fix">Fix.</a></li>
     <li><a href="#step-check">Re-check.</a></li>
@@ -66,11 +65,16 @@
   <ol class="gl">
     <li class="gl-step" id="step-find">
     <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Find<span class="sp-dot">.</span></p>
-      <h3>Find your eval results</h3>
-      <p>Run judgekeeper in your project folder. It finds your eval results and opens the marking page.</p>
+      <p class="sp-word" aria-hidden="true">Read<span class="sp-dot">.</span></p>
+      <h3>Read your eval results, then mark answers</h3>
+      <p>Run judgekeeper in your project folder. It finds and reads your eval results, and opens the marking page.</p>
       <dl class="sp-ifs">
         <div><dt>Nothing found?</dt><dd>Run your eval first so it saves its results, or point judgekeeper to your results file.</dd></div>
+      </dl>
+      <p>Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, so you can stop at any time and come back later.</p>
+      <p class="done">When <b>See the numbers so far</b> or <b>See your result</b> appears at the top, click it.</p>
+      <dl class="sp-ifs">
+        <div><dt>Already have Pass/Fail labels?</dt><dd>Run <code>judgekeeper <span class="nb">--labels</span> <span class="nb">your-labels.csv</span></code>, or <code>judgekeeper <span class="nb">--labels</span></code> if they are in your results. Then mark more if needed.</dd></div>
       </dl>
     </div>
     <div class="sp-side">
@@ -83,18 +87,6 @@
           </div>
         </div>
       </div>
-    </div></li>
-    <li class="gl-step" id="step-mark">
-    <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Mark<span class="sp-dot">.</span></p>
-      <h3>Mark your answers Pass or Fail</h3>
-      <p>Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, so you can stop at any time and come back later.</p>
-      <p class="done">When <b>See the numbers so far</b> or <b>See your result</b> appears at the top, click it.</p>
-      <dl class="sp-ifs">
-        <div><dt>Already have Pass/Fail labels?</dt><dd>Run <code>judgekeeper <span class="nb">--labels</span> <span class="nb">your-labels.csv</span></code>, or <code>judgekeeper <span class="nb">--labels</span></code> if they are in your results. Then mark more if needed.</dd></div>
-      </dl>
-    </div>
-    <div class="sp-side">
       <div class="gwin sp-shot">
         <div class="rt-bar" aria-hidden="true"><span class="rt-title">marking page</span></div>
         <figure class="gx-shot"><a href="assets/shots/label.webp" aria-label="Enlarge the picture of the marking page" data-close-low><img src="assets/shots/label.webp" width="2880" height="1704" loading="lazy" decoding="async" alt="The marking page: one question and its answer, with Fail and Pass buttons under them. On the left, the list of questions with the marks made so far; at the top, how many are marked."></a></figure>
@@ -171,11 +163,10 @@
     <h3>No LLM-as-a-judge? Check your AI’s answers</h3>
     <div class="gx-text">
       <p>For a chatbot, agent or any AI that answers questions. Save its answers in a CSV, TSV or JSONL file with <code>input</code> and <code>output</code> columns and no grades.</p>
-      <p><b>1. Find:</b> run <code>judgekeeper</code> in your project folder. It finds your answers.</p>
-      <p><b>2. Mark:</b> mark each answer Pass or Fail. On the result page, add a reason to the failed ones.</p>
-      <p><b>3. Measure:</b> from 10 marks, see how many passed, with a range.</p>
-      <p><b>4. Fix:</b> judgekeeper saves the failed answers, apart from the half kept aside, with a prompt for your coding agent to improve your AI’s prompt.</p>
-      <p><b>5. Re-check:</b> run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.</p>
+      <p><b>1. Read:</b> run <code>judgekeeper</code> in your project folder. It finds your answers. Mark each answer Pass or Fail. On the result page, add a reason to the failed ones.</p>
+      <p><b>2. Measure:</b> from 10 marks, see how many passed, with a range.</p>
+      <p><b>3. Fix:</b> judgekeeper saves the failed answers, apart from the half kept aside, with a prompt for your coding agent to improve your AI’s prompt.</p>
+      <p><b>4. Re-check:</b> run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.</p>
       <p class="gx-small"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md">An example run</a></p>
     </div>
   </div>

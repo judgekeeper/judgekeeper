@@ -68,8 +68,8 @@ def test_versions_agree():
 
 def test_package_description_and_classifiers():
     main = _toml(ROOT / "pyproject.toml")["project"]
-    assert main["description"] == ("Check your LLM-as-a-judge in 5 steps: "
-                                   "Find. Mark. Measure. Fix. Re-check.")
+    assert main["description"] == ("The keeper of human judgment for AI: "
+                                   "Read. Measure. Fix. Re-check.")
     for classifier in ("Operating System :: OS Independent",
                        "Intended Audience :: Developers",
                        "Topic :: Scientific/Engineering :: Artificial Intelligence"):
