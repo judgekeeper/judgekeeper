@@ -669,7 +669,8 @@ def _labels_file(talk: FrontTalk) -> Path | None:
 def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None:
     """The labels --labels asks for, read (with the project's label map) before anything is
     written: a word that isn't Pass or Fail stops here."""
-    if talk.labels is None and found.tool == "label-studio" and found.pool.humans:
+    if talk.labels is None and found.tool == "label-studio" and (
+            found.pool.humans or found.pool.people):
         talk.labels, talk.labels_auto = labels_mod.IN_RESULTS, True  # its people's labels
     if talk.labels is None:
         return
@@ -705,7 +706,23 @@ def _unmarked_newest(ws: Workspace, session: StartSession) -> int:
     return sum(b == newest and i not in marked for i, b in batch.items())
 
 
-def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bool) -> None:
+def _people_only(talk: FrontTalk, ws: Workspace, plan: labels_mod.Plan, saved: bool):
+    """People from Label Studio who agree on no answer: nothing to mark, but how much they
+    agree is said and kept (people.jsonl, result.json), before the stop for the marks. Returns
+    the stop."""
+    people.save(ws.dir / people.FILE, talk.labels_from, plan.ratings)
+    start_label.store_result(ws, StartSession(ws), _flags_of(talk, saved, ws))
+    for line in _people_lines(ws):
+        talk.para(line)
+    talk.say()
+    if any(not x.people_only for x in talk.labels_read):  # labels that match no answer
+        return _labels_stop(talk, labels_mod.nothing_added(plan, talk.labels_from))
+    return _labels_stop(talk, labels_mod.LabelsStop([
+        f"No labels in {talk.labels_from}.", *getattr(talk.labels_read, "notes", ())]))
+
+
+def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bool,
+                   saved: bool = False) -> None:
     """The labels read (_read_labels) as marks, once the pool is ready: said under Find."""
     if talk.labels_read is None:
         return
@@ -713,6 +730,12 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
     data = ws.data()
     plan = labels_mod.match(talk.labels_read, rows, data["queue"], found.pool.left,
                             data.get("left"))
+    if talk.labels_by == marks.BY_LABEL_STUDIO and not plan.marks and plan.ratings:
+        if not talk.labels_auto:
+            raise _people_only(talk, ws, plan, saved)
+        people.save(ws.dir / people.FILE, talk.labels_from, plan.ratings)  # the results' own
+        talk.labels_read = None  # people: no marks to bring, the page goes on
+        return
     if (stop := labels_mod.nothing_added(plan, talk.labels_from)) is not None:
         raise _labels_stop(talk, stop)
     added = labels_mod.add(ws, plan, talk.labels_from, talk.labels_by)
@@ -2957,7 +2980,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if not first and (nested := _below_here(talk, found)):  # never read with these: named
         head.append(nested)
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
-        _import_labels(talk, ws, found, first)
+        _import_labels(talk, ws, found, first, saved)
     session = StartSession(ws)
     if added_at is not None:  # --labels may have marked some of them just now
         unseen = _unmarked_newest(ws, session)

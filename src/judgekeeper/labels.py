@@ -350,7 +350,7 @@ def read_label_studio_file(path: Path, label_map: dict | None, pool, metric: str
     except RecordsError as e:
         raise LabelsStop([scrub(str(e))]) from None
     people = [r for r in records if r.annotator_kind == HUMAN]
-    if not people:
+    if not people and not getattr(records, "ratings", None):
         raise LabelsStop([f"No labels in {name}.", *records.notes])
     rated = list(getattr(records, "ratings", ()))
     earlier = [e["word"] for r in people for e in r.metadata.get("earlier", ())]
@@ -482,6 +482,8 @@ def in_results(pool, metric: str | None = None, command: Callable[..., str] | No
     are none (or all are for another criterion: _elsewhere), or for a word that isn't Pass or
     Fail."""
     humans = list(pool.humans)
+    if not humans and getattr(pool, "people", None):  # people who agree on no answer: numbers only
+        return _read_humans(humans, pool, metric, RESULTS_NAME, mine, command)
     if not humans:
         if (line := _elsewhere(pool, metric)) is not None:
             raise LabelsStop([line])

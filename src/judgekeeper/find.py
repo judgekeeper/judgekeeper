@@ -206,6 +206,40 @@ def _label_studio_columns(columns) -> bool:
     return is_flat_columns(columns)
 
 
+SNIFF_BYTES = 16 * 1024 * 1024  # how far into an export its first task's `data` is looked for
+SNIFF_CHUNK = 64 * 1024
+_LS_DATA_BYTES = re.compile(rb'"data"\s*:\s*\{')
+
+
+def _json_head(path: Path) -> bytes:
+    """The head of a JSON file, read on when it looks like a Label Studio export whose first
+    task has not shown its `data` yet: Label Studio writes `annotations` before `data`, and with
+    many people on a task `data` starts far into the file. Read on in chunks to the first
+    `data` key, at most SNIFF_BYTES, never the whole file at once."""
+    head = _head(path)
+    text = head.decode("utf-8", errors="replace").lstrip("﻿ \t\r\n")
+    if not (text.startswith("[") and _LS_LIST.match(text) and not _LS_DATA.search(text)
+            and (_LS_RESULTS.search(text) or '"total_annotations"' in text)):
+        return head
+    out = bytearray(head)
+    with open(path, "rb") as f:
+        f.seek(len(head))
+        while len(out) < SNIFF_BYTES:
+            chunk = f.read(SNIFF_CHUNK)
+            if not chunk:
+                break
+            start = max(len(out) - 64, 0)  # a key cut between two chunks
+            out += chunk
+            if _LS_DATA_BYTES.search(out, start):
+                break
+    return bytes(out)
+
+
+def sniff_file(path: Path) -> str | None:
+    """sniff_json of the head of the JSON file `path` (_json_head)."""
+    return sniff_json(_json_head(path))
+
+
 def sniff_json(head: bytes) -> str | None:
     """The tool that wrote a JSON file, from its first bytes, or None."""
     text = head.decode("utf-8", errors="replace").lstrip("﻿ \t\r\n")
@@ -546,7 +580,7 @@ def classify_file(path: Path) -> str | None:
     if suffix == ".json":
         if DEEPEVAL_RUN.fullmatch(path.name) or path.name in DEEPEVAL_COPIES:
             return "deepeval"
-        tool = sniff_json(_head(path))
+        tool = sniff_file(path)
         return None if tool == PROMPTFOO_TABLE else tool
     if not suffix and DEEPEVAL_RUN.fullmatch(path.name) and sniff_json(_head(path)) == "deepeval":
         return "deepeval"  # DeepEval before 3.9.9: results/<date>_<time>
@@ -689,7 +723,7 @@ class _Walk:
                 self.search.json_left += 1
             else:
                 self.json_sniffed += 1
-                tool = sniff_json(_head(path))
+                tool = sniff_file(path)
                 if tool == PROMPTFOO_TABLE:
                     self.search.unreadable.append((self.rel(path), TABLE_OUTPUT))
                 elif tool:

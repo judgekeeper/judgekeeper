@@ -8,6 +8,7 @@
 - A mark brought from Label Studio keeps the person's number (`who`) and the time (`labeled_at`), never an email or a name, and `marks.jsonl` keeps a hash of the labels that were imported.
 
 - Know your people: when two or more people labelled the same answers in a Label Studio export, judgekeeper says how much they agree with each other (Cohen's kappa for two people, Krippendorff's alpha for three or more, each with a range), how many answers each person labelled, and the check against each person. It is in the terminal and as `people` in `result.json`. With fewer than 10 answers labelled by more than one person it gives no number and says so.
+- A Label Studio export with many people on each task (so `data` starts far into the file) is found as Label Studio, and how much your people agree is said and saved even when they agree on no answer.
 - A mark brought from Label Studio also keeps the time the person took (`seconds`), and when a person labelled an answer again, the earlier label stays in `marks.jsonl` and the newest one says which it replaced (`supersedes`).
 - Ask only the few: when the labels from Label Studio are too few for a result, judgekeeper writes `.judgekeeper/ask/label-these.json` (the next answers the marking page would show, text only, no grades) and `label-config.xml` for Label Studio, and keeps each pick's chance in `picks.json`. The marking page is unchanged.
 
