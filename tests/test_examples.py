@@ -130,7 +130,7 @@ def test_the_notices_name_every_dataset_the_examples_use():
         assert data["source"] in text and data["revision"] in text, data["name"]
         assert data["licence"] in text, data["name"]
     datasets = [h for h in headings if h != "Fonts"]
-    words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+    words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
     assert f"use {words[len(datasets)]} public datasets" in text
     assert "Creative Commons Attribution 4.0" in text  # MT-Bench: attribution required
     assert "Fonts" in headings and "Manrope" in text and "JetBrains Mono" in text

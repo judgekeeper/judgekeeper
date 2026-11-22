@@ -1,0 +1,23 @@
+You are reviewing the work of an AI agent that was given a task and could use tools such as web search and a page reader. Below are the task and the agent's run, step by step.
+
+A step is one turn of the agent: what it wrote, the tool calls it made, and what came back before its next turn. Steps are numbered from 1. You are not told the correct answer to the task, so judge each step by whether it is sound given what the agent had seen up to that point.
+
+A step is wrong if it contains a mistake that hurts the task:
+- it states something as fact that its tool results do not support, or that they contradict;
+- it misreads a tool result, or ignores one that matters;
+- it makes a tool call that is wrong for the task, such as the wrong tool, wrong arguments, or a malformed call;
+- it gives a final answer that is not supported by the evidence in the run, or that ignores what the task asked for.
+
+A step is not wrong if it is a reasonable thing to try, even when it turns out to be a dead end. A step that searches again, repeats something, or finds nothing useful is not wrong, unless it ignores a result that already answered the question.
+
+Find the first wrong step. If no step is wrong, the answer is 0.
+
+<task>
+{task}
+</task>
+
+<run>
+{steps}
+</run>
+
+Answer with one JSON object and nothing else: {"first_wrong_step": <the number of the first wrong step, or 0 if no step is wrong>, "reason": "one short sentence"}

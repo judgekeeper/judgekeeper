@@ -1,6 +1,6 @@
 # Third-party notices
 
-judgekeeper's example reports in `docs/examples/` use five public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/`, `docs/examples/jailbreakbench-setups/`, `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/` and `docs/examples/ragtruth-data2txt/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and the verdicts of an LLM-as-a-judge run for this check on LLMBar.
+judgekeeper's example reports in `docs/examples/` use eight public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/`, `docs/examples/jailbreakbench-setups/`, `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/`, `docs/examples/ragtruth-data2txt/`, `docs/examples/label-studio/`, `docs/examples/people-agree/` and `docs/examples/agent-steps/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and the verdicts of an LLM-as-a-judge run for this check on LLMBar.
 
 ## JailbreakBench
 
@@ -132,6 +132,27 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## XSTest
+
+- **Used in:** `docs/examples/label-studio/`.
+- **Source:** https://github.com/paul-rottger/xstest (commit `d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d`, file `model_completions/xstest_v2_completions_gpt4.csv`).
+- **Citation:** Paul Röttger et al. "XSTest: A Test Suite for Identifying Exaggerated Safety Behaviours in Large Language Models." NAACL 2024. arXiv:2308.01263.
+- **License:** the prompts are CC-BY-4.0 (Creative Commons Attribution 4.0 International, https://creativecommons.org/licenses/by/4.0/), by the authors above, from the source above. The completions are GPT-4 output, under the model maker's terms. No data is copied into this repository; it holds only ids and grades.
+
+## DICES-350
+
+- **Used in:** `docs/examples/people-agree/`.
+- **Source:** https://github.com/google-research-datasets/dices-dataset (commit `b5596d9edd585361967991a591abc7b11fb1f7a3`, file `350/diverse_safety_adversarial_dialog_350.csv`).
+- **Citation:** Lora Aroyo et al. "DICES Dataset: Diversity in Conversational AI Evaluation for Safety." NeurIPS 2023 Datasets and Benchmarks Track. arXiv:2306.11247.
+- **License:** CC BY 4.0 (Creative Commons Attribution 4.0 International, https://creativecommons.org/licenses/by/4.0/), Copyright Google LLC. Changed here: each rater's answer becomes a Pass or Fail label, as `docs/examples/people-agree/README.md` describes. No data is copied into this repository, and nothing about the raters.
+
+## AgentProcessBench
+
+- **Used in:** `docs/examples/agent-steps/`.
+- **Source:** https://huggingface.co/datasets/LulaCola/AgentProcessBench (revision `cd81f326aece8b0a3f6359e20df370690d3a98bf`, file `gaia_dev/test.jsonl`).
+- **Citation:** "AgentProcessBench." arXiv:2603.14465.
+- **License:** MIT, as the dataset card says. The project's GitHub repository (https://github.com/RUCBM/AgentProcessBench) has no LICENSE file. No data is copied into this repository; it holds only run ids and step numbers.
 
 ## Fonts
 

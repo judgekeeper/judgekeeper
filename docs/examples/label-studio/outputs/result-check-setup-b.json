@@ -1,0 +1,173 @@
+{
+  "pi": 0.5749440715883669,
+  "judge_pass_rate": 0.5279642058165548,
+  "a": 0.8949416342412452,
+  "b": 0.0,
+  "tpr": 1.0,
+  "tnr": 0.9723502304147466,
+  "kappa": 0.9731106254135671,
+  "real_pass_rate": 0.5145413870246085,
+  "a_interval": [
+    0.8949416342412452,
+    0.8949416342412452
+  ],
+  "b_interval": [
+    0.0,
+    0.0
+  ],
+  "tpr_interval": [
+    1.0,
+    1.0
+  ],
+  "tnr_interval": [
+    0.9723502304147466,
+    0.9723502304147466
+  ],
+  "real_pass_rate_interval": [
+    0.5145413870246085,
+    0.5145413870246085
+  ],
+  "kappa_interval": [
+    0.9731106254135671,
+    0.9731106254135671
+  ],
+  "tpr_verdict_interval": [
+    1.0,
+    1.0
+  ],
+  "tnr_verdict_interval": [
+    0.9723502304147466,
+    0.9723502304147466
+  ],
+  "groups": {
+    "pass": {
+      "pool": 236,
+      "labeled": 236,
+      "correct": 230
+    },
+    "fail": {
+      "pool": 211,
+      "labeled": 211,
+      "correct": 0
+    }
+  },
+  "method": "jeffreys",
+  "level": 0.96,
+  "draws": 20000,
+  "seed": 20261008,
+  "labels": {
+    "correct": 230,
+    "wrong": 217
+  },
+  "check": "result",
+  "verdict_level": "gate",
+  "verdict": "Your LLM-as-a-judge is good enough to use.",
+  "skipped": 0,
+  "disagreements": 6,
+  "left": 0,
+  "made_at": "2026-11-22T15:09:13Z",
+  "numbers_version": 4,
+  "judgekeeper_version": "1.3.0",
+  "fingerprint": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "snapshot": "claude-haiku-5-5",
+    "prompt_hash": "149626cecf5decb96930cb5b5d6a2350372f1d7854a72e4b295f6c8adce07539",
+    "rubric_version": "xstest-complied-v1",
+    "temperature": null,
+    "created_at": "2026-11-22T15:09:13Z",
+    "endpoint": "unknown"
+  },
+  "judge": {
+    "name": "Complied with the request with claude-haiku-5-5",
+    "tool": "records",
+    "metric": "Complied with the request",
+    "rule": null,
+    "one_rule": true,
+    "description": null,
+    "results_files": [
+      "results-setup-b.jsonl"
+    ],
+    "results_date": "2026-11-22 10:09"
+  },
+  "judge_check": {
+    "answers": 447,
+    "error": 0,
+    "unreadable": 0,
+    "empty_answer_refused": 0,
+    "error_grade": 0,
+    "empty": 0,
+    "nothing_checked": 0,
+    "not_scored": 0,
+    "model_failed": 0,
+    "empty_answer_passed": 0,
+    "reason_says_opposite": 0,
+    "same_decision": null,
+    "tool": "records",
+    "tool_counted_as": null
+  },
+  "made": {
+    "marks": 447,
+    "pass": 230,
+    "fail": 217,
+    "sittings": 0,
+    "seconds": null,
+    "under_second": 0,
+    "not_counted": 0,
+    "printed": 0,
+    "browser_env": 0,
+    "unsure": 0,
+    "after_result": 0
+  },
+  "fix_ready": true,
+  "people": {
+    "people": 2,
+    "answers": 447,
+    "shared": 447,
+    "per_person": {
+      "1": 447,
+      "2": 447
+    },
+    "enough": true,
+    "measure": "kappa",
+    "value": 0.9910413660413662,
+    "interval": [
+      0.9775132081545608,
+      1.0
+    ],
+    "level": 0.96,
+    "draws": 2000,
+    "seed": 20261008,
+    "vs_check": {
+      "1": {
+        "n": 447,
+        "kappa": 0.9775865699930805,
+        "tpr": 1.0,
+        "tnr": 0.9768518518518519
+      },
+      "2": {
+        "n": 447,
+        "kappa": 0.9686211979903125,
+        "tpr": 0.9956709956709957,
+        "tnr": 0.9722222222222222
+      }
+    }
+  },
+  "imported": {
+    "marks": 447,
+    "pass": 230,
+    "fail": 217,
+    "from": [
+      "label-studio-export.json"
+    ]
+  },
+  "smallest_drop": 5,
+  "picks": [],
+  "command": "judgekeeper results-setup-a.jsonl --port 0 --no-browser",
+  "flags": {
+    "path": "results-setup-a.jsonl",
+    "port": 0,
+    "no_browser": true
+  },
+  "marks_sha256": "ebbc0fab7b991301fd7e20983a0d3de6012ea04d6edeeecda840479082ccd1f5"
+}

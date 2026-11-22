@@ -1,0 +1,7 @@
+judgekeeper 1.3.0
+
+No marking page is open.
+
+Next: run
+`judgekeeper results-setup-a.jsonl --port 0 --no-browser` when
+you want to continue.
