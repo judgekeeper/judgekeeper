@@ -95,7 +95,7 @@ def test_a_small_export_is_as_before(tmp_path):
 
 
 def test_labels_with_data_far_into_the_file_are_read_by_a_run(here, capsys):
-    """The run the real DICES file made: --labels with 150 people on every answer."""
+    """--labels with 150 people on every answer, so each task's data starts far into the file."""
     from tests.start_projects import answer, question, table_project
 
     rng = random.Random(4)
