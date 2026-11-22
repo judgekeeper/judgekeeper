@@ -65,7 +65,7 @@
   "skipped": 0,
   "disagreements": 27,
   "left": 0,
-  "made_at": "2026-11-22T06:47:46Z",
+  "made_at": "2026-11-22T06:56:16Z",
   "numbers_version": 4,
   "judgekeeper_version": "1.3.0",
   "fingerprint": {
@@ -75,7 +75,7 @@
     "prompt_hash": "149626cecf5decb96930cb5b5d6a2350372f1d7854a72e4b295f6c8adce07539",
     "rubric_version": "xstest-complied-v1",
     "temperature": null,
-    "created_at": "2026-11-22T06:47:45Z",
+    "created_at": "2026-11-22T06:56:15Z",
     "endpoint": "unknown"
   },
   "judge": {
@@ -88,7 +88,7 @@
     "results_files": [
       "results-setup-a.jsonl"
     ],
-    "results_date": "2026-11-22 01:47"
+    "results_date": "2026-11-22 01:56"
   },
   "judge_check": {
     "answers": 447,
@@ -120,6 +120,39 @@
     "after_result": 0
   },
   "fix_ready": true,
+  "people": {
+    "people": 2,
+    "answers": 447,
+    "shared": 447,
+    "per_person": {
+      "1": 447,
+      "2": 447
+    },
+    "enough": true,
+    "measure": "kappa",
+    "value": 0.9910413660413662,
+    "interval": [
+      0.9775132081545608,
+      1.0
+    ],
+    "level": 0.96,
+    "draws": 2000,
+    "seed": 20261008,
+    "vs_check": {
+      "1": {
+        "n": 447,
+        "kappa": 0.8830808233234744,
+        "tpr": 1.0,
+        "tnr": 0.8796296296296297
+      },
+      "2": {
+        "n": 447,
+        "kappa": 0.8830808233234744,
+        "tpr": 1.0,
+        "tnr": 0.8796296296296297
+      }
+    }
+  },
   "imported": {
     "marks": 447,
     "pass": 230,
@@ -136,5 +169,5 @@
     "port": 0,
     "no_browser": true
   },
-  "marks_sha256": "8051c9261013734d649c05681a91cb46ba1443327adb6aa1e14d6705b13119e5"
+  "marks_sha256": "a48f517b63f78a58394cd0f923c7c57d5afbdcab5822d940c5a2dd1e3ddab226"
 }

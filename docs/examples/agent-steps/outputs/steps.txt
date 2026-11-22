@@ -1,6 +1,6 @@
 judgekeeper 1.3.0
 
-Read 250 runs from label-studio-export.json: 250 have a first wrong step from your people.
+Read 250 runs from label-studio-export.json: your people labelled 250 of them.
 
 Reviewer "claude-sonnet-5-5" against your people, on 249 runs both labelled:
   Runs your people say went wrong: your reviewer also says so for 96% (175 of 182; between 92% and 98%).

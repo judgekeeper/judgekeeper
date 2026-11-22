@@ -20,9 +20,8 @@ On answers you fail, no drop, even at the low end of the range.
 
 One run, so a small change may be a coincidence.
 
-Your LLM-as-a-judge did not get worse on the 447 answers your
-people labelled. If your scores changed, look at your app's
-answers first.
+Your LLM-as-a-judge now agrees with your people more than
+before, on the 447 answers they labelled.
 
 Next: nothing to do. After you change your LLM-as-a-judge again,
 run `judgekeeper check <new results file>`.

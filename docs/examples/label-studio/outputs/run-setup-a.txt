@@ -24,8 +24,7 @@ Fail.
 Added 447 marks from label-studio-export.json (230 Pass, 217
 Fail).
 Skipped 3 labels:
-  3 match more than one answer (add a question column to tell
-  them apart)
+  3 are for questions that are not in your results
 
 Step 3 of 5: Measure
 
@@ -50,6 +49,18 @@ How often your LLM-as-a-judge agrees with you:
 
 Kappa (agreement beyond coincidence): 0.88 (you marked every
 answer). It never decides the result.
+
+Your people agree with each other: kappa 0.99 (between 0.98 and
+1.00), on 447 answers labelled by more than one person.
+A check can't be expected to agree with your people more than
+they agree with each other.
+Answers labelled by each person: user 1 (447), user 2 (447).
+Your check against user 1, on 447 answers: kappa 0.88. When user
+1 says Pass, your check also says Pass 100% of the time; when
+user 1 says Fail, it also says Fail 88% of the time.
+Your check against user 2, on 447 answers: kappa 0.88. When user
+2 says Pass, your check also says Pass 100% of the time; when
+user 2 says Fail, it also says Fail 88% of the time.
 
 447 of your marks came from label-studio-export.json. The
 numbers assume those answers were picked at random and labelled
