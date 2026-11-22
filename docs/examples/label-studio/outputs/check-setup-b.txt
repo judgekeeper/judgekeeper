@@ -1,0 +1,28 @@
+judgekeeper 1.3.0
+
+Step 5 of 5: Re-check
+
+New results: results-setup-b.jsonl
+
+Your LLM-as-a-judge's model changed:
+  claude-sonnet-5-5 -> claude-haiku-5-5
+
+Compared with before: no drop bigger than 20 percentage points
+for your new LLM-as-a-judge.
+
+Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge
+  When you said Pass    230 of 230           230 of 230           No big drop
+  When you said Fail    190 of 217           211 of 217           No big drop
+
+On answers you pass, no drop, though these marks can't rule out
+a drop of up to 2 points.
+On answers you fail, no drop, even at the low end of the range.
+
+One run, so a small change may be a coincidence.
+
+Your LLM-as-a-judge did not move on the 447 answers your people
+labelled. If your scores changed, look at your app's answers
+first.
+
+Next: nothing to do. After you change your LLM-as-a-judge again,
+run `judgekeeper check <new results file>`.

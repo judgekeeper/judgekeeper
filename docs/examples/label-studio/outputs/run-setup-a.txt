@@ -1,0 +1,62 @@
+judgekeeper 1.3.0
+
+Step 1 of 5: Find
+
+Eval tool:       judgekeeper.record() in your code
+Files:           results-setup-a.jsonl, 1 file
+Answers:         447 answers
+LLM-as-a-judge:  claude-sonnet-5-5
+Rule:            not in your results
+judgekeeper has read from your file:
+  question   each line's input
+  answer     each line's output
+  grade      each line's label
+
+results-setup-a.jsonl has LLM-as-a-judge grades, so judgekeeper
+checks your LLM-as-a-judge against your marks.
+To check your AI's answers instead, save them in a CSV file with
+input and output columns and no verdict column.
+
+Your LLM-as-a-judge passed 257 answers and failed 190.
+Checked: your LLM-as-a-judge gave every answer a clear Pass or
+Fail.
+
+Added 447 marks from label-studio-export.json (230 Pass, 217
+Fail).
+Skipped 3 labels:
+  3 match more than one answer (add a question column to tell
+  them apart)
+
+Step 3 of 5: Measure
+
+Result: your LLM-as-a-judge is good enough to use.
+You and your LLM-as-a-judge disagreed on 27 of 447 answers.
+
+  You passed 230 answers. Of those, your LLM-as-a-judge passed
+  230 and failed 0.
+  You failed 217 answers. Of those, your LLM-as-a-judge passed
+  27 and failed 190.
+
+To tell judgekeeper why you disagree on 13 of them, run
+`judgekeeper mark results-setup-a.jsonl --port 0 --no-browser`.
+`judgekeeper fix results-setup-a.jsonl` uses your reasons to
+find where your LLM-as-a-judge goes wrong.
+14 more disagreements are kept aside on purpose, so a new rule
+can be tested on answers you haven't looked at again.
+
+How often your LLM-as-a-judge agrees with you:
+  When you say Pass, it also says Pass: 100% (you marked every answer)
+  When you say Fail, it also says Fail: 88% (you marked every answer)
+
+Kappa (agreement beyond coincidence): 0.88 (you marked every
+answer). It never decides the result.
+
+447 of your marks came from label-studio-export.json. The
+numbers assume those answers were picked at random and labelled
+without looking at your LLM-as-a-judge's grade.
+
+Full report: .judgekeeper/report.html (open it in your browser)
+
+Next: nothing to do. When you change your LLM-as-a-judge or
+update your eval tool, run
+`judgekeeper check results-setup-a.jsonl`.
