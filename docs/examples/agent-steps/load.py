@@ -23,8 +23,12 @@ step is -1 it is 0, which means "all fine". A neutral 0 label is not wrong.
 
 In the export each task has data {task, steps}, one annotation (completed_by 1) with a number
 region first_wrong_step, and, for each --guesses file, one prediction whose model_version is the
-`model` of its lines. A guesses file has one line per run: {"id", "first_wrong_step", "model"}.
-Runs the reviewer made no guess for have no prediction. The task id is the file's total_index.
+`model` of its lines and whose created_at is the line's `timestamp`. A guesses file has one line
+per run: {"id", "first_wrong_step", "model", "timestamp"}, and may carry the rest of the judge
+fingerprint (provider, snapshot, prompt_hash, rubric_version, temperature) for
+`judgekeeper steps --reviewer`. Runs the reviewer made no guess for have no prediction. The task
+id is the file's total_index. The people's labels have no times in the dataset; their stamp is a
+fixed placeholder.
 """
 
 import json
@@ -100,12 +104,13 @@ def main() -> None:
     data = tools.download(URL, out / "gaia_dev-test.jsonl", SHA256)
     with data.open(encoding="utf-8") as f:
         rows = [json.loads(line) for line in f if line.strip()]
-    guesses: dict[int, dict[int, int]] = {}  # run id -> {model: guess}
+    guesses: dict[int, dict[str, tuple[int, str]]] = {}  # run id -> {model: (guess, time)}
     models: list[str] = []
     for path in guess_files:
         for line in path.read_text(encoding="utf-8").splitlines():
             g = json.loads(line)
-            guesses.setdefault(int(g["id"]), {})[g["model"]] = int(g["first_wrong_step"])
+            guesses.setdefault(int(g["id"]), {})[g["model"]] = (
+                int(g["first_wrong_step"]), g["timestamp"])
             if g["model"] not in models:
                 models.append(g["model"])
     tasks = []
@@ -126,10 +131,11 @@ def main() -> None:
             for model in models:
                 if model in guesses.get(run_id, {}):
                     pred_id += 1
+                    guess, when = guesses[run_id][model]
                     preds.append(tools.prediction(
                         pred_id, run_id, 1, model,
-                        [tools.number_region("first_wrong_step", "steps",
-                                             guesses[run_id][model])], STAMP))
+                        [tools.number_region("first_wrong_step", "steps", guess)],
+                        when.removesuffix("Z") + ".000000Z"))
             tasks.append(tools.task(
                 run_id, 1,
                 {"task": task_text, "steps": [{"role": "assistant", "content": s} for s in steps]},

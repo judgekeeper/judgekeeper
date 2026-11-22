@@ -11,7 +11,9 @@ answer, and says the number of the first wrong step (0 = all fine). A run that d
 model's context window is recorded as an error (too_long) and is not cut down. Writes into --out
 (keep it outside the repository: the replies hold the dataset's text):
   raw-setup-<a|b>.jsonl      every reply, with its fingerprint, token counts and cost
-  guesses-setup-<a|b>.jsonl  {id, first_wrong_step, model} per run the reviewer answered
+  guesses-setup-<a|b>.jsonl  per run the reviewer answered: id, first_wrong_step, model
+                             and its fingerprint (provider, snapshot, prompt_hash,
+                             rubric_version, temperature, timestamp)
   grades-setup-<a|b>.csv     ids, guesses and fingerprints only: the file the repository keeps
   summary-setup-<a|b>.json   counts of graded runs and errors, tokens and cost
 """
@@ -83,8 +85,12 @@ def main() -> None:
     with (args.out / f"guesses-{name}.jsonl").open("w", encoding="utf-8") as f:
         for r in records:
             if r["ok"]:
-                f.write(json.dumps({"id": r["id"], "first_wrong_step": r["value"],
-                                    "model": model}) + "\n")
+                fp = r["fingerprint"]
+                f.write(json.dumps({
+                    "id": r["id"], "first_wrong_step": r["value"], "model": model,
+                    "provider": fp["provider"], "snapshot": fp["snapshot"],
+                    "prompt_hash": fp["prompt_hash"], "rubric_version": fp["rubric_version"],
+                    "temperature": fp["temperature"], "timestamp": fp["timestamp"]}) + "\n")
 
 
 if __name__ == "__main__":
