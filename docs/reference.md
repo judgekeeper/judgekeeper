@@ -231,7 +231,8 @@ For agents. A reviewer (an AI that reads a run and says which step went wrong fi
 |---|---|
 | `id` | The run's id (text or a whole number), different for every run. Needed |
 | `steps` | A list of steps, each `{"role": ..., "content": ...}` (`name` works in place of `role`). The content is text; anything else is written as JSON. Needed |
-| `task` or `input`, `outcome` | Allowed and not used |
+| `task` or `input` | What the agent was asked to do. Written as `data.task` and shown above the steps |
+| `outcome` | Allowed and not used |
 
 `judgekeeper steps runs.jsonl` writes `.judgekeeper/steps/label-these.json` (the file to import into Label Studio: one task per run, with the steps in `data.steps` as a numbered dialogue, and the run's id in `data.run_id`) and `.judgekeeper/steps/label-config.xml` (the labelling setup: the steps, and a number box "first wrong step", with 0 for all fine). In Label Studio, make a project from that setup, import the file and label the runs. Give a folder and it reads `runs.jsonl` in it.
 

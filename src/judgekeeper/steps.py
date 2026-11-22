@@ -76,6 +76,7 @@ class StepsError(StartError):
 class Run:
     id: str
     steps: list[dict]
+    task: str | None = None  # what the agent was asked to do, when the run says
 
 
 @dataclass
@@ -142,7 +143,8 @@ def read_runs(path: Path) -> list[Run]:
                 raise StepsError(f"Step {k} on line {number} of {path.name} has no role or "
                                  "name.")
             out.append({"role": f"{k}. {role}", "content": _text(step.get("content"))})
-        runs.append(Run(run_id, out))
+        asked = next((row[k] for k in ("task", "input") if row.get(k) not in (None, "")), None)
+        runs.append(Run(run_id, out, None if asked is None else _text(asked)))
     if not runs:
         raise StepsError(f"{path.name} holds no runs.")
     return runs
@@ -150,8 +152,12 @@ def read_runs(path: Path) -> list[Run]:
 
 def screen_files(runs: list[Run]) -> tuple[str, str]:
     """(label-these.json, label-config.xml) for `runs`."""
-    tasks = [{"data": {"run_id": r.id, "steps": r.steps}} for r in runs]
-    return json.dumps(scrub_value(tasks), indent=2, ensure_ascii=False) + "\n", CONFIG
+    with_task = any(r.task is not None for r in runs)
+    tasks = [{"data": {"run_id": r.id, **({"task": r.task or ""} if with_task else {}),
+                       "steps": r.steps}} for r in runs]
+    config = CONFIG.replace("  <Paragraphs", '  <Text name="task" value="$task"/>\n  <Paragraphs'
+                            ) if with_task else CONFIG
+    return json.dumps(scrub_value(tasks), indent=2, ensure_ascii=False) + "\n", config
 
 
 # The export -> labels and guesses ---------------------------------------------------------

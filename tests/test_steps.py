@@ -121,6 +121,39 @@ def test_runs_make_the_import_file_the_screen_and_a_next_line(here, capsys):
     assert "label-config.xml" in out and "judgekeeper steps" in out.splitlines()[-1]
 
 
+def test_a_task_in_the_runs_is_shown_above_the_steps_and_step_n_is_the_nth(here, capsys):
+    shutil.copy(FIXTURES / "runs.jsonl", here / "runs.jsonl")
+    run(capsys, "steps", "runs.jsonl")
+    folder = here / ".judgekeeper" / "steps"
+    tasks = json.loads((folder / "label-these.json").read_text("utf-8"))
+    assert [t["data"]["task"] for t in tasks] == ["Book a table for two at Luma Cafe.", "", ""]
+    config = (folder / "label-config.xml").read_text("utf-8")
+    assert '<Text name="task" value="$task"/>' in config
+    assert config.index("$task") < config.index("<Paragraphs")
+    assert tasks[0]["data"]["steps"][2]["role"].startswith("3. ")  # step 3 = steps[2]
+    (here / "plain.jsonl").write_text(
+        '{"id": "a", "steps": [{"role": "user", "content": "x"}]}\n', encoding="utf-8")
+    run(capsys, "steps", "plain.jsonl")
+    assert "task" not in (folder / "label-config.xml").read_text("utf-8").replace("Task", "")
+    assert "task" not in json.loads((folder / "label-these.json").read_text("utf-8"))[0]["data"]
+
+
+def test_an_export_with_data_task_and_steps_and_no_run_id_reads_by_task_id(here, capsys):
+    tasks = project(ids=False)
+    for t in tasks:
+        t["data"]["task"] = "Made up request."
+    export = save(here, tasks)
+    guesses = "\n".join(json.dumps({"id": t["id"], "first_wrong_step": reviewer_first(i)})
+                        for i, t in enumerate(tasks))
+    (here / "g.jsonl").write_text(guesses, encoding="utf-8")
+    code, _, err = run(capsys, "steps", str(export), "--reviewer", "g.jsonl")
+    assert code == 0, err
+    assert result(here)["reviewers"][0]["run_level"]["tpr"]["p"] == 15 / 20
+    assert "Made up request" not in (here / ".judgekeeper/steps/result.json").read_text("utf-8")
+    code, _, err = run(capsys, "steps", str(export))  # predictions matched by the task id too
+    assert code == 0, err
+
+
 def test_the_screen_header_says_zero_means_all_fine():
     from judgekeeper import steps
 
