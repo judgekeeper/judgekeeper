@@ -30,7 +30,7 @@ import threading
 import traceback
 from pathlib import Path
 
-from judgekeeper import __version__, project, textio
+from judgekeeper import __version__, grader_words, project, textio
 from judgekeeper.anchors import AnchorError
 from judgekeeper.find import TOOLS
 from judgekeeper.judgments import JudgmentsError
@@ -184,6 +184,7 @@ def _say(text: str, file=None, end: str = "\n") -> None:
     line breaks become spaces. A stream that can't take it (stderr closed by the program
     reading it) goes to the null device: the exit code stays the command's."""
     textio.said_next(text)
+    text = grader_words.swap(text)
     try:
         print(one_line(text), file=file, end=end)
         for line in held_lines(text):  # a name left out of the command above, as data
@@ -604,6 +605,7 @@ def main(argv: list[str] | None = None, last: bool = True) -> int:
     """The commands. `last`: put Python's Ctrl-C handler back before returning; else the
     caller (the entry point) does, as its very last step (put_back)."""
     project.forget()  # a test or a long session may run many commands in one process
+    grader_words.use(grader_words.LLM)  # until the results say the check is something else
     held = _note_ctrl_c()
     try:
         try:

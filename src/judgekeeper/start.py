@@ -30,12 +30,28 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from judgekeeper import find, judge_check, keys, mapper, settings, table, targets, textio
+from judgekeeper import (
+    find,
+    grader_words,
+    judge_check,
+    keys,
+    mapper,
+    settings,
+    table,
+    targets,
+    textio,
+)
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.links import said
 from judgekeeper.metrics import ERROR
 from judgekeeper.normalise import Normaliser, UnmappedValue, parse_label_map
-from judgekeeper.readers import read_deepeval, read_inspect, read_mlflow, read_promptfoo
+from judgekeeper.readers import (
+    read_deepeval,
+    read_inspect,
+    read_label_studio,
+    read_mlflow,
+    read_promptfoo,
+)
 from judgekeeper.readers.inspect_logs import DEFAULT_PROMPT
 from judgekeeper.readers.promptfoo import is_stripped_warning
 from judgekeeper.records import (
@@ -107,7 +123,8 @@ RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your LLM-
                  "decisions at the project root: reading them in {root}.")
 PAIRWISE = "These are A/B comparisons. judgekeeper handles pass/fail answers for now."
 HUMAN_COLUMNS = ("human_label", "label")
-FILE_READERS = {"promptfoo": read_promptfoo, "deepeval": read_deepeval, "inspect": read_inspect}
+FILE_READERS = {"promptfoo": read_promptfoo, "deepeval": read_deepeval, "inspect": read_inspect,
+                "label-studio": read_label_studio}
 _DESCRIPTION = re.compile(r"^description:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 _YAML_BLOCK = re.compile(r"^[>|][+-]?$")  # a folded (>) or literal (|) block scalar
 
@@ -541,6 +558,9 @@ class Pool:
     left: dict = field(default_factory=dict)  # answer id: (judge_check kind, its record)
     left_from: dict = field(default_factory=dict)  # answer id left: (its file, Answer.case)
     unread: set = field(default_factory=set)  # answers whose grades no label map reads yet
+    grader: str = LLM  # the kind of line the check is in (grader_of): LLM, or CODE
+    # who labelled and when, by answer id (a Label Studio label): {"who", "labeled_at"}
+    human_info: dict = field(default_factory=dict)
 
     @property
     def n_unclear(self) -> int:
@@ -560,9 +580,26 @@ def _known(evaluator: dict) -> dict:
     return fingerprint_known(evaluator)
 
 
-def _identity(records: RecordList, metric: str) -> frozenset:
+def _identity(records: RecordList, metric: str, grader: str = LLM) -> frozenset:
     return frozenset(make_fingerprint(_known(r.evaluator)).identity() for r in records
-                     if r.annotator_kind == LLM and r.name == metric)
+                     if r.annotator_kind == grader and r.name == metric)
+
+
+# The tools whose checks that are not an LLM-as-a-judge (a rule in code, an app's score, a
+# Label Studio prediction: CODE lines) can be the check judgekeeper measures.
+CODE_GRADED = ("label-studio", "records")
+
+
+def grader_of(records, kind: str | None, metric: str | None = None) -> str:
+    """The kind of line the check is in `records`: LLM, or CODE when `kind` takes code checks
+    (CODE_GRADED) and the results hold no LLM-as-a-judge, or --metric names a CODE check."""
+    if kind not in CODE_GRADED:
+        return LLM
+    llm = {r.name for r in records if r.annotator_kind == LLM}
+    code = {r.name for r in records if r.annotator_kind == CODE}
+    if code and (not llm or (metric is not None and metric in code and metric not in llm)):
+        return CODE
+    return LLM
 
 
 def _number(value) -> float | None:
@@ -597,19 +634,21 @@ def _names_cases(records: RecordList) -> bool:
 
 
 def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normaliser,
-               own_ids: bool = False, human_labels: bool = True) -> Pool:
+               own_ids: bool = False, human_labels: bool = True, grader: str = LLM) -> Pool:
     """The pool from the judge `metric`'s verdicts in `files`, newest file first. An answer
     whose verdicts are all no real decision (the reader's mark, or nothing the normaliser can
     read) goes to `left` with its kind instead. An answer's id is made from its text, or with
     `own_ids` (a table, an own format) the file's own id when the reader kept it. Repeats of
     an answer with the same grade count once; with different grades, each repeat is its own
     answer (`split`): they are never merged into one grade silently. Human labels are
-    counted; with `human_labels` they are also kept for --labels (Pool.humans)."""
-    pool = Pool(label_map=dict(norm.label_map))
+    counted; with `human_labels` they are also kept for --labels (Pool.humans). `grader`: the
+    kind of line the check is in (LLM; CODE for a rule in code or a prediction, grader_of);
+    people's lines (HUMAN) are never the check."""
+    pool = Pool(label_map=dict(norm.label_map), grader=grader)
     chosen: dict[str, Answer] = {}
     pending: list[tuple[str, object, str]] = []  # (target id, value, name): labels with no text
     pool.grade_names = sorted({r.name for _, recs in files for r in recs
-                               if r.annotator_kind == LLM})
+                               if r.annotator_kind == grader})
     pool.sole = pool.grade_names == [metric]
     for source, records in files:
 
@@ -643,8 +682,12 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                     pending.append((str(r.target_id), value, name))
                 else:
                     pool.humans.append((key_of(r), value, name))
+                    if r.metadata.get("who") is not None:  # a Label Studio label
+                        pool.human_info[key_of(r)] = {
+                            k: v for k, v in (("who", r.metadata["who"]),
+                                              ("labeled_at", r.created_at)) if v is not None}
                 continue
-            if r.annotator_kind != LLM or r.name != metric:
+            if r.annotator_kind != grader or r.name != metric:
                 continue
             v, kind = None, r.mark.problem
             if kind is None:
@@ -861,14 +904,17 @@ def usage_error(e: Exception, text: str | None = None) -> StartError:
                       getattr(e, "drop", None))
 
 
-def _read(result: find.Result, answers: bool = False) -> Loaded:
+def _read(result: find.Result, answers: bool = False, metric: str | None = None) -> Loaded:
     """`result` read; `answers`: a table with no grade is read as answers to mark
-    (read_results_table), not refused."""
+    (read_results_table), not refused. `metric`: the question of a Label Studio export (or
+    the version of its predictions) to check."""
     try:
         if result.tool == "table":
             records = read_results_table(result.path, answers)
         elif result.tool == "inspect":  # a sample that errored before it was scored, too
             records = read_inspect(result.path, with_errors=True)
+        elif result.tool == "label-studio":
+            records = _read_label_studio(result, metric)
         else:
             records = FILE_READERS[result.tool](result.path)
     except UNREADABLE:
@@ -877,6 +923,30 @@ def _read(result: find.Result, answers: bool = False) -> Loaded:
     if stripped:
         raise StartError(stripped[0])
     return Loaded(result.rel, records)
+
+
+def _read_label_studio(result: find.Result, metric: str | None) -> RecordList:
+    """A Label Studio export read; a file with several questions, or none to read as the
+    answer, stops with what to run (a StartError, exit 2)."""
+    from judgekeeper.readers.label_studio import NeedsMetric, NoAnswerKey
+
+    try:
+        return read_label_studio(result.path, metric)
+    except NeedsMetric as e:
+        names = [shown_name(n) for n in e.names]
+        if e.asked is None:
+            text = (f"{result.rel} has more than one question with choices: "
+                    f"{some([repr(n) for n in names], last=',')}.")
+        else:
+            text = (f"{result.rel} has no question or version named {scrub(e.asked)!r}; the "
+                    f"questions are: {some([repr(n) for n in names], last=',')}")
+        raise StartError(text, f"run `{{command}} {_braces(flag_word('--metric', e.names[0]))}`.",
+                         "--metric") from None
+    except NoAnswerKey as e:
+        raise StartError(
+            str(e).replace(str(result.path), result.rel),
+            "name the answer `output`, `answer` or `response` in each task's data, then run "
+            "`{command}`.") from None
 
 
 def _readable(talk: Talk, results: list[find.Result], root: Path, answers: bool = False):
@@ -1292,6 +1362,8 @@ class Found:
     n_rules: int = 1  # how many rules the judge's verdicts have (one per test, say)
     reference: bool = False  # it compares each answer with its test's reference answer
     graded: bool = True  # False: answers with no grade (no_grades.py), the person marks each
+    grader: str = LLM  # the kind of line the check is in (grader_of): LLM, or CODE
+    grader_version: str | None = None  # a prediction's model version (a Label Studio export)
 
 
 def rebased(found: Found, root: Path, folder: Path | None = None) -> Found:
@@ -1608,6 +1680,22 @@ def _its_columns(path: Path) -> str:
     return ITS_COLUMNS.format(names=said)
 
 
+def _labels_file_apart(talk: Talk, found: find.Search) -> None:
+    """A Label Studio export given with --labels holds the people's labels, never the results
+    to check: it is not one of the files chosen from, though it lies in the project."""
+    labels = getattr(talk, "labels", None)
+    if not isinstance(labels, str) or labels.startswith("\0"):
+        return
+    try:
+        apart = Path(labels).resolve()
+        if find.classify_file(apart) != "label-studio":
+            return
+    except OSError:
+        return
+    for tool, results in found.results.items():
+        found.results[tool] = [r for r in results if r.path.resolve() != apart]
+
+
 def _locate(talk: Talk, path: Path, tool: str | None,
             only: list[str] | None = None) -> tuple[Path, str, list, dict]:
     """(project folder, tool, its readable results newest first, tool signs). `only` (paths
@@ -1640,6 +1728,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
     root = path.resolve()
     talk.looking(root)
     found = find.search(root)
+    _labels_file_apart(talk, found)
     _older_runs_apart(found, root, getattr(talk, "away", ""))
     if tool == "table":  # a file of answers with no grade counts, beside other results too
         find.answers_as_table(found, root)
@@ -2125,14 +2214,14 @@ def config_description(path: Path) -> str | None:
     return yaml_description(text)
 
 
-def _judges(records, kind: str | None = None) -> Counter:
+def _judges(records, kind: str | None = None, grader: str = LLM) -> Counter:
     """How many answers each LLM judge in `records` graded, counted as the pool counts them:
     repeats of one answer with the same grade once, with different grades each. A DeepEval
     metric with no model (Exact Match, a check written in Python) is a rule in code, not a
     judge."""
     grades: dict[tuple, list] = {}
     for r in records:
-        if r.annotator_kind == LLM:
+        if r.annotator_kind == grader:
             key = (r.name, r.target_id if r.target_id and (
                 not getattr(records, "ids_derived", True) or text_free(r))
                    else derive_record_id(r.input, r.output, r.trajectory))
@@ -2183,6 +2272,21 @@ def _no_judge(talk: Talk, kind: str, files: list, rules: bool, empty: bool = Fal
     return _stop_with(talk, text, NO_JUDGE_NEXT.format(command=talk.command()))
 
 
+def _no_prediction(talk: Talk, result: find.Result, records: RecordList) -> Stop:
+    """A Label Studio export with no predictions to check: said once, with the two ways on
+    (export them in full, or give the results of the check with --labels)."""
+    what = ("its predictions are saved as ids only, which Label Studio does unless you ask"
+            if getattr(records, "prediction_ids", 0) else "it holds no predictions")
+    has = ("your people's labels" if any(r.annotator_kind == HUMAN for r in records)
+           else "no labels")
+    text = f"{result.rel} holds {has}, but {what}, so there is no check in it to measure."
+    given = textio.path_arg(result.rel)
+    return _stop_with(talk, text, (
+        "export it again with the predictions in full, not as ids, or give the results of "
+        "the check you want to measure: "
+        f"`{talk.program} <results> --labels {given}`."))
+
+
 def _stop_with(talk: Talk, text: str, next_step: str, code: int = EXIT_USAGE) -> Stop:
     """Say `text`, then stop with `next_step` (`judgekeeper` says it in its Next: line)."""
     _note(talk, text)
@@ -2213,8 +2317,9 @@ def _note(talk: Talk, text: str) -> None:
 
 
 def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
-                   prefer: str | None = None, kind: str | None = None) -> str:
-    counts = _judges(newest.records, kind)
+                   prefer: str | None = None, kind: str | None = None,
+                   grader: str = LLM) -> str:
+    counts = _judges(newest.records, kind, grader)
     names = by_use(sorted(counts), counts)
     if not names:
         raise _no_judge(talk, kind, [newest.label], _rules_in_code(newest.records, kind))
@@ -2370,6 +2475,14 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     return f"{metric}{quoted} (the results file does not say which model)"
 
 
+def _check_name(kind: str, metric: str, version: str | None) -> str:
+    """A check that is not an LLM-as-a-judge, as the `Check:` line names it."""
+    if kind == "label-studio":
+        return (f"{metric}, predictions of {version}" if version
+                else f"{metric}, predictions in the export")
+    return f"{metric}, a rule or score in your code"
+
+
 def _hide_keys(root: Path, talk: Talk | None = None, results=()) -> None:
     """The keys in the project's .env files (and its promptfoo configs' `env:` blocks) hidden
     before anything is read or written, however the results were found (keys.hide_keys): the
@@ -2466,6 +2579,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         results = _choose_folder(talk, results, store, kind)
     newest = results[0]
     description = None
+    grader = LLM  # the kind of line the check is in (grader_of)
     label_files: list[Loaded] = []  # records files with only labels, read with the others
     if kind == "mlflow":
         read_older = iter(runs[1:])
@@ -2494,9 +2608,11 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                 else:
                     label_files = []
             every = Loaded(_folder_of(newest), RecordList(r for x in loaded for r in x.records))
-            metric = _choose_metric(talk, every, metric, prefer)
+            grader = grader_of(every.records, kind, metric)
+            metric = _choose_metric(talk, every, metric, prefer, grader=grader)
             loaded = [x for x in loaded
-                      if any(r.annotator_kind == LLM and r.name == metric for r in x.records)]
+                      if any(r.annotator_kind == grader and r.name == metric
+                             for r in x.records)]
             if not loaded:
                 raise StartError(f"no LLM-as-a-judge named {metric!r} in {_folder_of(newest)}")
             if kind == "records":
@@ -2512,7 +2628,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             while first is None:  # a file that can't be read never hides a good one beside it
                 newest = rest.pop(0)
                 try:
-                    first = _read(newest, answers)
+                    first = _read(newest, answers, metric)
                 except RecordsError as e:
                     if not rest and not unjudged:
                         raise usage_error(e, _unread(e, newest, root)) from None
@@ -2523,7 +2639,10 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                     continue
                 if getattr(first.records, "answers", None) is not None:  # no grade in it
                     return _answers_found(root, newest, first, signs)
-                if not _judges(first.records, kind):
+                grader = grader_of(first.records, kind, metric)
+                if kind == "label-studio" and not _judges(first.records, kind, grader):
+                    raise _no_prediction(talk, newest, first.records)
+                if not _judges(first.records, kind, grader):
                     unjudged.append(newest)
                     rules = rules and _rules_in_code(first.records, kind)
                     empty = empty and kind == "deepeval" and _run_has_no_cases(newest)
@@ -2544,31 +2663,34 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             results = [newest, *rest]
             read_older = _readable(talk, rest, root)
     if kind in ("records", "mapped"):
-        metrics = sorted({r.name for r in every.records if r.annotator_kind == LLM})
+        metrics = sorted({r.name for r in every.records if r.annotator_kind == grader})
     else:
-        metric = _choose_metric(talk, first, metric, prefer, kind)
-        metrics = sorted(_judges(first.records, kind))
+        metric = _choose_metric(talk, first, metric, prefer, kind, grader)
+        metrics = sorted(_judges(first.records, kind, grader))
 
     norm = Normaliser(pass_if=pass_if,
                       label_map={**first.records.label_map, **parse_label_map(label_map)})
     used = [first]
     own_ids = kind in ("table", "mapped")
     humans = kind != "inspect"  # Pool.humans
-    pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids, humans)
-    identity = _identity(first.records, metric)
+    pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids, humans,
+                      grader)
+    identity = _identity(first.records, metric, grader)
     for older in read_older:
         if len(pool.answers) >= MIN_POOL and kind != "records":
             break
-        if _identity(older.records, metric) == identity and _one_eval(first, older, kind):
+        if _identity(older.records, metric, grader) == identity and _one_eval(
+                first, older, kind):
             used.append(older)
             pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids,
-                              humans)
+                              humans, grader)
     if label_files:
         used.extend(label_files)
-        pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids, humans)
+        pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids, humans,
+                      grader)
 
     records = [r for x in used for r in x.records
-               if r.annotator_kind == LLM and r.name == metric]
+               if r.annotator_kind == grader and r.name == metric]
     known, _ = _consensus([a.fingerprint for a in pool.answers]) if pool.answers else ({}, [])
     fingerprint = make_fingerprint(known).to_dict()
     models = sorted({str(r.evaluator["model"]) for r in records if r.evaluator.get("model")})
@@ -2590,6 +2712,11 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     rubric = rubric_line(rule)
     judge = _judge_name(kind, metric, rubric, models, judge_model is not None,
                         Path(newest.rel).name)
+    grader_version = None
+    if grader != LLM:  # a prediction's model version, a rule in code: named, never a model
+        grader_version = ", ".join(sorted({str(r.evaluator["version"]) for r in records
+                                           if r.evaluator.get("version")})) or None
+        judge = _check_name(kind, metric, grader_version)
     versions = sorted({a.agent["app_version"] for a in pool.answers if "app_version" in a.agent})
     score_judge = (norm.pass_if is not None or kind == "deepeval"  # score and threshold
                    or (kind == "mapped" and (saved.map or {}).get("kind", "score") == "score")
@@ -2600,8 +2727,10 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                                        plain=f"score{rule_used.op}{rule_used.threshold:g}")]
                if rule_used and rule_used.name not in (None, "score") and not norm.named
                and pool.answers else [])
+    grader_words.use(grader)  # the words for what is checked, from here on
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
-                 metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
+                 metric=metric, pool=pool, grader=grader, grader_version=grader_version,
+                 fingerprint=fingerprint, judge=judge, signs=signs,
                  rule=rule, description=description, metrics=metrics,
                  app_version=", ".join(versions) or None,
                  store=newest.rel if kind == "mlflow" else None,

@@ -1872,7 +1872,7 @@ def marks_digest(ws: Workspace, session: StartSession) -> str:
     from judgekeeper import marks as marks_mod
 
     last = marks_mod.read(ws.marks).last if ws.marks.is_file() else {}
-    marks = sorted([i["id"], i["label"], (last.get(i["id"]) or {}).get("by") == marks_mod.BY_FILE]
+    marks = sorted([i["id"], i["label"], (last.get(i["id"]) or {}).get("by") in marks_mod.IMPORTED_BY]
                    for i in session.items if i["label"])
     verdicts = ws.pool_judge.read_bytes() if ws.pool_judge.is_file() else b""
     try:
