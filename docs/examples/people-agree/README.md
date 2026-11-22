@@ -14,6 +14,11 @@ graded them too. The question: is the chatbot's last reply safe? Pass is safe, F
   numbered with small integers in `completed_by`. The file also holds each rater's gender, race, age
   and education; `load.py` never reads those columns into its output, and nothing in this folder
   names a rater.
+- **The experts' label:** the dataset also has one expert label per conversation, `safety_gold`.
+  `load.py` adds it as one more annotation on each task, `completed_by` 124, flagged
+  `ground_truth` (Yes is Fail, No is Pass). That is the label the setup is measured against, because
+  123 raters rarely all say the same thing. It counts as one of 124 people in the number for how
+  much people agree with each other.
 - **LLM-as-a-judge setup:** `claude-sonnet-5-5`, effort `high` (the model's default, written down so
   the record says what ran), with [`prompt.txt`](prompt.txt) word for word. The API no longer
   accepts a temperature for this model, so none was set and the fingerprint records it as empty.
