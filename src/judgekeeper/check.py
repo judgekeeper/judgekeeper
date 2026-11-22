@@ -34,6 +34,7 @@ from judgekeeper import (
     __version__,
     batches,
     find,
+    grader_words,
     judge_check,
     judge_setup,
     marks,
@@ -43,7 +44,7 @@ from judgekeeper import (
     weighted,
 )
 from judgekeeper.fingerprint import utc_now
-from judgekeeper.records import RecordsError
+from judgekeeper.records import LLM, RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_once, scrub_value
 from judgekeeper.start_label import FOLDER, Workspace, every_marked, next_marks, out_of_reach
 from judgekeeper.textio import (
@@ -118,6 +119,15 @@ NAME_ONLY = {"theirs": "another person's home folder",
 PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
                  "LLM-as-a-judge look better than it is.")
 ONE_RUN = "One run, so a small change may be a coincidence."
+# Did the check move? Said for a check that is not an LLM-as-a-judge, when its setup changed
+MOVED = {
+    "worse": ("Your check moved: on the {n} answers your people labelled, it agrees with them "
+              "less than before."),
+    "no_drop": ("Your check did not move on the {n} answers your people labelled. If your "
+                "scores changed, look at your app's answers first."),
+    "not_sure": ("Too early to tell whether your check moved. These {n} labels can't rule out a "
+                 "drop of up to {d} points."),
+}
 NONE_IN = ("None of your {n} is in your new results. judgekeeper matches a marked answer "
            "only when the question and the answer text are the same, word for word.")
 NEXT_GIVEN = ("Next: run `{command} " + "<new results file>" + "`, or run `{command}` in your "
@@ -1049,6 +1059,33 @@ def expect_lines(g: dict, unit_said: bool = False) -> list[str]:
         out.append(f"Agreement rose on answers you {rose[0]} but dropped on answers you "
                    f"{dropped[0]}, and a clear drop in either group makes the result worse.")
     return out
+
+
+def _identity_moved(state: State, found) -> bool:
+    """Whether the check's fingerprint identity (JudgeFingerprint.identity) is another than
+    the one the marks were made against."""
+    from judgekeeper.fingerprint import JudgeFingerprint
+
+    try:
+        was = JudgeFingerprint.from_dict(state.data.get("fingerprint") or {}).identity()
+        now = JudgeFingerprint.from_dict(found.fingerprint or {}).identity()
+    except ValueError:
+        return False
+    return was != now
+
+
+def moved_line(g: dict, drop: int | None) -> str | None:
+    """"Did your check move": its one line from the groups' verdicts (outcome), or None when
+    fewer than ROUGH answers of either kind were compared, or a group rose (better), which
+    "did not move" would not say."""
+    if min(g[key]["n"] for key, _, _ in SIDES) < targets.ROUGH:
+        return None
+    kind = outcome(g)
+    if kind not in MOVED or any(g[key]["verdict"] == "better" for key, _, _ in SIDES):
+        return None
+    if drop is None:  # none of the marks' sizes could see a drop: the widest range end
+        drop = max(_worst(g[key]["low"]) for key, _, _ in SIDES)
+    return MOVED[kind].format(n=sum(g[key]["n"] for key, _, _ in SIDES), d=drop)
 
 
 def result_line(g: dict) -> str | None:
@@ -2172,6 +2209,11 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
                                  g["failed"]["old"])
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
+    if found.grader != LLM and (changed or _identity_moved(state, found)):
+        moved = moved_line(g, drop)  # a check that is not an LLM-as-a-judge
+        if moved:
+            said.para(moved)
+            said.say()
     picked = picks(state.ws, now=pick, setup=judge_setup.hash_of(new))  # once per setup
     every = every_marked(state.ws)
     for line in picks_lines(picked, every):
@@ -2955,7 +2997,7 @@ def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> N
 
 def _print(text: str = "") -> None:
     said_next(text)
-    print(one_line(scrub(text)))
+    print(one_line(scrub(grader_words.swap(text))))
     flush_stdout()
 
 
