@@ -43,4 +43,3 @@ prompt hash, rubric version, temperature), so `judgekeeper steps` can show it.
 Keep `OUT` outside the repository. `grade.py` reads the key from the environment only. It spends
 money: it asks the API once per run, and the runs are long.
 
-There is no report in this folder yet.

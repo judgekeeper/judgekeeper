@@ -40,4 +40,3 @@ Keep `OUT` outside the repository. `grade.py` writes the raw replies, a records 
 judgekeeper (`results-setup-a.jsonl`, with the text) and the committed CSV. It reads the key from
 the environment only. It spends money: it asks the API once per conversation.
 
-There is no report in this folder yet.
