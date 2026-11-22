@@ -33,7 +33,12 @@ pip install anthropic
 python3 -I load.py OUT                                  # downloads, writes OUT/runs.jsonl
 ANTHROPIC_API_KEY=... python3 -I grade.py --runs OUT/runs.jsonl --setup a --out OUT
 python3 -I load.py OUT --guesses OUT/guesses-setup-a.jsonl   # adds the reviewer's guesses
+mkdir project && cp OUT/label-studio-export.json OUT/guesses-setup-a.jsonl project/ && cd project
+judgekeeper steps label-studio-export.json --reviewer guesses-setup-a.jsonl
 ```
+
+Each line of `guesses-setup-a.jsonl` carries the reviewer's fingerprint (provider, model, snapshot,
+prompt hash, rubric version, temperature), so `judgekeeper steps` can show it.
 
 Keep `OUT` outside the repository. `grade.py` reads the key from the environment only. It spends
 money: it asks the API once per run, and the runs are long.
