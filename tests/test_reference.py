@@ -21,7 +21,8 @@ EVAL_TOOLS = ROOT / "docs" / "eval-tools.md"
 COMMANDS = {None: "judgekeeper: read and measure",
             "mark": "mark: mark more answers",
             "fix": "fix: see where your LLM-as-a-judge goes wrong, then test a better rule",
-            "check": "check: re-check your LLM-as-a-judge after a change"}
+            "check": "check: re-check your LLM-as-a-judge after a change",
+            "steps": "steps: check an agent reviewer's first wrong step"}
 GONE_FLAGS = ("--review", "--fix", "--ask-again", "--try-new-judge", "--label-more",
               "--test-pass-mark", "--rule-file", "--times", "--allow-calls", "--python",
               "--judge-command", "--agent-prompt", "--fields")
