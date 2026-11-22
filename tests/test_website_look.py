@@ -1064,7 +1064,11 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
         "step-measure": [("The result page tells you one of three things: your LLM-as-a-judge "
                           "is good enough to use, it needs work, or it’s too early to tell. "
                           "Below that, it lists the answers where you and your LLM-as-a-judge "
-                          "disagreed.")],
+                          "disagreed."),
+                         ("Two or more people marked the same answers? judgekeeper also says "
+                          "how much they agree with each other (kappa, or Krippendorff’s alpha "
+                          "for three or more people), because a check cannot be expected to "
+                          "agree with them more than they agree with each other.")],
         "step-fix": [
             ("Change the rule in your eval tool. Have it grade the answers in "
              ".judgekeeper/fix/marked-answers.csv again, then save the results."),
@@ -1073,7 +1077,10 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
              "depends on how big the change is: see the reference.")],
         "step-check": [
             ("judgekeeper compares the new grades with your marks and tells you if your "
-             "LLM-as-a-judge still agrees with you. You don’t need to mark anything again.")]}
+             "LLM-as-a-judge still agrees with you. You don’t need to mark anything again."),
+            ("Checking an agent? judgekeeper steps helps you label the first wrong step of "
+             "each run in Label Studio, then shows how often your reviewer finds the same "
+             "one.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": [],
