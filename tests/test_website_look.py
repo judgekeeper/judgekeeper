@@ -462,9 +462,9 @@ DEMO = [["Can I return a lamp after 60 days?",
          "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]
 # Each step starts with what you do, in a few plain words
 STEPS = [("find", "Read", "Read your eval results and your labels, such as a Label Studio export, or mark answers Pass or Fail in your browser."),
-         ("measure", "Measure", "See how often your LLM-as-a-judge agrees with you, and how much your people agree with each other."),
+         ("measure", "Measure", "See how often your check agrees with you, and how much your people agree with each other."),
          ("fix", "Fix", "Write a better rule and test it on marks kept aside."),
-         ("check", "Re-check", "Change your LLM-as-a-judge and see if it still agrees with you.")]
+         ("check", "Re-check", "Change your check's prompt or model and see if agreement goes up or down.")]
 
 
 def _main(page: Path) -> Element:
@@ -764,6 +764,20 @@ GUIDE_STEPS = [("step-find", "Read your eval results, then mark answers"),
                ("step-measure", "See how often your LLM-as-a-judge agrees with you"),
                ("step-fix", "Write a better rule and test it"),
                ("step-check", "Re-check after you change your LLM-as-a-judge")]
+
+
+def test_the_guide_says_how_to_check_an_agent_reviewer_step_by_step():
+    block = _by_id(GUIDE, "agent-steps")
+    assert any(a.attrs.get("id") == "ai-check" for a in block.ancestors())
+    assert _flat(_all(block, "h3")[0]) == "Checking an agent? Check its reviewer step by step"
+    text = _flat(block)
+    for words in ("judgekeeper steps runs.jsonl", "judgekeeper steps export.json",
+                  "first wrong step of each run (0 if all steps are fine)", "within one step",
+                  "--reviewer", "it never calls Label Studio or an AI"):
+        assert words in text, words
+    links = [a.attrs["href"] for a in _all(block, "a")]
+    assert links == [f"{GITHUB}/blob/main/docs/examples/agent-steps/README.md",
+                     f"{REFERENCE_MD}#steps-check-an-agent-reviewers-first-wrong-step"]
 
 
 def test_the_guide_is_the_install_the_four_steps_and_three_cards():

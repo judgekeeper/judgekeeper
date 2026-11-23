@@ -141,8 +141,11 @@ def build(website: Path, examples: Path, out: Path) -> list[str]:
         shutil.copyfile(report, out / "examples" / name / "index.html")
         names.append(name)
     listed = _listed(examples)
-    # A folder with no report.html links to its report.md, which GitHub shows as a page.
-    links = {n: f"{n}/" if n in names else f"{REPO}{n}/report.md" for n in listed}
+    # A folder with no report.html links to its report.md (else its README.md), which GitHub
+    # shows as a page.
+    links = {n: f"{n}/" if n in names else
+             f"{REPO}{n}/{'report.md' if (examples / n / 'report.md').is_file() else 'README.md'}"
+             for n in listed}
     items = "\n".join(
         f'<li><a href="{html.escape(links[n])}">{html.escape(n)}</a>'
         f'<div class="meta">{html.escape(_describe(examples / n))}</div>'
