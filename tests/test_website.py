@@ -388,9 +388,10 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("The judgekeeper logo and the words: The keeper of human judgment for AI. "
              "Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
-HOME_DESCRIPTION = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code "
-                    "rule, an agent reviewer) agrees with your people, down to each step, "
-                    "and see when that changes.")
+HOME_DESCRIPTION = ("Human judgment decides what's right. See how often each automated check "
+                    "agrees with it, from an LLM-as-a-judge grading one answer to a reviewer "
+                    "checking each step of an agent, and see if agreement goes up or down after "
+                    "each change.")
 HOME_MORE = (" Read. Measure. Fix. Re-check. Open source; it reads the results "
              "your eval tool saved.")
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}
@@ -620,7 +621,7 @@ def test_caddy_sends_the_check_page_the_stricter_policy():
 def test_home_links_to_the_check_page_twice():
     links = [el for el in parse(WEBSITE / "index.html").iter()
              if el.tag == "a" and el.attrs.get("href") == "check.html"]
-    assert [" ".join(a.text().split()) for a in links] == ["Try the Read step in your browser"] * 2
+    assert [" ".join(a.text().split()) for a in links] == ["Try it in your browser"] * 2
     assert "https://www.judgekeeper.com/check.html" in (WEBSITE / "sitemap.xml").read_text(
         encoding="utf-8")
     assert "- [Try the Read step in your browser](https://www.judgekeeper.com/check.html): " in (

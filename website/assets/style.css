@@ -230,6 +230,7 @@ img, svg { max-width: 100%; }
    word to word never flashes it */
 .five:not(:hover) a.is-on::after { transition-delay: 120ms; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.cta .hero-note { flex-basis: 100%; margin: 2px 0 0; font-size: 14px; color: var(--muted); }
 .steps { border-bottom: 1px solid var(--rule); }
 .steps .wrap { padding-block: 80px; }
 .steps h2 { font-size: 32px; font-weight: 800; letter-spacing: -.022em; margin: 0 0 36px; }

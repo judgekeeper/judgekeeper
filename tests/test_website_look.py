@@ -521,11 +521,13 @@ def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
     buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
                if {"b-main", "b-side"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
-                       ("check.html", {"b-side"}, "Try the Read step in your browser")]
-    sub_line = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
-                "agent reviewer) agrees with your people, down to each step, and see when that changes.")
+                       ("check.html", {"b-side"}, "Try it in your browser")]
+    sub_line = ("Human judgment decides what's right. See how often each automated check agrees "
+                "with it, from an LLM-as-a-judge grading one answer to a reviewer checking each "
+                "step of an agent, and see if agreement goes up or down after each change.")
     assert [_flat(p) for p in _all(hero, "p", None)
-            if not any("jk-card" in a.classes() for a in p.ancestors())] == [sub_line]
+            if not any("jk-card" in a.classes() for a in p.ancestors())] == [
+        sub_line, "Open source. Runs locally."]
     # the chosen step's green line, which gives way while another word is hovered or focused
     assert "var(--green)" in _rule(".five a::after")
     assert ".five a.is-on::after" in CSS and ".five:hover a.is-on:not(:hover)::after" in CSS
@@ -662,7 +664,7 @@ def test_the_closing_box_points_to_the_browser_check():
     assert _flat(_all(close, "p")[0]) == ("Check your LLM-as-a-judge. Your file stays on your "
                                           "computer.")
     (button,) = _all(close, "a", "b-main")
-    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try the Read step in your browser")
+    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try it in your browser")
 
 
 def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
@@ -1601,8 +1603,9 @@ def test_testing_a_new_rule_is_said_for_every_eval_tool():
     meta = [el.attrs["content"] for el in parse(HOME).iter()
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
-    short = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
-             "agent reviewer) agrees with your people, down to each step, and see when that changes.")
+    short = ("Human judgment decides what's right. See how often each automated check agrees "
+             "with it, from an LLM-as-a-judge grading one answer to a reviewer checking each "
+             "step of an agent, and see if agreement goes up or down after each change.")
     assert meta == [short + (" Read. Measure. Fix. Re-check. Open source; it reads "
                              "the results your eval tool saved."), short, short]
     for json_ld in (el for el in _els(HOME) if el.attrs.get("type") == "application/ld+json"):
