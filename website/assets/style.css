@@ -84,6 +84,26 @@ img, svg { max-width: 100%; }
 .jk-bar { flex: none; }  /* the window bar: it never takes the card's spare room */
 /* site.js gives the card the height of its tallest answer; the room left sits under the answer */
 .jk-live { flex: 1; display: flex; flex-direction: column; }
+/* the demo's two tabs, One answer and Agent steps, sit in the window bar in place of its title
+   (the title shows only without JavaScript) */
+.jk-tabs { flex: 1; display: flex; justify-content: center; gap: 24px; height: 100%; margin-right: 74px; }
+.jk-tab { position: relative; height: 100%; font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--muted); }
+.jk-tab:hover, .jk-tab[aria-selected=true] { color: var(--fg); }
+.jk-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--green); opacity: 0; }
+.jk-tab[aria-selected=true]::after { opacity: 1; }
+.jk-pane { flex: 1; display: flex; flex-direction: column; }
+.jk-sl { flex: 1; display: flex; flex-direction: column; }
+.jk-row-t { padding-block: 24px; }
+.jk-task { font-size: 22px; }  /* an agent run's task: one line */
+.jk-row-s { flex: 1; padding-block: 20px 24px; }
+.jk-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.jk-step { width: 100%; display: grid; grid-template-columns: 24px 1fr; align-items: center; gap: 12px; text-align: left; padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 15px; line-height: 1.4; }
+.jk-step:hover { border-color: var(--red); background: var(--hover); }
+.jk-step .n { width: 24px; height: 24px; border: 1px solid var(--rule); border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; color: var(--muted); }
+.jk-step:hover .n { border-color: var(--red); color: var(--red); }
+.jk-send { display: none; flex-direction: column; }
+.jk-pane.is-done .jk-sl { display: none; }
+.jk-pane.is-done .jk-send { display: flex; flex: 1; }
 .jk-row { padding: 32px 40px; border-bottom: 1px solid var(--line); }
 .jk-row-q { display: grid; grid-template-columns: 1fr auto; gap: 16px; }
 .jk-row-a { flex: 1; min-height: 168px; }
@@ -134,6 +154,7 @@ img, svg { max-width: 100%; }
 .jk-end-list li.head .g { font-family: var(--sans); font-size: 11px; color: var(--muted); }
 .jk-end-list .g.p { color: var(--green); }
 .jk-end-list .g.f { color: var(--red); }
+.jk-end-list .g.s { color: var(--fg); }
 .jk-end-actions { display: flex; justify-content: center; align-items: center; padding: 20px 40px 24px; border-top: 1px solid var(--line); }
 .jk-go { font-weight: 700; border-radius: 4px; color: #fff; background: var(--green-fill); height: 46px; padding: 0 22px; font-size: 15px; display: inline-flex; align-items: center; text-decoration: none; transition: filter 100ms ease; }
 .jk-go:hover { filter: brightness(1.08); }

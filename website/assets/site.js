@@ -68,12 +68,16 @@
   }
 
   /* The demo works like the marking page: the LLM-as-a-judge's grade stays hidden while you
-     mark, and the end card shows, answer by answer, where you and it disagreed. */
+     mark, and the end card shows, answer by answer, where you and it disagreed. Its second
+     tab, Agent steps, works like `judgekeeper steps`: you click the first wrong step of each
+     run, and the end card shows, run by run, where you and the reviewer picked differently. */
   function setUpDemo() {
     var card = $("demo");
     if (!card) return;
     var items = JSON.parse($("demo-items").textContent);
-    var state, history, cur;
+    var runs = JSON.parse($("demo-runs").textContent), stepsPane = $("d-pane-steps");
+    var tabs = $all("#d-tabs [role=tab]"), shown = "answer";
+    var state, history, cur, picks, picked, at;
 
     function reset() {
       state = items.map(function () { return "none"; });
@@ -165,12 +169,103 @@
       render();
     }
 
+    /* Agent steps: one run at a time; a click on a step (or "All steps are fine") is your
+       first wrong step for that run, and the next run shows. 0 means no wrong step. */
+    function stepName(n) { return n ? "Step " + n : "None"; }
+    function resetRuns() {
+      picks = runs.map(function () { return null; });
+      picked = [];
+      at = 0;
+      stepsPane.classList.remove("is-done");
+      renderRun();
+    }
+    function renderRun() {
+      var run = runs[at], list = $("s-steps");
+      $("s-task").textContent = run[0];
+      $("s-state").textContent = "Run " + (at + 1) + " of " + runs.length;
+      list.textContent = "";
+      run[1].forEach(function (text, i) {
+        var li = make("li", "", ""), b = make("button", "jk-step", "");
+        b.type = "button";
+        b.appendChild(make("span", "n", String(i + 1)));
+        b.appendChild(make("span", "", text));
+        b.addEventListener("click", function () { pickStep(i + 1); });
+        li.appendChild(b);
+        list.appendChild(li);
+      });
+    }
+    function fillRuns(yours) {
+      var list = $("s-list"), head = make("li", "head", "");
+      list.textContent = "";
+      head.appendChild(make("span", "", ""));
+      head.appendChild(make("span", "", "Agent run"));
+      head.appendChild(make("span", "g", "You"));
+      head.appendChild(make("span", "g", "Reviewer"));
+      list.appendChild(head);
+      runs.forEach(function (run, i) {
+        var li = make("li", yours[i] === run[2] ? "agree" : "differ", "");
+        li.appendChild(make("span", "dot", ""));
+        li.appendChild(make("span", "q", run[0]));
+        var mine = make("b", "g s", stepName(yours[i])), its = make("b", "g s", stepName(run[2]));
+        mine.setAttribute("data-label", "You");
+        its.setAttribute("data-label", "Reviewer");
+        li.appendChild(mine);
+        li.appendChild(its);
+        list.appendChild(li);
+      });
+    }
+    function sayRuns(n) {
+      var sum = $("s-sum");
+      sum.textContent = "";
+      var parts = n ? ["You and the reviewer disagreed on ", [n], " of ", [runs.length], " runs."]
+        : ["You and the reviewer agreed on all ", [runs.length], " runs."];
+      parts.forEach(function (part) {
+        sum.appendChild(typeof part === "string" ? document.createTextNode(part)
+          : make("span", "mono", String(part[0])));
+      });
+      sum.classList.toggle("ok", !n);
+    }
+    function finishRuns() {
+      var n = 0;
+      runs.forEach(function (run, i) { if (picks[i] !== run[2]) n += 1; });
+      sayRuns(n);
+      fillRuns(picks);
+      stepsPane.classList.add("is-done");
+    }
+    function pickStep(n) {
+      if (stepsPane.classList.contains("is-done")) return;
+      picked.push(at);
+      picks[at] = n;
+      if (at === runs.length - 1) { finishRuns(); return; }
+      at += 1;
+      renderRun();
+    }
+    function undoStep() {
+      if (!picked.length) return;
+      at = picked.pop();
+      picks[at] = null;
+      stepsPane.classList.remove("is-done");
+      renderRun();
+    }
+
+    /* The two tabs, in the window bar. */
+    function show(which) {
+      shown = which;
+      tabs.forEach(function (tab) {
+        var on = tab.getAttribute("data-pane") === which;
+        tab.setAttribute("aria-selected", on ? "true" : "false");
+        tab.tabIndex = on ? 0 : -1;
+        $(tab.getAttribute("aria-controls")).hidden = !on;
+      });
+    }
+
     /* One height for the card: that of its tallest answer or of the end card, measured on load,
        when the fonts arrive and on resize, so nothing below it moves while you mark. */
     function lockHeight() {
       var ended = card.classList.contains("is-end"), sum = $("d-sum"), said = sum.textContent;
-      var tallest = 0;
+      var tallest = 0, was = shown;
       card.style.minHeight = "";
+      show("answer");
       card.classList.remove("is-end");
       items.forEach(function (item) {
         $("d-q").textContent = item[0];
@@ -184,7 +279,30 @@
       sum.textContent = said;
       card.classList.toggle("is-end", ended);
       render();
+      show(was);
+      tallest = Math.max(tallest, tallestRun());
       card.style.minHeight = tallest + "px";
+    }
+    /* The steps tab at its tallest: each run, then the end card with every row different. */
+    function tallestRun() {
+      var was = shown, done = stepsPane.classList.contains("is-done"), back = at, tallest = 0;
+      var said = $("s-sum").textContent;
+      show("steps");
+      stepsPane.classList.remove("is-done");
+      runs.forEach(function (run, i) {
+        at = i;
+        renderRun();
+        tallest = Math.max(tallest, card.offsetHeight);
+      });
+      sayRuns(runs.length);
+      fillRuns(runs.map(function (run) { return run[2] ? 0 : run[1].length; }));
+      stepsPane.classList.add("is-done");
+      tallest = Math.max(tallest, card.offsetHeight);
+      at = back;
+      stepsPane.classList.toggle("is-done", done);
+      if (done) finishRuns(); else { $("s-sum").textContent = said; renderRun(); }
+      show(was);
+      return tallest;
     }
 
     $("d-fail").addEventListener("click", function () { mark("fail"); });
@@ -198,13 +316,39 @@
     card.addEventListener("pointerdown", function () {
       if (!card.contains(document.activeElement)) card.focus({ preventScroll: true });
     });
+    $("s-fine").addEventListener("click", function () { pickStep(0); });
+    $("s-undo").addEventListener("click", undoStep);
+    $("s-again").addEventListener("click", function () {
+      resetRuns();
+      card.focus({ preventScroll: true });
+    });
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () { show(tab.getAttribute("data-pane")); });
+    });
     document.addEventListener("keydown", function (e) {
       if (!card.contains(document.activeElement) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (document.activeElement.getAttribute("role") === "tab") {  // the arrows move between tabs
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          show(shown === "answer" ? "steps" : "answer");
+          $("d-tab-" + shown).focus();
+        }
+        return;
+      }
+      if (shown === "steps") {
+        var n = Number(e.key);
+        if (/^[0-9]$/.test(e.key) && n <= runs[at][1].length) { e.preventDefault(); pickStep(n); }
+        else if (e.key === "z" || e.key === "Z") { e.preventDefault(); undoStep(); }
+        return;
+      }
       var act = { ArrowLeft: "fail", ArrowRight: "pass", s: "skip", S: "skip" }[e.key];
       if (act) { e.preventDefault(); mark(act); }
       else if (e.key === "z" || e.key === "Z") { e.preventDefault(); undo(); }
     });
+    $("d-tabs").hidden = false;  // the tabs take the title's place
+    $("d-title").hidden = true;
     reset();
+    resetRuns();
     lockHeight();
     var resized;
     window.addEventListener("resize", function () {
