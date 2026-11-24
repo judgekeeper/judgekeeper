@@ -652,6 +652,12 @@ def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tm
     # a folder with no report.html links to its report.md on GitHub
     assert ('href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/'
             'probes/report.md"') in index
+    # and to its README.md when it has no report.md
+    assert ('href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/'
+            'noise-check/README.md"') in index
+    for folder in re.findall(r'href="https://github.com/judgekeeper/judgekeeper/blob/main/'
+                             r'docs/examples/([\w-]+)/(report|README)\.md"', index):
+        assert (ROOT / "docs" / "examples" / folder[0] / f"{folder[1]}.md").is_file(), folder
     assert "llmbar-haiku" not in index
     # the site's own look, menu and footer (one folder up), so dark only like the site
     assert "prefers-color-scheme" not in index and "<style" not in index

@@ -462,9 +462,9 @@ DEMO = [["Can I return a lamp after 60 days?",
          "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]
 # Each step starts with what you do, in a few plain words
 STEPS = [("find", "Read", "Read your eval results and your labels, such as a Label Studio export, or mark answers Pass or Fail in your browser."),
-         ("measure", "Measure", "See how often your LLM-as-a-judge agrees with you, and how much your people agree with each other."),
+         ("measure", "Measure", "See how often your check agrees with you, and how much your people agree with each other."),
          ("fix", "Fix", "Write a better rule and test it on marks kept aside."),
-         ("check", "Re-check", "Change your LLM-as-a-judge and see if it still agrees with you.")]
+         ("check", "Re-check", "Change your check's prompt or model and see if agreement goes up or down.")]
 
 
 def _main(page: Path) -> Element:
@@ -521,11 +521,13 @@ def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
     buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
                if {"b-main", "b-side"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
-                       ("check.html", {"b-side"}, "Try the Read step in your browser")]
-    sub_line = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
-                "agent reviewer) agrees with your people, down to each step, and see when that changes.")
+                       ("check.html", {"b-side"}, "Try it in your browser")]
+    sub_line = ("Human judgment decides what's right. See how often each automated check agrees "
+                "with it, from an LLM-as-a-judge grading one answer to a reviewer checking each "
+                "step of an agent, and see if agreement goes up or down after each change.")
     assert [_flat(p) for p in _all(hero, "p", None)
-            if not any("jk-card" in a.classes() for a in p.ancestors())] == [sub_line]
+            if not any("jk-card" in a.classes() for a in p.ancestors())] == [
+        sub_line, "Open source. Runs locally."]
     # the chosen step's green line, which gives way while another word is hovered or focused
     assert "var(--green)" in _rule(".five a::after")
     assert ".five a.is-on::after" in CSS and ".five:hover a.is-on:not(:hover)::after" in CSS
@@ -662,7 +664,7 @@ def test_the_closing_box_points_to_the_browser_check():
     assert _flat(_all(close, "p")[0]) == ("Check your LLM-as-a-judge. Your file stays on your "
                                           "computer.")
     (button,) = _all(close, "a", "b-main")
-    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try the Read step in your browser")
+    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try it in your browser")
 
 
 def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
@@ -762,6 +764,20 @@ GUIDE_STEPS = [("step-find", "Read your eval results, then mark answers"),
                ("step-measure", "See how often your LLM-as-a-judge agrees with you"),
                ("step-fix", "Write a better rule and test it"),
                ("step-check", "Re-check after you change your LLM-as-a-judge")]
+
+
+def test_the_guide_says_how_to_check_an_agent_reviewer_step_by_step():
+    block = _by_id(GUIDE, "agent-steps")
+    assert any(a.attrs.get("id") == "ai-check" for a in block.ancestors())
+    assert _flat(_all(block, "h3")[0]) == "Checking an agent? Check its reviewer step by step"
+    text = _flat(block)
+    for words in ("judgekeeper steps runs.jsonl", "judgekeeper steps export.json",
+                  "first wrong step of each run (0 if all steps are fine)", "within one step",
+                  "--reviewer", "it never calls Label Studio or an AI"):
+        assert words in text, words
+    links = [a.attrs["href"] for a in _all(block, "a")]
+    assert links == [f"{GITHUB}/blob/main/docs/examples/agent-steps/README.md",
+                     f"{REFERENCE_MD}#steps-check-an-agent-reviewers-first-wrong-step"]
 
 
 def test_the_guide_is_the_install_the_four_steps_and_three_cards():
@@ -1601,8 +1617,9 @@ def test_testing_a_new_rule_is_said_for_every_eval_tool():
     meta = [el.attrs["content"] for el in parse(HOME).iter()
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
-    short = ("See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
-             "agent reviewer) agrees with your people, down to each step, and see when that changes.")
+    short = ("Human judgment decides what's right. See how often each automated check agrees "
+             "with it, from an LLM-as-a-judge grading one answer to a reviewer checking each "
+             "step of an agent, and see if agreement goes up or down after each change.")
     assert meta == [short + (" Read. Measure. Fix. Re-check. Open source; it reads "
                              "the results your eval tool saved."), short, short]
     for json_ld in (el for el in _els(HOME) if el.attrs.get("type") == "application/ld+json"):

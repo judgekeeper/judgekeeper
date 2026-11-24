@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The keeper of human judgment for AI | judgekeeper</title>
-<meta name="description" content="See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, down to each step, and see when that changes. Read. Measure. Fix. Re-check. Open source; it reads the results your eval tool saved.">
+<meta name="description" content="Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to a reviewer checking each step of an agent, and see if agreement goes up or down after each change. Read. Measure. Fix. Re-check. Open source; it reads the results your eval tool saved.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="The keeper of human judgment for AI | judgekeeper">
-<meta property="og:description" content="See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, down to each step, and see when that changes.">
+<meta property="og:description" content="Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to a reviewer checking each step of an agent, and see if agreement goes up or down after each change.">
 <meta property="og:url" content="https://www.judgekeeper.com/">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1200">
@@ -16,15 +16,15 @@
 <meta property="og:image:alt" content="The judgekeeper logo and the words: The keeper of human judgment for AI. Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="The keeper of human judgment for AI | judgekeeper">
-<meta name="twitter:description" content="See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, down to each step, and see when that changes.">
+<meta name="twitter:description" content="Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to a reviewer checking each step of an agent, and see if agreement goes up or down after each change.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="canonical" href="https://www.judgekeeper.com/">
 <meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=34">
-<script src="assets/site.js?v=34" defer></script>
-<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"judgekeeper","url":"https://www.judgekeeper.com/"},{"@type":"SoftwareApplication","name":"judgekeeper","url":"https://www.judgekeeper.com/","description":"See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an agent reviewer) agrees with your people, down to each step, and see when that changes.","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","license":"https://www.apache.org/licenses/LICENSE-2.0","sameAs":["https://github.com/judgekeeper/judgekeeper","https://pypi.org/project/judgekeeper/"]}]}</script>
+<link rel="stylesheet" href="assets/style.css?v=35">
+<script src="assets/site.js?v=35" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"judgekeeper","url":"https://www.judgekeeper.com/"},{"@type":"SoftwareApplication","name":"judgekeeper","url":"https://www.judgekeeper.com/","description":"Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to a reviewer checking each step of an agent, and see if agreement goes up or down after each change.","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","license":"https://www.apache.org/licenses/LICENSE-2.0","sameAs":["https://github.com/judgekeeper/judgekeeper","https://pypi.org/project/judgekeeper/"]}]}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -37,9 +37,9 @@
 <section class="hero"><div class="wrap">
   <div class="hero-l">
     <h1>The keeper of<br><span class="nb">human judgment</span><br><span class="nb">for AI.</span></h1>
-    <p class="gx-lede">See how often each check of your AI or agent (an <span class="nb">LLM-as-a-judge</span>, a code rule, an agent reviewer) agrees with your people, down to each step, and see when that changes.</p>
+    <p class="gx-lede">Human judgment decides what's right. See how often each automated check agrees with it, from an <span class="nb">LLM-as-a-judge</span> grading one answer to a reviewer checking each step of an agent, and see if agreement goes up or down after each change.</p>
     <nav class="five" aria-label="The four steps"><a href="#steps" data-step="find" class="is-on">Read.</a><a href="#steps" data-step="measure">Measure.</a><a href="#steps" data-step="fix">Fix.</a><a href="#steps" data-step="check">Re-check.</a></nav>
-    <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Try the Read step in your browser</a></div>
+    <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Try it in your browser</a><p class="hero-note">Open source. Runs locally.</p></div>
   </div>
   <div class="hero-r"><section class="jk-card" id="demo" data-nosnippet tabindex="0" aria-label="Live demo of the marking page">
     <div class="rt-bar jk-bar" aria-hidden="true"><span class="rt-title">marking page</span></div>
@@ -71,9 +71,9 @@
 <section class="steps" id="steps"><div class="wrap">
   <h2>What each step looks like.</h2>
   <div class="steps-grid"><div class="steplist" data-nosnippet role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1<span class="sr">. </span></span><span class="t"><b>Read<span class="sr">: </span></b><span class="d">Read your eval results and your labels, such as a Label Studio export, or mark answers Pass or Fail in your browser.</span></span></button>
-<button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2<span class="sr">. </span></span><span class="t"><b>Measure<span class="sr">: </span></b><span class="d">See how often your LLM-as-a-judge agrees with you, and how much your people agree with each other.</span></span></button>
+<button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2<span class="sr">. </span></span><span class="t"><b>Measure<span class="sr">: </span></b><span class="d">See how often your check agrees with you, and how much your people agree with each other.</span></span></button>
 <button type="button" role="tab" id="tab-fix" data-step="fix" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">3<span class="sr">. </span></span><span class="t"><b>Fix<span class="sr">: </span></b><span class="d">Write a better rule and test it on marks kept aside.</span></span></button>
-<button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4<span class="sr">. </span></span><span class="t"><b>Re-check<span class="sr">: </span></b><span class="d">Change your LLM-as-a-judge and see if it still agrees with you.</span></span></button>
+<button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4<span class="sr">. </span></span><span class="t"><b>Re-check<span class="sr">: </span></b><span class="d">Change your check's prompt or model and see if agreement goes up or down.</span></span></button>
 </div><div class="term" id="term" role="tabpanel" aria-labelledby="tab-find">
     <div class="term-bar">
       <span class="term-title">example project</span>
@@ -317,7 +317,7 @@ and run `judgekeeper check` again.</template>
   <div class="close-box">
     <div><h2>Have eval results?</h2><p>Check your LLM-as-a-judge. Your file stays on your computer.</p>
     <p class="close-prompt" aria-hidden="true"><span class="t-prompt">$</span> <span class="ck-cursor">▍</span></p></div>
-    <a class="b-main" href="check.html">Try the Read step in your browser</a>
+    <a class="b-main" href="check.html">Try it in your browser</a>
   </div></div>
 </div></section>
 </main>

@@ -76,9 +76,10 @@ NO_PAGE = "`{command}` opens no page, so it takes no --port or --no-browser."
 PAGE_FLAGS = ("--port", "--no-browser")
 
 MESSAGE = ("The keeper of human judgment for AI.\n"
-           "See how often each check of your AI or agent (an LLM-as-a-judge, a code rule, an "
-           "agent reviewer) agrees with your people, down to each step, and see when "
-           "that changes.")
+           "Human judgment decides what's right. See how often each automated check "
+           "agrees with it, from an LLM-as-a-judge grading one answer to a reviewer "
+           "checking each step of an agent, and see if agreement goes up or down after "
+           "each change.")
 STEPS = """\
 Read. Measure. Fix. Re-check.
 
