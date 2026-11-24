@@ -536,7 +536,7 @@ def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
 def test_the_demo_card_is_drawn_like_the_marking_page():
     demo = _by_id(HOME, "demo")
     assert demo.attrs.get("aria-label") == "Live demo of the marking page"
-    labels = [_flat(el) for el in demo.iter() if "jk-label" in el.classes()]
+    labels = [_flat(el) for el in _by_id(HOME, "d-pane-answer").iter() if "jk-label" in el.classes()]
     assert labels == ["Question", "Answer", "Your result"]
     assert _flat(_by_id(HOME, "d-state")) == "0 of 4 marked"
     assert _by_id(HOME, "d-state").attrs.get("aria-live") == "polite"
@@ -718,6 +718,40 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     assert "function setUpCounts()" in JS and "setUpCounts();" in JS
 
 
+
+def test_the_demo_card_has_a_tab_for_one_answer_and_one_for_agent_steps():
+    """One answer is the marking demo; Agent steps works like `judgekeeper steps`: click the
+    first wrong step of each run, then see where you and the reviewer picked differently. The
+    tabs show only with JavaScript; without it the card is the marking demo alone."""
+    tabs = _by_id(HOME, "d-tabs")
+    assert tabs.attrs.get("role") == "tablist" and "hidden" in tabs.attrs
+    assert [(b.attrs["id"], b.attrs["aria-controls"], b.attrs["aria-selected"], _flat(b))
+            for b in _all(tabs, "button")] == [
+        ("d-tab-answer", "d-pane-answer", "true", "One answer"),
+        ("d-tab-steps", "d-pane-steps", "false", "Agent steps")]
+    assert "hidden" not in _by_id(HOME, "d-pane-answer").attrs
+    steps = _by_id(HOME, "d-pane-steps")
+    assert steps.attrs.get("role") == "tabpanel" and "hidden" in steps.attrs
+    assert [_flat(el) for el in steps.iter() if "jk-label" in el.classes()] == [
+        "Agent run", "Click the first wrong step", "Your result"]
+    assert [_flat(_by_id(HOME, i)) for i in ("s-fine", "s-undo", "s-again")] == [
+        "All steps are fine 0", "Undo Z", "↻ Try again"]
+    (go,) = _all(_by_id(HOME, "s-end"), "a", "jk-go")
+    assert (go.attrs["href"], _flat(go)) == ("start.html#agent-steps", "Check your agent's reviewer")
+    assert 'id="agent-steps"' in (WEBSITE / "start.html").read_text(encoding="utf-8")
+    # each run: the task, its steps, and the step the reviewer picked (0: none wrong)
+    runs = json.loads(_by_id(HOME, "demo-runs").text())
+    assert len(runs) == 3
+    for task, run_steps, reviewer in runs:
+        assert task and 3 <= len(run_steps) <= 4 and 0 <= reviewer <= len(run_steps)
+    for words in ('"You and the reviewer disagreed on "', '"You and the reviewer agreed on all "',
+                  '"Run "', '"Reviewer"', '"None"', '$("d-tabs").hidden = false'):
+        assert words in JS, words
+    lock = JS[JS.index("function lockHeight("):]
+    assert "tallestRun()" in lock[:lock.index("\n    }\n")]  # one height for both tabs
+    assert "display: none" in _rule(".jk-send") and "display: none" in _rule(".jk-pane.is-done .jk-sl")
+    assert "var(--green)" in _rule(".jk-tab::after") and "transition" not in _rule(".jk-tab::after")
+
 def test_every_window_has_the_three_dots_and_a_centred_title():
     """The demo card, the closing box and the Guide's install card share the terminal's bar."""
     bar = _rule(".rt-bar")
@@ -727,10 +761,15 @@ def test_every_window_has_the_three_dots_and_a_centred_title():
 
 
 def test_the_demo_card_is_a_window_called_marking_page():
+    """Without JavaScript the bar shows the title; with it, the two tabs take its place, so
+    the card is no taller than the marking demo alone."""
     (card,) = _all(_main(HOME), "section", "jk-card")
     first = next(el for el in card.children if isinstance(el, Element))
-    assert {"rt-bar", "jk-bar"} <= first.classes() and first.attrs.get("aria-hidden") == "true"
-    assert _flat(_all(first, "span", "rt-title")[0]) == "marking page"
+    assert {"rt-bar", "jk-bar"} <= first.classes()
+    (title,) = _all(first, "span", "rt-title")
+    assert _flat(title) == "marking page" and title.attrs.get("aria-hidden") == "true"
+    assert [el.attrs.get("role") for el in first.iter() if el.attrs.get("id") == "d-tabs"] == ["tablist"]
+    assert '$("d-title").hidden = true' in JS
     assert "flex: none" in _rule(".jk-bar")
 
 
@@ -1687,12 +1726,16 @@ def _join(text: str) -> str:
 
 
 def test_the_demos_last_button_is_one_label():
-    """At every width: "Check your own LLM-as-a-judge" is one piece of text, never two flex
-    items with no space between them."""
-    (go,) = [el for el in _els(HOME) if "jk-go" in el.classes()]
-    (label,) = [el for el in go.children if isinstance(el, Element)]
-    assert label.tag == "span" and _flat(label) == "Check your own LLM-as-a-judge"
-    assert not [c for c in go.children if isinstance(c, str) and c.strip()]
+    """At every width: each tab's last button ("Check your own LLM-as-a-judge", "Check your
+    agent's reviewer") is one piece of text, never two flex items with no space between them."""
+    buttons = [el for el in _els(HOME) if "jk-go" in el.classes()]
+    labels = []
+    for go in buttons:
+        (label,) = [el for el in go.children if isinstance(el, Element)]
+        assert label.tag == "span"
+        assert not [c for c in go.children if isinstance(c, str) and c.strip()]
+        labels.append(_flat(label))
+    assert labels == ["Check your own LLM-as-a-judge", "Check your agent's reviewer"]
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="needs node to run site.js")
