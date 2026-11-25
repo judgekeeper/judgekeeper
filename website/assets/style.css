@@ -126,6 +126,33 @@ img, svg { max-width: 100%; }
 .jk-pass { background: var(--green-fill); }
 .jk-fail:hover { filter: brightness(1.08); }
 .jk-pass:hover { filter: brightness(1.08); }
+/* After a mark: what the check said, whether it agrees with you, and Next. */
+.jk-said { display: none; }
+.is-said .jk-acts { display: none; }
+.is-said .jk-said { display: grid; }
+.is-said #d-skip { display: none; }
+.jk-verdict { height: 50px; border: 1px solid var(--line); border-radius: 4px; display: flex; flex-direction: column; justify-content: center; padding: 0 16px; font-size: 14px; line-height: 1.3; }
+.jk-verdict b { font-weight: 700; }
+.jk-verdict b.p { color: var(--green); }
+.jk-verdict b.f { color: var(--red); }
+.jk-verdict .m { font-size: 13px; }
+.jk-verdict.agree { border-color: var(--green-muted); }
+.jk-verdict.differ { border-color: var(--red); }
+.jk-verdict.agree .m, .jk-match.agree { color: var(--green); }
+.jk-verdict.differ .m, .jk-match.differ { color: var(--red); }
+.jk-next { background: var(--slate); border: 1px solid var(--rule); }
+.jk-next:hover { filter: brightness(1.15); }
+#s-match, #s-next { display: none; }
+.is-said #s-fine { display: none; }
+.is-said #s-match, .is-said #s-next { display: inline-flex; }
+.jk-match { padding: 8px 12px; font-size: 14px; font-weight: 700; }
+.is-said .jk-step { grid-template-columns: 24px 1fr auto; cursor: default; }
+.is-said .jk-step:hover { border-color: var(--line); background: none; }
+.is-said .jk-step:hover .n { border-color: var(--rule); color: var(--muted); }
+.is-said .jk-step.you, .is-said .jk-step.you:hover { border-color: var(--red); }
+.jk-step .tag:empty { display: none; }
+.jk-step .tag { border: 1px solid var(--rule); border-radius: 999px; padding: 1px 8px; font-size: 12px; line-height: 1.4; color: var(--fg); white-space: nowrap; }
+.jk-step .tag.you { border-color: var(--red); color: var(--red); }
 .jk-sub { display: flex; align-items: center; justify-content: center; padding: 0 24px 10px; }
 .jk-sub button { padding: 8px 20px; font-size: 14px; color: var(--muted); }
 .jk-sub button:hover { color: var(--fg); background: var(--hover); }

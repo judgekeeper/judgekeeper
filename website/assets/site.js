@@ -78,11 +78,19 @@
     var runs = JSON.parse($("demo-runs").textContent), stepsPane = $("d-pane-steps");
     var tabs = $all("#d-tabs [role=tab]"), shown = "answer";
     var state, history, cur, picks, picked, at;
+    var answerPane = $("d-pane-answer"), said = false, saidRun = false;  // the check's answer shows
+
+    /* Keep the keys working when the clicked button hides or is rebuilt. */
+    function keep() {
+      var a = document.activeElement;
+      if (!card.contains(a) || !a.offsetParent) card.focus({ preventScroll: true });
+    }
 
     function reset() {
       state = items.map(function () { return "none"; });
       history = [];
       cur = 0;
+      said = false;
       card.classList.remove("is-end");
       render();
     }
@@ -113,6 +121,19 @@
         var done = state.filter(function (x) { return x === "pass" || x === "fail"; }).length;
         line.textContent = (s === "skip" ? "Skipped · " : "") + done + " of " + items.length + " marked";
       }
+      answerPane.classList.toggle("is-said", said);
+      if (said) sayCheck();
+    }
+    /* Right after a mark: the LLM-as-a-judge's grade and whether it agrees with you. */
+    function sayCheck() {
+      var judge = items[cur][2], same = judge === state[cur], v = $("d-verdict");
+      var top = make("span", "", "LLM-as-a-judge: ");
+      top.appendChild(make("b", judge === "pass" ? "p" : "f", judge === "pass" ? "Pass" : "Fail"));
+      v.textContent = "";
+      v.appendChild(top);
+      v.appendChild(make("span", "m", same ? "Agrees with you" : "Disagrees with you"));
+      v.className = "jk-verdict " + (same ? "agree" : "differ");
+      $("d-next").firstChild.nodeValue = allMarked() ? "See your result " : "Next answer ";
     }
     /* One row per answer on the end card: the question, your mark and the LLM-as-a-judge's
        grade, with a red dot where the two differ. */
@@ -150,19 +171,27 @@
       });
       sum.classList.toggle("ok", !n);
       fillList(state);
+      answerPane.classList.remove("is-said");
       card.classList.add("is-end");
     }
     function mark(kind) {
-      if (card.classList.contains("is-end")) return;
+      if (card.classList.contains("is-end") || said) return;
       history.push({ i: cur, before: state[cur] });
       state[cur] = kind;
-      if (allMarked()) { finish(); return; }
-      cur = next();
+      if (kind === "skip") cur = next(); else said = true;
       render();
+      keep();
+    }
+    function goOn() {
+      if (!said) return;
+      said = false;
+      if (allMarked()) finish(); else { cur = next(); render(); }
+      keep();
     }
     function undo() {
       var last = history.pop();
       if (!last) return;
+      said = false;
       state[last.i] = last.before;
       cur = last.i;
       card.classList.remove("is-end");
@@ -176,23 +205,39 @@
       picks = runs.map(function () { return null; });
       picked = [];
       at = 0;
+      saidRun = false;
       stepsPane.classList.remove("is-done");
       renderRun();
     }
-    function renderRun() {
-      var run = runs[at], list = $("s-steps");
+    /* After a pick, your step and the reviewer's are tagged ("Both" when they are one step).
+       widest (a step number) tags that one step "Reviewer", the widest tag, to measure the
+       card at its tallest. */
+    function renderRun(widest) {
+      var run = runs[at], list = $("s-steps"), mine = picks[at], theirs = run[2];
+      var tagged = saidRun || widest;
       $("s-task").textContent = run[0];
       $("s-state").textContent = "Run " + (at + 1) + " of " + runs.length;
+      stepsPane.classList.toggle("is-said", !!tagged);
       list.textContent = "";
       run[1].forEach(function (text, i) {
-        var li = make("li", "", ""), b = make("button", "jk-step", "");
+        var li = make("li", "", ""), b = make("button", "jk-step", ""), n = i + 1, tag = "";
         b.type = "button";
-        b.appendChild(make("span", "n", String(i + 1)));
+        b.appendChild(make("span", "n", String(n)));
         b.appendChild(make("span", "", text));
+        if (widest) tag = widest === n ? "Reviewer" : "";
+        else if (saidRun) tag = mine === n && theirs === n ? "Both" : mine === n ? "You" : theirs === n ? "Reviewer" : "";
+        if (tagged) b.appendChild(make("span", "tag" + (tag === "Reviewer" ? "" : " you"), tag));
+        if (tag && tag !== "Reviewer") b.classList.add("you");
         b.addEventListener("click", function () { pickStep(i + 1); });
         li.appendChild(b);
         list.appendChild(li);
       });
+      if (tagged) {
+        var m = $("s-match"), same = mine === theirs;
+        m.textContent = "Reviewer: " + stepName(theirs) + " · " + (same ? "Agrees with you" : "Disagrees with you");
+        m.className = "jk-match " + (same ? "agree" : "differ");
+        $("s-next").firstChild.nodeValue = at === runs.length - 1 ? "See your result " : "Next run ";
+      }
     }
     function fillRuns(yours) {
       var list = $("s-list"), head = make("li", "head", "");
@@ -233,15 +278,23 @@
       stepsPane.classList.add("is-done");
     }
     function pickStep(n) {
-      if (stepsPane.classList.contains("is-done")) return;
+      if (stepsPane.classList.contains("is-done") || saidRun) return;
       picked.push(at);
       picks[at] = n;
-      if (at === runs.length - 1) { finishRuns(); return; }
-      at += 1;
+      saidRun = true;
       renderRun();
+      keep();
+    }
+    function nextRun() {
+      if (!saidRun) return;
+      saidRun = false;
+      if (at === runs.length - 1) { stepsPane.classList.remove("is-said"); finishRuns(); }
+      else { at += 1; renderRun(); }
+      keep();
     }
     function undoStep() {
       if (!picked.length) return;
+      saidRun = false;
       at = picked.pop();
       picks[at] = null;
       stepsPane.classList.remove("is-done");
@@ -262,7 +315,7 @@
     /* One height for the card: that of its tallest answer or of the end card, measured on load,
        when the fonts arrive and on resize, so nothing below it moves while you mark. */
     function lockHeight() {
-      var ended = card.classList.contains("is-end"), sum = $("d-sum"), said = sum.textContent;
+      var ended = card.classList.contains("is-end"), sum = $("d-sum"), wrote = sum.textContent;
       var tallest = 0, was = shown;
       card.style.minHeight = "";
       show("answer");
@@ -276,7 +329,7 @@
       fillList(items.map(function (item) { return item[2] === "pass" ? "fail" : "pass"; }));
       card.classList.add("is-end");
       tallest = Math.max(tallest, card.offsetHeight);
-      sum.textContent = said;
+      sum.textContent = wrote;
       card.classList.toggle("is-end", ended);
       render();
       show(was);
@@ -286,13 +339,17 @@
     /* The steps tab at its tallest: each run, then the end card with every row different. */
     function tallestRun() {
       var was = shown, done = stepsPane.classList.contains("is-done"), back = at, tallest = 0;
-      var said = $("s-sum").textContent;
+      var wrote = $("s-sum").textContent;
       show("steps");
       stepsPane.classList.remove("is-done");
       runs.forEach(function (run, i) {
         at = i;
         renderRun();
         tallest = Math.max(tallest, card.offsetHeight);
+        run[1].forEach(function (text, k) {
+          renderRun(k + 1);
+          tallest = Math.max(tallest, card.offsetHeight);
+        });
       });
       sayRuns(runs.length);
       fillRuns(runs.map(function (run) { return run[2] ? 0 : run[1].length; }));
@@ -300,7 +357,8 @@
       tallest = Math.max(tallest, card.offsetHeight);
       at = back;
       stepsPane.classList.toggle("is-done", done);
-      if (done) finishRuns(); else { $("s-sum").textContent = said; renderRun(); }
+      if (done) finishRuns(); else { $("s-sum").textContent = wrote; renderRun(); }
+      stepsPane.classList.toggle("is-said", saidRun && !done);
       show(was);
       return tallest;
     }
@@ -309,6 +367,8 @@
     $("d-pass").addEventListener("click", function () { mark("pass"); });
     $("d-skip").addEventListener("click", function () { mark("skip"); });
     $("d-undo").addEventListener("click", undo);
+    $("d-next").addEventListener("click", goOn);
+    $("s-next").addEventListener("click", nextRun);
     $("d-again").addEventListener("click", function () {
       reset();
       card.focus({ preventScroll: true });
@@ -333,6 +393,17 @@
           show(shown === "answer" ? "steps" : "answer");
           $("d-tab-" + shown).focus();
         }
+        return;
+      }
+      var onward = e.key === "ArrowRight" || (e.key === "Enter" && document.activeElement === card);
+      if (shown === "steps" && saidRun) {
+        if (onward) { e.preventDefault(); nextRun(); }
+        else if (e.key === "z" || e.key === "Z") { e.preventDefault(); undoStep(); }
+        return;
+      }
+      if (shown === "answer" && said) {
+        if (onward) { e.preventDefault(); goOn(); }
+        else if (e.key === "z" || e.key === "Z") { e.preventDefault(); undo(); }
         return;
       }
       if (shown === "steps") {
