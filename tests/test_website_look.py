@@ -752,6 +752,34 @@ def test_the_demo_card_has_a_tab_for_one_answer_and_one_for_agent_steps():
     assert "display: none" in _rule(".jk-send") and "display: none" in _rule(".jk-pane.is-done .jk-sl")
     assert "var(--green)" in _rule(".jk-tab::after") and "transition" not in _rule(".jk-tab::after")
 
+def test_the_demo_shows_the_check_right_after_each_mark():
+    """The point of the demo lands on the first click: once you mark an answer (or pick a
+    run's first wrong step), the card says what the check said and whether it agrees with
+    you, then waits for Next. Your own mark is still made before you see the check's."""
+    said = _by_id(HOME, "d-said")
+    assert "jk-said" in said.classes()
+    assert _by_id(HOME, "d-verdict").attrs.get("aria-live") == "polite"
+    assert _flat(_by_id(HOME, "d-next")) == "Next answer →"
+    assert "jk-acts" in _by_id(HOME, "d-acts").classes()
+    assert _flat(_by_id(HOME, "s-next")) == "Next run →"
+    assert _by_id(HOME, "s-match").attrs.get("aria-live") == "polite"
+    for words in ('"Agrees with you"', '"Disagrees with you"', '"See your result ',
+                  '"LLM-as-a-judge: "', '"Reviewer: "', '"You"', '"Both"'):
+        assert words in JS, words
+    # while the check's answer shows, the mark buttons give way to it, and Skip waits
+    assert "display: none" in _rule(".jk-said")
+    assert "display: none" in _rule(".is-said .jk-acts")
+    assert "display: grid" in _rule(".is-said .jk-said")
+    assert "display: none" in _rule(".is-said #d-skip")
+    assert "display: none" in _rule(".is-said #s-fine")
+    assert "height: 50px" in _rule(".jk-verdict")  # as tall as the buttons it replaces
+    # the card's one height covers each step of each run with the widest tag
+    run_height = JS[JS.index("function tallestRun("):]
+    assert "renderRun(k + 1)" in run_height[:run_height.index("\n    }\n")]
+    # → or Enter moves on; nothing else marks while the check's answer shows
+    assert 'e.key === "Enter"' in JS
+
+
 def test_every_window_has_the_three_dots_and_a_centred_title():
     """The demo card, the closing box and the Guide's install card share the terminal's bar."""
     bar = _rule(".rt-bar")
