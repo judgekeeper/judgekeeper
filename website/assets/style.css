@@ -262,7 +262,7 @@ img, svg { max-width: 100%; }
 .hero-l { display: flex; flex-direction: column; gap: 40px; align-items: flex-start; min-width: 0; }
 .hero-r { min-width: 0; }
 .hero-r .jk-card { width: 100%; }
-.hero h1 { font-size: 62px; line-height: 1.02; letter-spacing: -.028em; font-weight: 800; margin: 0; }
+.hero h1 { font-size: 54px; line-height: 1.04; letter-spacing: -.028em; font-weight: 800; margin: 0; text-wrap: balance; }  /* two even lines on a wide screen */
 /* the Guide's "Install judgekeeper" fits its column on one line from 1000px wide */
 .gx-hero h1 { font-size: clamp(42px, calc(11vw - 80px), 62px); }
 .five { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 19px; font-weight: 700; }
@@ -336,7 +336,7 @@ img, svg { max-width: 100%; }
 .close-prompt .t-prompt { color: var(--green); }
 @media (max-width: 1100px) {
   .hero .wrap { grid-template-columns: minmax(0, 1fr) 500px; gap: 48px; }
-  .hero h1 { font-size: 52px; }
+  .hero h1 { font-size: 46px; }
   .gx-hero h1 { font-size: clamp(42px, 4.2vw, 52px); }
   .steps-grid { grid-template-columns: 340px minmax(0, 1fr); }
   .term-out { font-size: 12px; }  /* the longest line fits beside the steps at 1024 wide */
