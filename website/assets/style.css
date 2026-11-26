@@ -278,14 +278,15 @@ img, svg { max-width: 100%; }
    word to word never flashes it */
 .five:not(:hover) a.is-on::after { transition-delay: 120ms; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; }
-.hero-lede { max-width: 40ch; text-wrap: pretty; }
-/* three plain facts under the buttons: an outline icon in the logo green, then the words */
-.hero-facts { list-style: none; margin: -16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 24px; font-size: 14px; color: var(--muted); }
-.hero-facts li { display: inline-flex; align-items: center; gap: 8px; }
-.hero-facts svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--green); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+/* three facts under the buttons, each a quiet pill: the logo green icon, then the words */
+.hero-facts { list-style: none; margin: -20px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; font-size: 13.5px; font-weight: 600; color: var(--fg); }
+.hero-facts li { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 12px; border: 1px solid var(--slate); border-radius: 999px; background: var(--slate-panel); }
+.hero-facts svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--green); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .steps { border-bottom: 1px solid var(--rule); }
 .steps .wrap { padding-block: 80px; }
 .steps h2 { font-size: 32px; font-weight: 800; letter-spacing: -.022em; margin: 0 0 36px; }
+.steps h2:has(+ .steps-lede) { margin-bottom: 12px; }
+.steps-lede { margin: 0 0 36px; max-width: 62ch; font-size: 18px; line-height: 1.55; color: var(--muted); text-wrap: pretty; }
 .steps-grid { display: grid; grid-template-columns: 400px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .steplist { list-style: none; margin: 0; padding: 0; border-right: 1px solid var(--line); display: grid; grid-template-rows: repeat(5, 1fr); min-height: 0; }
 .steplist button { width: 100%; height: 100%; text-align: left; display: grid; grid-template-columns: 28px 1fr; align-content: center; gap: 12px; padding: 16px 22px 16px 20px; border-bottom: 1px solid var(--line); border-left: 2px solid transparent; color: var(--muted); line-height: 1.4; }
