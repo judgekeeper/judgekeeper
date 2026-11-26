@@ -524,8 +524,11 @@ def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
                        ("check.html", {"b-side"}, "Try it in your browser")]
     sub_line = ("You mark what's right. See how often your AI agent and its LLM-as-a-judge get "
                 "it right, and if each change makes them better or worse.")
-    assert [_flat(p) for p in _all(hero, "p", None)
-            if not any("jk-card" in a.classes() for a in p.ancestors())] == [sub_line]
+    assert [p for p in _all(hero, "p", None)
+            if not any("jk-card" in a.classes() for a in p.ancestors())] == []
+    # the sub-line sits under the steps heading, not in the hero
+    (steps_lede,) = _all(_main(HOME), "p", "steps-lede")
+    assert _flat(steps_lede) == sub_line
     (facts,) = _all(hero, "ul", "hero-facts")
     assert [_flat(li) for li in _all(facts, "li")] == [
         "Open source", "Runs on your computer", "No API key needed"]
