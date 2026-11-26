@@ -278,7 +278,11 @@ img, svg { max-width: 100%; }
    word to word never flashes it */
 .five:not(:hover) a.is-on::after { transition-delay: 120ms; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; }
-.cta .hero-note { flex-basis: 100%; margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+.hero-lede { max-width: 40ch; text-wrap: pretty; }
+/* three plain facts under the buttons: an outline icon in the logo green, then the words */
+.hero-facts { list-style: none; margin: -16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 24px; font-size: 14px; color: var(--muted); }
+.hero-facts li { display: inline-flex; align-items: center; gap: 8px; }
+.hero-facts svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--green); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .steps { border-bottom: 1px solid var(--rule); }
 .steps .wrap { padding-block: 80px; }
 .steps h2 { font-size: 32px; font-weight: 800; letter-spacing: -.022em; margin: 0 0 36px; }

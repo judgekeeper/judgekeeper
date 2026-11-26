@@ -420,6 +420,7 @@
     $("d-title").hidden = true;
     reset();
     resetRuns();
+    show("steps");  // agents first: the card opens on Agent steps (without JavaScript it is the marking demo)
     lockHeight();
     var resized;
     window.addEventListener("resize", function () {

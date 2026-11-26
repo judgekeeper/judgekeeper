@@ -514,7 +514,7 @@ def test_the_demo_card_keeps_one_height():
 def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
     hero = _all(_main(HOME), "section", "hero")[0]
     (h1,) = _all(hero, "h1")
-    assert _flat(h1) == "The keeper of human judgment for AI."
+    assert _flat(h1) == "Human judgment for AI."
     (five,) = _all(hero, "nav", "five")
     words = [(a.attrs["href"], a.attrs["data-step"], _flat(a)) for a in _all(five, "a")]
     assert words == [("#steps", key, f"{label}.") for key, label, _ in STEPS]
@@ -522,12 +522,13 @@ def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
                if {"b-main", "b-side"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
                        ("check.html", {"b-side"}, "Try it in your browser")]
-    sub_line = ("Human judgment decides what's right. See how often each automated check agrees "
-                "with it, from an LLM-as-a-judge grading one answer to a reviewer checking each "
-                "step of an agent, and see if agreement goes up or down after each change.")
+    sub_line = ("You mark what's right. See how often your AI agent and its LLM-as-a-judge get "
+                "it right, and if each change makes them better or worse.")
     assert [_flat(p) for p in _all(hero, "p", None)
-            if not any("jk-card" in a.classes() for a in p.ancestors())] == [
-        sub_line, "Open source. Runs locally."]
+            if not any("jk-card" in a.classes() for a in p.ancestors())] == [sub_line]
+    (facts,) = _all(hero, "ul", "hero-facts")
+    assert [_flat(li) for li in _all(facts, "li")] == [
+        "Open source", "Runs on your computer", "No API key needed"]
     # the chosen step's green line, which gives way while another word is hovered or focused
     assert "var(--green)" in _rule(".five a::after")
     assert ".five a.is-on::after" in CSS and ".five:hover a.is-on:not(:hover)::after" in CSS
@@ -727,8 +728,9 @@ def test_the_demo_card_has_a_tab_for_one_answer_and_one_for_agent_steps():
     assert tabs.attrs.get("role") == "tablist" and "hidden" in tabs.attrs
     assert [(b.attrs["id"], b.attrs["aria-controls"], b.attrs["aria-selected"], _flat(b))
             for b in _all(tabs, "button")] == [
-        ("d-tab-answer", "d-pane-answer", "true", "One answer"),
-        ("d-tab-steps", "d-pane-steps", "false", "Agent steps")]
+        ("d-tab-steps", "d-pane-steps", "false", "Agent steps"),
+        ("d-tab-answer", "d-pane-answer", "true", "One answer")]
+    assert 'show("steps");' in JS  # agents first: with JavaScript the card opens on Agent steps
     assert "hidden" not in _by_id(HOME, "d-pane-answer").attrs
     steps = _by_id(HOME, "d-pane-steps")
     assert steps.attrs.get("role") == "tabpanel" and "hidden" in steps.attrs
