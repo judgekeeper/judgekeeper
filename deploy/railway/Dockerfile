@@ -1,6 +1,6 @@
 # The judgekeeper website on Railway: the static site scripts/build_pages.py builds, served
 # by Caddy. Built from the repository root: the Railway service has its Dockerfile path set to this file.
-FROM python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704 AS build
+FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f AS build
 WORKDIR /src
 COPY scripts/build_pages.py scripts/build_pages.py
 COPY scripts/site_frame.py scripts/site_frame.py
