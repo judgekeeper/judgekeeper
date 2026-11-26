@@ -258,11 +258,11 @@ img, svg { max-width: 100%; }
 
 /* ---- home ---- */
 .hero { border-bottom: 1px solid var(--rule); }
-.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 580px; gap: 72px; align-items: center; padding-block: 112px; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 540px; gap: 64px; align-items: center; padding-block: 96px; }
 .hero-l { display: flex; flex-direction: column; gap: 40px; align-items: flex-start; min-width: 0; }
 .hero-r { min-width: 0; }
 .hero-r .jk-card { width: 100%; }
-.hero h1 { font-size: 54px; line-height: 1.04; letter-spacing: -.028em; font-weight: 800; margin: 0; text-wrap: balance; }  /* two even lines on a wide screen */
+.hero h1 { font-size: 50px; line-height: 1.06; letter-spacing: -.028em; font-weight: 800; margin: 0; text-wrap: balance; }  /* two lines on a wide screen, split at the br */
 /* the Guide's "Install judgekeeper" fits its column on one line from 1000px wide */
 .gx-hero h1 { font-size: clamp(42px, calc(11vw - 80px), 62px); }
 .five { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 19px; font-weight: 700; }
@@ -278,10 +278,6 @@ img, svg { max-width: 100%; }
    word to word never flashes it */
 .five:not(:hover) a.is-on::after { transition-delay: 120ms; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; }
-/* three facts under the buttons, each a quiet pill: the logo green icon, then the words */
-.hero-facts { list-style: none; margin: -20px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; font-size: 13.5px; font-weight: 600; color: var(--fg); }
-.hero-facts li { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 12px; border: 1px solid var(--slate); border-radius: 999px; background: var(--slate-panel); }
-.hero-facts svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--green); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .steps { border-bottom: 1px solid var(--rule); }
 .steps .wrap { padding-block: 80px; }
 .steps h2 { font-size: 32px; font-weight: 800; letter-spacing: -.022em; margin: 0 0 36px; }
@@ -336,7 +332,8 @@ img, svg { max-width: 100%; }
 .close-prompt .t-prompt { color: var(--green); }
 @media (max-width: 1100px) {
   .hero .wrap { grid-template-columns: minmax(0, 1fr) 500px; gap: 48px; }
-  .hero h1 { font-size: 46px; }
+  .hero h1 { font-size: 44px; }
+  .h1-br { display: none; }  /* narrower: the lines balance on their own */
   .gx-hero h1 { font-size: clamp(42px, 4.2vw, 52px); }
   .steps-grid { grid-template-columns: 340px minmax(0, 1fr); }
   .term-out { font-size: 12px; }  /* the longest line fits beside the steps at 1024 wide */

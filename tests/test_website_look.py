@@ -528,10 +528,9 @@ def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
             if not any("jk-card" in a.classes() for a in p.ancestors())] == []
     # the sub-line sits under the steps heading, not in the hero
     (steps_lede,) = _all(_main(HOME), "p", "steps-lede")
-    assert _flat(steps_lede) == sub_line
-    (facts,) = _all(hero, "ul", "hero-facts")
-    assert [_flat(li) for li in _all(facts, "li")] == [
-        "Open source", "Runs on your computer", "No API key needed"]
+    assert _flat(steps_lede) == (sub_line + " It's open source, runs on your computer and needs "
+                                 "no API key.")
+    assert not _all(hero, "ul", "hero-facts")
     # the chosen step's green line, which gives way while another word is hovered or focused
     assert "var(--green)" in _rule(".five a::after")
     assert ".five a.is-on::after" in CSS and ".five:hover a.is-on:not(:hover)::after" in CSS
