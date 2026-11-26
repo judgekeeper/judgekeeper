@@ -514,7 +514,7 @@ def test_the_demo_card_keeps_one_height():
 def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
     hero = _all(_main(HOME), "section", "hero")[0]
     (h1,) = _all(hero, "h1")
-    assert _flat(h1) == "Check your AI agents against human judgment."
+    assert _flat(h1) == "Check your AI agents with human judgment."
     (five,) = _all(hero, "nav", "five")
     words = [(a.attrs["href"], a.attrs["data-step"], _flat(a)) for a in _all(five, "a")]
     assert words == [("#steps", key, f"{label}.") for key, label, _ in STEPS]
