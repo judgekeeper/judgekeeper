@@ -95,7 +95,9 @@ def test_the_earlier_numbers_are_kept_under_before_with_no_step_text(here):
     assert before["reviewers"] == [{"name": "reviewer-a", "model": "reviewer-a",
                                     "runs_compared": old["runs_compared"],
                                     "run_level": old["run_level"],
-                                    "step_level": old["step_level"]}]
+                                    "step_level": old["step_level"],
+                                    "marks_hash": first["people"]["marks_hash"],
+                                    "made_at": first["made_at"]}]
     assert "made up step" not in json.dumps(saved)
 
 
@@ -140,7 +142,7 @@ def test_no_chance_line_when_no_number_changed():
     w = {"p": 0.8, "k": 16, "n": 20, "lo": 0.58, "hi": 0.92}
     entry = {"name": "a", "run_level": {"tpr": w, "tnr": w, "kappa": 0.5},
              "step_level": {"same": None}}
-    said = steps._since_lines(entry, [dict(entry)], marks=True)
+    said = steps._since_lines(entry, dict(entry), marks=True)
     assert said == [SINCE, "  Runs you say went wrong, caught: 80% (16 of 20) -> 80% (16 of 20).",
                     "  Runs you say were fine, left alone: 80% (16 of 20) -> 80% (16 of 20).",
                     "  Kappa: 0.50 -> 0.50."]
@@ -379,3 +381,83 @@ def test_only_the_marks_that_count_are_counted(here):
     lines_for(here, "g.jsonl")
     saved = result(here)["people"]
     assert (saved["under_second"], saved["printed"], saved["browser_env"]) == (0, 0, 0)
+
+
+# rc2: each agent-as-a-judge is compared only with its own earlier numbers --------------------
+
+def write_judges(here: Path, name: str, **picks) -> Path:
+    """One picks file holding several agent-as-a-judges: model name -> its pick for run i."""
+    path = here / name
+    path.write_text("".join(json.dumps({"id": f"r{i}", "first_wrong_step": pick(i),
+                                        "model": model}) + "\n"
+                            for model, pick in picks.items() for i in range(40)),
+                    encoding="utf-8")
+    return path
+
+
+def model_lines(here: Path, picks: str, model: str | None = None) -> list[str]:
+    lines, _ = steps.numbers_from_marks(here / "runs.jsonl", here / MARKS, here / picks, model)
+    return lines
+
+
+def since(lines: list[str]) -> list[str]:
+    return [x for x in lines if x.startswith("Since the last check") or x == CHANGED]
+
+
+BETTER = [SINCE,
+          "  Runs you say went wrong, caught: 75% (15 of 20) -> 90% (18 of 20).",
+          "  Runs you say were fine, left alone: 80% (16 of 20) -> 80% (16 of 20).",
+          "  Kappa: 0.55 -> 0.70.",
+          "  The same first wrong step: 60% (9 of 15) -> 89% (16 of 18).",
+          CHANCE]
+
+
+def test_two_judges_of_one_picks_file_are_never_compared_with_each_other(here):
+    marked_project(here)
+    write_judges(here, "two.jsonl", **{"judge-A": reviewer_first, "judge-B": lambda i: 0})
+    model_lines(here, "two.jsonl", "judge-B")
+    assert since(model_lines(here, "two.jsonl", "judge-A")) == []
+
+
+def test_a_judge_is_compared_with_its_own_numbers_after_another_was_checked(here):
+    marked_project(here)
+    write_judges(here, "two.jsonl", **{"judge-A": reviewer_first, "judge-B": lambda i: 0})
+    model_lines(here, "two.jsonl", "judge-A")
+    assert since(model_lines(here, "two.jsonl", "judge-B")) == []
+    write_judges(here, "two.jsonl", **{"judge-A": better, "judge-B": lambda i: 0})
+    assert block(model_lines(here, "two.jsonl", "judge-A")) == BETTER
+
+
+def test_an_earlier_name_still_in_the_picks_is_not_taken_for_a_rename(here):
+    marked_project(here)
+    lines_for(here, "g.jsonl")  # reviewer-a
+    write_judges(here, "two.jsonl", **{"reviewer-a": reviewer_first, "reviewer-b": better})
+    assert since(model_lines(here, "two.jsonl", "reviewer-b")) == []
+
+
+def test_both_judges_at_once_are_each_compared_with_their_own(here):
+    marked_project(here)
+    write_judges(here, "two.jsonl", **{"judge-A": reviewer_first, "judge-B": better})
+    model_lines(here, "two.jsonl", "judge-B")
+    assert since(model_lines(here, "two.jsonl")) == []  # none for A; B the same as before
+    write_judges(here, "two.jsonl", **{"judge-A": better, "judge-B": reviewer_first})
+    lines = model_lines(here, "two.jsonl")
+    assert since(lines) == [SINCE, SINCE]
+    caught = [x for x in lines if x.startswith("  Runs you say went wrong, caught:")]
+    assert caught == ["  Runs you say went wrong, caught: 75% (15 of 20) -> 90% (18 of 20).",
+                      "  Runs you say went wrong, caught: 90% (18 of 20) -> 75% (15 of 20)."]
+
+
+def test_before_keeps_each_judge_with_the_marks_it_was_checked_on(here):
+    marked_project(here)
+    write_judges(here, "two.jsonl", **{"judge-A": reviewer_first, "judge-B": lambda i: 0})
+    model_lines(here, "two.jsonl", "judge-B")
+    model_lines(here, "two.jsonl", "judge-A")
+    before = result(here)["before"]
+    assert [r["name"] for r in before["reviewers"]] == ["judge-B"]
+    write_judges(here, "two.jsonl", **{"judge-A": better, "judge-B": lambda i: 0})
+    model_lines(here, "two.jsonl", "judge-A")
+    kept = result(here)["before"]["reviewers"]
+    assert sorted(r["name"] for r in kept) == ["judge-A", "judge-B"]
+    marks_hash = result(here)["people"]["marks_hash"]
+    assert all(r["marks_hash"] == marks_hash and r["made_at"] for r in kept)

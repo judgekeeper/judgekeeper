@@ -84,6 +84,7 @@ class LabelError(Exception):
 
 
 OLDER_PAGE = "this page is older than the marking page, so it loads again"
+OTHER_PAGE = "the marking page was started again for another command, so this tab loads again"
 TWO_KEYS = ("Two answers have ids judgekeeper can't tell apart on the marking page. Give each "
             "answer its own id, then run it again.")
 
@@ -182,6 +183,15 @@ class LabelSession:
             item = self.by_id[sheet_id(row["id"])]
             item["label"] = self._label(row.get("human_label"), item["id"])
             item["note"] = unguard_cell(_text(row.get("notes")))
+
+    # what this page's changes hold: a mark or Undo (label), Skip (deferred), a card shown
+    # again (again), a reason from the result page (reasons, note, rule_parts, spans)
+    CHANGES = ("label", "deferred", "again", "reasons", "note", "rule_parts", "spans")
+
+    def takes(self, body: dict) -> bool:
+        """Whether `body` is a change this page makes, not one from a tab of the steps page
+        (a tab left open after the page started again for the answers)."""
+        return "first_wrong_step" not in body and any(k in body for k in self.CHANGES)
 
     def update(self, body: dict) -> None:
         """Apply one change: {"id", "label"?: label | None, "deferred"?: bool, "note"?: str}.
@@ -924,6 +934,10 @@ def _handler(server: LabelServer):
             except RecursionError:  # nested deeper than Python's JSON reader goes
                 self._json(400, {"error": "expected a JSON object"})
                 return
+            takes = getattr(server.session, "takes", None)
+            if takes is not None and not takes(body):  # a tab of the other kind of page:
+                self._json(409, {"error": OTHER_PAGE, "stale": True, "reload": True})  # it
+                return  # loads again, so the mark is never taken as nothing and dropped
             item_id = server.session.by_key.get(body["id"])  # the page sends a key, not the id
             if item_id is None and body["id"] in server.session.by_id:  # an older page's id
                 self._json(409, {"error": OLDER_PAGE, "stale": True})  # it loads again

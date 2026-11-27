@@ -21,7 +21,6 @@ no_grades._to_id_column and _header).
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import math
 import os
@@ -37,10 +36,10 @@ from judgekeeper.fingerprint import utc_now
 from judgekeeper.textio import (
     hard_linked,
     is_link,
-    jsonl_lines,
     link_in,
     loads,
     open_private,
+    own_lines,
     write_replacing,
 )
 
@@ -311,8 +310,8 @@ def read(path: str | Path) -> Marks:
     key, digest = os.path.abspath(path), hashlib.blake2b(data, digest_size=16).digest()
     hit = _parsed.get(key)
     if hit is None or hit[0] != digest:
-        # as read_text reads it: UTF-8, line ends made "\n"
-        hit = digest, _parse(io.TextIOWrapper(io.BytesIO(data), encoding="utf-8").read())
+        # line by line: a line that is not UTF-8, or holds a NUL, is one unreadable line
+        hit = digest, _parse(own_lines(data))
         _parsed.pop(key, None)
         _parsed[key] = hit
         while len(_parsed) > PARSED_KEPT:
@@ -325,14 +324,16 @@ def read(path: str | Path) -> Marks:
                    fresh_mark=dict(m.fresh_mark))
 
 
-def _parse(text: str) -> Marks:
+def _parse(lines: list[str | None]) -> Marks:
     out = Marks()
     was: dict[str, str | None] = {}  # answer id -> its mark before the first change after
     last_at: dict[str, datetime] = {}  # sitting -> the time of its last mark
-    for n, raw in enumerate(jsonl_lines(text)):
-        if not raw.strip():
+    for n, raw in enumerate(lines):
+        if raw is not None and not raw.strip():
             continue
         try:
+            if raw is None:
+                raise ValueError("not UTF-8")
             x = loads(raw)
         except ValueError:
             out.unreadable += 1

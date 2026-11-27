@@ -5,7 +5,7 @@
 - `judgekeeper steps runs.jsonl` now opens a page in your browser where you mark each agent run: click its first wrong step, or "All steps are fine", then Next. Keys: `1` to `9` for steps 1 to 9, `0` for all fine, Enter or `→` for Next, `Z` for Undo. The runs come in one random order, the same for the same runs file, and you see your agent-as-a-judge's picks only on the result page.
 - Your marks are saved in `.judgekeeper/steps/marks.jsonl`, one line per mark, with a hash of the run's steps. A run whose steps changed loses its mark, and a line that is not a mark is said by its number and left out. The file holds no step text, name or email.
 - `judgekeeper steps runs.jsonl --reviewer picks.jsonl` says how often your agent-as-a-judge picks the same first wrong step as you: TPR, TNR and kappa for the runs that went wrong or were fine, and the same step or one within a step, each with a range, as for a Label Studio export. On the page, "See the numbers so far" shows them, and on the last run to mark Next says "See your result".
-- Run `judgekeeper steps runs.jsonl --reviewer new-picks.jsonl` again after a change and, on the same marks, it says how the numbers moved since the last check (`old -> new`), and keeps the earlier ones under `before` in `result.json`. If your marks changed since, it says so instead.
+- Run `judgekeeper steps runs.jsonl --reviewer new-picks.jsonl` again after a change and, on the same marks, it says how the numbers moved since the last check (`old -> new`), and keeps the earlier ones under `before` in `result.json`. Each agent-as-a-judge is compared only with its own earlier numbers, also when one picks file holds several. If your marks changed since, it says so instead.
 - Once every run is marked and a number is still too few, the Next line says how many more runs of each kind to add to the runs file, or to fix the picks file when some picks were left out. Marks made in under a second or through a printed link are said as on the answers page.
 - `judgekeeper steps` takes the page flags `--port`, `--no-browser`, `--wait` and `--stop`. In CI no page opens. `--new` is for answers only: to take back a step mark, use Undo on the page.
 - Label Studio still works, as the way to bring in labels people already have: `judgekeeper steps runs.jsonl` still writes the import file and labelling setup, and `judgekeeper steps export.json` reads the export as before.
@@ -20,6 +20,8 @@
 - On the answers result page, "Change a mark" says it opens the list of your answers.
 - An answer or run whose id holds a hidden character (such as a zero-width space) is now marked as itself: the marking pages name each one by a key, never by its id. A tab opened before this update loads again instead of saving.
 - A run id that is not text or a whole number (such as 1.5 or true) is now named as such, not as missing.
+- A tab left open on the steps page after `judgekeeper` started the answers page (or the other way round) loads again at its next mark, instead of looking saved while nothing was saved.
+- One damaged line in a marks file (a byte that is not UTF-8, or a NUL) is left out and said by its number; the other marks are read. It no longer says the whole file is not UTF-8.
 
 ## 1.4.0 (2026-11-23)
 

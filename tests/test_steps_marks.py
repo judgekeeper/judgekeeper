@@ -455,3 +455,45 @@ def test_numbers_from_marks_with_a_missing_file_is_a_steps_error(here):
         steps.numbers_from_marks(runs, here / "none" / "marks.jsonl", None)
     with pytest.raises(steps.StepsError, match="gone.jsonl"):
         steps.numbers_from_marks(here / "gone.jsonl", here / MARKS, None)
+
+
+# rc2: one undecodable line, or one holding a NUL or a control character, is one damaged line
+
+@pytest.mark.parametrize("bad", [
+    b'{"id": "r1\x00", "first_wrong_step": 1}',  # NUL: valid UTF-8, not JSON text
+    b'{"id": "r1\xe9", "first_wrong_step": 1}',  # a Latin-1 byte: not UTF-8
+    b'\x00\x00\x00',
+], ids=["nul", "latin-1", "nul-only"])
+def test_a_bad_byte_leaves_out_its_line_only(here, bad):
+    """With a line holding a control character outside a JSON escape after it: one more
+    damaged line, said with it."""
+    runs = write_runs(here, 4)
+    hashes = hashes_of(runs)
+    path = write_marks(here, [mark(f"r{i}", 1, hashes) for i in range(4)])
+    path.write_bytes(path.read_bytes() + bad + b'\n{"id": "r1\x01", "first_wrong_step": 1}\n')
+    lines, saved = steps.numbers_from_marks(runs, path, None)
+    assert ("Lines 6 and 7 of .judgekeeper/steps/marks.jsonl are not marks judgekeeper can "
+            "read; they are left out.") in lines, lines
+    assert not any("UTF-8" in x for x in lines), lines
+    assert saved["people"]["labelled"] == 4
+
+
+def test_the_page_reads_the_other_marks_past_a_bad_byte(here):
+    from judgekeeper import steps_page
+    from judgekeeper.start_label import Workspace
+
+    runs = write_runs(here, 4)
+    hashes = hashes_of(runs)
+    path = write_marks(here, [mark(f"r{i}", 1, hashes) for i in range(3)])
+    path.write_bytes(path.read_bytes() + b'{"id": "r3\xe9"}\n')
+    session = steps_page.StepsSession(Workspace(here), runs)
+    assert session.marked() == {"r0": 1, "r1": 1, "r2": 1}
+
+
+def test_a_marks_file_that_is_not_utf8_at_all_still_says_so(here):
+    runs = write_runs(here, 4)
+    hashes = hashes_of(runs)
+    path = write_marks(here, [mark(f"r{i}", 1, hashes) for i in range(4)])
+    path.write_bytes(path.read_text(encoding="utf-8").encode("utf-16"))
+    with pytest.raises(steps.StepsError, match="is not saved as UTF-8 text"):
+        steps.numbers_from_marks(runs, path, None)
