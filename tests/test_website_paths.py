@@ -95,10 +95,15 @@ def test_guide_install_uses_the_needed_python():
     needs = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
         "requires-python"]
     assert needs == ">=3.11"
-    install = _flat(_by_id("start.html", "install"))
-    assert ("your project folder With pip, in your project’s virtual environment pip install "
-            "judgekeeper judgekeeper With uv uvx judgekeeper "
-            "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.") in install
+    def boxes(panel: str) -> list[str]:
+        return [_flat(el) for el in _by_id("start.html", panel).iter() if el.tag == "code"]
+
+    assert boxes("gi-pip") == ["pip install judgekeeper", "judgekeeper"]
+    assert boxes("gi-uv") == ["uvx judgekeeper", "uv run judgekeeper", "uv add --dev judgekeeper"]
+    assert _flat(_by_id("start.html", "gi-pip")).startswith(
+        "Install in your project’s virtual environment")
+    (foot,) = [el for el in _by_id("start.html", "install").iter() if "gi-foot" in el.classes()]
+    assert _flat(foot) == "macOS, Linux and Windows. Python 3.11 to 3.14."
     hrefs = [a.attrs.get("href") for a in _by_id("start.html", "install").iter() if a.tag == "a"]
     assert hrefs == ["https://docs.astral.sh/uv/"]  # the license is in the footer
 
