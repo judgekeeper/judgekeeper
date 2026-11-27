@@ -202,3 +202,27 @@ def test_two_answer_ids_with_one_key_are_refused(tmp_path, monkeypatch):
     with pytest.raises(label.LabelError) as e:
         start_label.StartSession(ws)
     assert str(e.value) == label.TWO_KEYS and "id0" not in str(e.value)
+
+
+# Ids that are not text or a whole number --------------------------------------------------
+
+def _one_run(tmp_path, row: str):
+    """A runs file of one run: `row` (JSON) and its steps."""
+    path = tmp_path / "runs.jsonl"
+    path.write_text(json.dumps({**json.loads(row), "steps": [{"role": "user", "content": "x"}]})
+                    + "\n", encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("value", ["1.5", "true", "[1]", "1.0", '{"a": 1}'])
+def test_an_id_of_another_kind_says_what_an_id_must_be(tmp_path, value):
+    with pytest.raises(steps.StepsError) as e:
+        steps.read_runs(_one_run(tmp_path, f'{{"id": {value}}}'))
+    assert str(e.value) == "Line 1 of runs.jsonl has an id that is not text or a whole number."
+
+
+@pytest.mark.parametrize("row", ["{}", '{"id": null}', '{"id": ""}', '{"id": "  "}'])
+def test_a_run_with_no_id_says_it_has_none(tmp_path, row):
+    with pytest.raises(steps.StepsError) as e:
+        steps.read_runs(_one_run(tmp_path, row))
+    assert str(e.value) == "Line 1 of runs.jsonl has no id."
