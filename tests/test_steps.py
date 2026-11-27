@@ -116,9 +116,10 @@ def test_runs_make_the_import_file_the_screen_and_a_next_line(here, capsys):
     assert flat.startswith("<View>") and flat.endswith(CONFIG_END)
     assert "<Paragraphs" in flat and flat.index("<Header") < flat.index("<Paragraphs")
     assert "0" in config and "all fine" in config
-    assert out.rstrip().splitlines()[-1].startswith("Next:")
-    assert ".judgekeeper/steps/label-these.json" in out
-    assert "label-config.xml" in out and "judgekeeper steps" in out.splitlines()[-1]
+    lines = out.rstrip().splitlines()  # the page opens; Label Studio is the other way
+    assert lines[-2].startswith("Next: mark runs on the page")
+    assert ".judgekeeper/steps/label-these.json" in lines[-1]
+    assert "label-config.xml" in lines[-1] and "judgekeeper steps" in lines[-1]
 
 
 def test_a_task_in_the_runs_is_shown_above_the_steps_and_step_n_is_the_nth(here, capsys):

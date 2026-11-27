@@ -366,6 +366,7 @@ def _parser() -> argparse.ArgumentParser:
                          "predictions in the export")
     st.add_argument("--model", metavar="NAME",
                     help="the agent-as-a-judge to look at, when the export holds several")
+    _page_args(st)  # a runs file opens the steps marking page
     p.commands["steps"] = st
     return p
 
@@ -444,7 +445,9 @@ def cmd_front(args) -> int:
 def cmd_steps(args) -> int:
     from judgekeeper import steps
 
-    return steps.run(args.path, reviewer=args.reviewer, model=args.model)
+    page = {"port": args.port, "no_browser": args.no_browser, "new": args.new,
+            "wait": args.wait, "stop": args.stop, "given": getattr(args, "page_given", False)}
+    return steps.run(args.path, reviewer=args.reviewer, model=args.model, page=page)
 
 
 COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, "steps": cmd_steps,
@@ -558,6 +561,8 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
         args = parser.parse_args(args_list)
     if not command:
         args.command = None
+    if command == "steps":  # an export opens no page: the page flags are refused there
+        args.page_given = _without_page_flags(args_list) != args_list
     return args
 
 

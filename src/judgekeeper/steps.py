@@ -593,9 +593,17 @@ def _is_export(path: Path) -> bool:
     return head.startswith("[")
 
 
-def run(path: str | None = None, reviewer: str | None = None, model: str | None = None) -> int:
+def run(path: str | None = None, reviewer: str | None = None, model: str | None = None,
+        page: dict | None = None) -> int:
+    """`page`: the page flags (cli.cmd_steps); a runs file then opens the steps marking page
+    (steps_page.open_runs), but in CI."""
     from judgekeeper.check import no_such
 
+    page = page or {}
+    if page.get("stop"):
+        from judgekeeper import steps_page
+
+        return steps_page.stop(Path(path if path is not None else "."))
     given = Path(path if path is not None else ".")
     if not given.exists():
         raise StepsError(no_such(str(given)))
@@ -613,9 +621,25 @@ def run(path: str | None = None, reviewer: str | None = None, model: str | None 
     shown = str(given)
     _say(f"judgekeeper {__version__}")
     _say()
+    if page.get("new"):
+        from judgekeeper.steps_page import NEW_ANSWERS_ONLY
+
+        raise StepsError(NEW_ANSWERS_ONLY, "run `{command}`.", drop="--new")
     if _is_export(file):
+        if page.get("given"):
+            from judgekeeper.steps_page import NO_PAGE_ON_EXPORT
+
+            raise StepsError(NO_PAGE_ON_EXPORT.format(command=program("steps EXPORT.json")),
+                             f"run `{_command(shown, reviewer)}`.")
         return _numbers(file, shown, reviewer, model)
-    return _screen(file, given, reviewer, model)
+    from judgekeeper.page import in_ci
+
+    if not page or in_ci():
+        return _screen(file, given, reviewer, model)
+    from judgekeeper import steps_page
+
+    return _screen(file, given, reviewer, model, then=lambda: steps_page.open_runs(
+        file, given, reviewer, model, page))
 
 
 def _workspace(given: Path) -> Workspace:
@@ -631,7 +655,9 @@ def marks_path(given: Path) -> Path:
 
 
 def _screen(file: Path, given: Path, reviewer: str | None = None,
-            model: str | None = None) -> int:
+            model: str | None = None, then=None) -> int:
+    """Write the Label Studio files; then `then()` (the steps page opens), else the numbers
+    from the page's marks or how to label in Label Studio."""
     runs = read_runs(file)
     picks = _picks({}, reviewer, model)  # a bad guesses file is said before anything is written
     tasks, config = screen_files(runs)
@@ -642,6 +668,8 @@ def _screen(file: Path, given: Path, reviewer: str | None = None,
     _say(f"Wrote {plural(len(runs), 'run')} for Label Studio to {SHOWN}/{TASKS_FILE} and the "
          f"labelling setup to {SHOWN}/{CONFIG_FILE}.")
     _say()
+    if then is not None:
+        return then()
     marks = folder / MARKS_FILE
     if marks.is_file():  # marked on the page already: the numbers, with their own Next line
         export = read_marks(marks, runs)
