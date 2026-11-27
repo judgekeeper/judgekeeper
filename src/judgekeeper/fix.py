@@ -1497,20 +1497,27 @@ def more_marks_line(ws: Workspace) -> str:
 def write_answers(ws: Workspace, m: Marks) -> int:
     """fix/marked-answers.csv: every marked answer, question and answer only, shuffled, each
     once; cells guarded as a spreadsheet would run them (table.guard_cell). No mark, grade or
-    id: the answers kept aside can't be told from the others. For a table of the person's own
-    (CSV, TSV, JSONL), its two columns are named as the results file names them, so their
-    grader runs on it as it is; for every other tool, `question,answer`. How many rows it
-    holds."""
-    rows = list(dict.fromkeys((question_text((r := m.rows.get(i, {})).get("input"),
-                                             r.get("output")),
+    judgekeeper id: the answers kept aside can't be told from the others. For a table of the
+    person's own (CSV, TSV, JSONL), its two columns are named as the results file names them,
+    so their grader runs on it as it is, and its own id column comes last when every marked
+    answer has one (_id_column), so the file graded again names each question as the results
+    do and a script reading the first two columns still works; for every other tool,
+    `question,answer`. How many rows it holds."""
+    table = m.data.get("tool") == "table"
+    rows = list(dict.fromkeys(((r := m.rows.get(i, {})).get("case"),
+                               question_text(r.get("input"), r.get("output")),
                                answer_text(r.get("output")))
                               for i in m.person))
+    own = _id_column(ws) if table else None
+    if own is None or not all(isinstance(case, str) and case for case, _, _ in rows):
+        own, rows = None, [(None, q, a) for q, a in dict.fromkeys((q, a) for _, q, a in rows)]
     random.SystemRandom().shuffle(rows)
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(table_columns(ws)[:2] if m.data.get("tool") == "table" else ANSWER_COLUMNS)
-    for question, answer in rows:
-        w.writerow([_csv_cell(m, question), _csv_cell(m, answer)])
+    w.writerow([*(table_columns(ws)[:2] if table else ANSWER_COLUMNS), *([own] if own else [])])
+    for case, question, answer in rows:
+        w.writerow([_csv_cell(m, question), _csv_cell(m, answer),
+                    *([_csv_cell(m, case)] if own else [])])
     path = _folder(ws) / ANSWERS
     marks._refuse_links(path)
     make_private(path.parent)
@@ -1518,7 +1525,7 @@ def write_answers(ws: Workspace, m: Marks) -> int:
     if m.data.get("tool") == "promptfoo":  # never opened in a spreadsheet: nothing guarded
         tests = _folder(ws) / TESTS_FILE
         marks._refuse_links(tests)
-        write_replacing(tests, tests_yaml(rows), newline="")
+        write_replacing(tests, tests_yaml([(q, a) for _, q, a in rows]), newline="")
     return len(rows)
 
 
@@ -1999,6 +2006,15 @@ def table_columns(ws: Workspace) -> tuple[str, ...]:
     if "input" in known and "output" in known and grade:
         return known["input"], known["output"], grade
     return TABLE_COLUMNS
+
+
+def _id_column(ws: Workspace) -> str | None:
+    """The first results file's own id column as written in it (`id`, `ID`...), or None."""
+    from judgekeeper.table import column_name, columns
+
+    file = _first_file(ws)
+    names = columns(Path(ws.root) / file) if file else []
+    return next((name for name in names if column_name(name) == "id"), None)
 
 
 def _first_file(ws: Workspace) -> str | None:
