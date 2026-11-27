@@ -16,16 +16,16 @@ def _block(n_shared=12, people_n=2):
 def test_two_people_line_and_the_limit_line():
     out = people.lines(_block())
     first = out[0]
-    assert first.startswith("Your people agree with each other: kappa ")
+    assert first.startswith("The people marking agree with each other: kappa ")
     assert " (between " in first
     assert first.endswith("on 12 answers labelled by more than one person.")
-    assert ("A check can't be expected to agree with your people more than they agree with "
-            "each other.") in out
+    assert ("A check can't be expected to agree with the people marking more than they agree "
+            "with each other.") in out
 
 
 def test_three_people_say_what_alpha_is():
     out = people.lines(_block(people_n=3))
-    assert out[0].startswith("Your people agree with each other: Krippendorff's alpha ")
+    assert out[0].startswith("The people marking agree with each other: Krippendorff's alpha ")
     assert "on 12 answers labelled by more than one person." in out[0]
 
 
@@ -33,8 +33,8 @@ def test_fewer_than_ten_says_so_and_gives_no_number():
     out = people.lines(_block(n_shared=9))
     text = "\n".join(out)
     assert ("Fewer than 10 answers were labelled by more than one person, so judgekeeper "
-            "can't say how much your people agree.") in out
-    assert "Your people agree with each other" not in text
+            "can't say how much the people marking agree.") in out
+    assert "The people marking agree with each other" not in text
     assert "A check can't be expected" not in text
 
 
@@ -59,8 +59,8 @@ def test_no_raw_agreement_and_no_trust_words():
 def test_everyone_the_same_label():
     ratings = [(f"i{k}", who, "pass") for k in range(12) for who in ("2", "3")]
     out = people.lines(people.analyse(ratings, None))
-    assert ("Your people gave the same label to every answer, so how much they agree beyond "
-            "coincidence can't be worked out.") in out
+    assert ("The people marking gave the same label to every answer, so how much they agree "
+            "beyond coincidence can't be worked out.") in out
 
 
 def test_no_block_no_lines():

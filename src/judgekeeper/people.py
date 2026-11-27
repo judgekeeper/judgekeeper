@@ -29,16 +29,16 @@ SEED = weighted.SEED
 DRAWS = 2_000  # fewer than weighted.DRAWS: every draw works the number out again from scratch
 SHOW_PEOPLE = 10  # people named in the line of counts
 
-KAPPA_LINE = ("Your people agree with each other: kappa {k} (between {lo} and {hi}), on {n} "
-              "answers labelled by more than one person.")
-ALPHA_LINE = ("Your people agree with each other: Krippendorff's alpha {k} (between {lo} and "
-              "{hi}), on {n} answers labelled by more than one person.")
-LIMIT_LINE = ("A check can't be expected to agree with your people more than they agree with "
-              "each other.")
+KAPPA_LINE = ("The people marking agree with each other: kappa {k} (between {lo} and {hi}), "
+              "on {n} answers labelled by more than one person.")
+ALPHA_LINE = ("The people marking agree with each other: Krippendorff's alpha {k} (between "
+              "{lo} and {hi}), on {n} answers labelled by more than one person.")
+LIMIT_LINE = ("A check can't be expected to agree with the people marking more than they "
+              "agree with each other.")
 TOO_FEW_LINE = ("Fewer than {min} answers were labelled by more than one person, so "
-                "judgekeeper can't say how much your people agree.")
-SAME_LINE = ("Your people gave the same label to every answer, so how much they agree beyond "
-             "coincidence can't be worked out.")
+                "judgekeeper can't say how much the people marking agree.")
+SAME_LINE = ("The people marking gave the same label to every answer, so how much they agree "
+             "beyond coincidence can't be worked out.")
 COUNTS_LINE = "Answers labelled by each person: {people}."
 AGAINST_LINE = "Your check against user {who}, on {answers}: kappa {kappa}. {pass_} {fail}."
 PASS_CLAUSE = "When user {who} says Pass, your check also says Pass {tpr} of the time;"
