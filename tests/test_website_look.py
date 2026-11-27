@@ -1389,8 +1389,8 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert _flat(link) == "next step: install judgekeeper →"
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
     assert ('NOT_RECOGNISED = "This isn\'t a results file this page can read. It reads '
-            'promptfoo, DeepEval, CSV, TSV and JSONL files. For other results, run '
-            '`uvx judgekeeper` in your project.";') in script
+            'promptfoo, DeepEval, CSV, TSV and JSONL files, and agent runs. For other results, '
+            'run `uvx judgekeeper` in your project.";') in script
 
 
 def test_waiting_terminal_uses_the_codes_labels(tmp_path):
