@@ -526,28 +526,32 @@ def _num(x: float) -> str:
     return f"{x:.2f}"
 
 
-def _reviewer_lines(name: str, r: dict) -> list[str]:
+def _reviewer_lines(name: str, r: dict, marks: bool = False) -> list[str]:
+    """One agent-as-a-judge's numbers as lines: against the people marking a Label Studio
+    export, or against the person's own `marks` from the page."""
     run, step = r["run_level"], r["step_level"]
+    people, say = ("you", "you say") if marks else ("the people marking", "the people marking say")
     need = run["needed_of_each_kind"]
     compared = plural(r["runs_compared"], "run")
     who = ("Your agent-as-a-judge" if name == DEFAULT_REVIEWER  # the default name: never said
            else f'Agent-as-a-judge "{name}"')
-    lines = [f"{who} against the people marking, on {compared} both labelled:"]
+    lines = [f"{who} against your marks, on {compared} both marked:" if marks
+             else f"{who} against the people marking, on {compared} both labelled:"]
     for what, key, n in (("went wrong", "tpr", run["n_wrong"]),
                          ("were fine", "tnr", run["n_fine"])):
         said = (f"your agent-as-a-judge also says so for {_pct(run[key])}." if run[key]
                 else f"too few ({n}) for a number; {need} are needed.")
-        lines.append(f"  Runs the people marking say {what}: {said}")
+        lines.append(f"  Runs {say} {what}: {said}")
     if run["kappa"] is not None:
         lo, hi = run["kappa_interval"]
         lines.append(f"  Kappa: {_num(run['kappa'])} (between {_num(lo)} and {_num(hi)}).")
     elif run["n_wrong"] >= need and run["n_fine"] >= need:
-        lines.append("  Kappa: none (the people marking or your agent-as-a-judge gave the same "
-                     "answer for every run).")
+        lines.append(f"  Kappa: none ({people} or your agent-as-a-judge gave the same answer "
+                     "for every run).")
     else:
         lines.append("  Kappa: too few runs of one kind for a number.")
-    lines.append(f"How often your agent-as-a-judge finds the same first wrong step as the "
-                 f"people marking, on the {step['n']} runs both say went wrong:")
+    lines.append(f"How often your agent-as-a-judge finds the same first wrong step as {people}, "
+                 f"on the {step['n']} runs {'you both' if marks else 'both'} say went wrong:")
     if step["same"]:
         lines.append(f"  The same first wrong step: {_pct(step['same'])}.")
         lines.append(f"  Within one step: {_pct(step['within_one'])}.")
@@ -784,7 +788,7 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
         return EXIT_NEEDS_YOU
     for entry in reviewers:
         say("")
-        for line in _reviewer_lines(entry["name"], entry):
+        for line in _reviewer_lines(entry["name"], entry, marks):
             say(line)
         left = entry["left_out"]
         if left["no_guess"] or left["unusable"]:

@@ -399,12 +399,27 @@ def test_the_default_name_is_never_printed(here, capsys):
         for i in range(40)), encoding="utf-8")
     lines, saved = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
     assert saved["reviewers"][0]["name"] == steps.DEFAULT_REVIEWER == "reviewer"
-    assert "Your agent-as-a-judge against the people marking, on 40 runs both labelled:" in lines
+    assert "Your agent-as-a-judge against your marks, on 40 runs both marked:" in lines
     assert not any("reviewer" in line.replace("--reviewer", "").lower() for line in lines)
 
 
 def test_a_named_agent_as_a_judge_is_quoted(here):
     runs = marked_project(here)
     lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
-    assert ('Agent-as-a-judge "reviewer-a" against the people marking, on 40 runs both '
-            "labelled:") in lines
+    assert 'Agent-as-a-judge "reviewer-a" against your marks, on 40 runs both marked:' in lines
+    assert ("  Runs you say went wrong: your agent-as-a-judge also says so for 75% (15 of 20; "
+            "between 53% and 89%).") in lines
+    assert any(x.startswith("  Runs you say were fine: your agent-as-a-judge") for x in lines)
+    assert ("How often your agent-as-a-judge finds the same first wrong step as you, on the 15 "
+            "runs you both say went wrong:") in lines
+    assert not any("people" in line for line in lines)
+
+
+def test_kappa_none_on_marks_says_you():
+    numbers = steps.compare([steps.Task(f"r{i}", 6, 0 if i < 15 else 2, "label")
+                             for i in range(30)], {f"r{i}": 2 for i in range(30)})
+    numbers["run_level"]["kappa"] = None  # as when every answer is the same
+    lines = steps._reviewer_lines("reviewer", numbers, marks=True)
+    assert ("  Kappa: none (you or your agent-as-a-judge gave the same answer for every "
+            "run).") in lines
+    assert "(the people marking or" in " ".join(steps._reviewer_lines("reviewer", numbers))
