@@ -738,7 +738,7 @@ OPEN = "The marking page is open in your browser. Click the first wrong step of 
 CLICK = "Click the first wrong step of each run."
 NEXT = 'Next: mark runs on the page, then click "See the numbers so far".'
 LABEL_STUDIO = ("Label in Label Studio instead? Import .judgekeeper/steps/label-these.json with "
-                "label-config.xml, then run judgekeeper steps on its export.")
+                "label-config.xml, export the project as JSON and run `{command}`.")
 NEW_ANSWERS_ONLY = "--new works for answers only. To take back a step mark, use Undo on the page."
 NO_PAGE_ON_EXPORT = "`{command}` opens no page, so it takes no --port, --no-browser or --wait."
 # As the answers page says them (front.py)
@@ -806,7 +806,7 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
     """After the Label Studio files are written: open the steps page for the runs in `file`
     (`given` as typed), with the page flags in `options` (port, no_browser, wait), and say
     how to go on. With --no-browser and marks already made, the numbers too; with --wait,
-    the numbers once the page closes."""
+    the numbers only once the page closes."""
     from judgekeeper import background
     from judgekeeper import page as pages
     from judgekeeper.front import (
@@ -859,11 +859,11 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
         _say(STAYS)
     marked = steps.marks_path(given).is_file()
     _say()
-    if (no_browser or done) and marked:  # the numbers, also for a program with no page
-        code = steps.say_numbers_from_marks(file, shown, reviewer, model)
-    else:
+    if (no_browser or done) and marked and opened.server is None:  # the numbers, also for a
+        code = steps.say_numbers_from_marks(file, shown, reviewer, model)  # program, no page
+    else:  # with --wait the numbers are said once, when the page closes
         _say(NEXT)
-        _say(LABEL_STUDIO)
+        _say(LABEL_STUDIO.format(command=textio.program("steps EXPORT.json")))
         code = steps.EXIT_OK
     if opened.server is None:
         return steps.EXIT_OK if code is None else code

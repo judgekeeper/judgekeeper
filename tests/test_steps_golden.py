@@ -17,7 +17,8 @@ from tests.test_steps import FIXTURES, annotation, prediction, project, reviewer
 GOLDEN = FIXTURES / "golden_export_1_4.json"
 
 # 1.5.0's words for the 1.4.0 lines, in this order: the AI that checks an agent's steps is
-# the agent-as-a-judge, and its default name ("reviewer") is never printed. Nothing else.
+# the agent-as-a-judge, its default name ("reviewer") is never printed, and what it gives
+# for each run is its pick. Nothing else.
 WORDS = [
     ('Reviewer "reviewer" against your people,', "Your agent-as-a-judge against the people marking,"),
     ('Reviewer "', 'Agent-as-a-judge "'),
@@ -25,9 +26,15 @@ WORDS = [
      "Kappa: none (the people marking or your agent-as-a-judge gave"),
     ("your reviewer", "your agent-as-a-judge"),
     ("your people", "the people marking"),
-    ("no reviewer guesses", "no agent-as-a-judge guesses"),
-    ("no guess from this reviewer,", "no guess from this agent-as-a-judge,"),
+    ("no reviewer guesses", "no agent-as-a-judge picks"),
+    ("no guess from this reviewer,", "no pick from this agent-as-a-judge,"),
     ("No reviewer named", "No agent-as-a-judge named"),
+    ("with a guess that is not", "with a pick that is not"),
+    ("guess is for a run", "pick is for a run"),
+    ("guesses are for runs", "picks are for runs"),
+    ("in the guesses (found", "in the picks (found"),
+    ("its new guesses", "its new picks"),
+    ("GUESSES.jsonl", "PICKS.jsonl"),
 ]
 
 
@@ -156,6 +163,8 @@ def said(here: Path, capsys, name: str) -> dict:
     saved = json.loads((here / ".judgekeeper/steps/result.json").read_text(encoding="utf-8"))
     saved.pop("made_at")
     saved["judgekeeper"] = "VERSION"
+    marks_hash = saved["people"].pop("marks_hash")  # new in 1.5.0: for the next check's compare
+    assert len(marks_hash) == 64 and int(marks_hash, 16) >= 0
     return {"code": code, "out": plain(out), "err": plain(err), "result": saved}
 
 

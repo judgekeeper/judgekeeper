@@ -542,12 +542,12 @@ def test_guesses_for_runs_not_in_the_export_are_counted_and_said(here, capsys):
     (here / "g.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
     code, out, err = run(capsys, "steps", str(export), "--reviewer", "g.jsonl")
     assert code == 0, err
-    assert "2 guesses are for runs that are not in export.json." in out
+    assert "2 picks are for runs that are not in export.json." in out
     assert result(here)["reviewers"][0]["left_out"]["not_in_export"] == 2
     rows = rows[:40] + rows[40:41]
     (here / "g.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
     _, out, _ = run(capsys, "steps", str(export), "--reviewer", "g.jsonl")
-    assert "1 guess is for a run that is not in export.json." in out
+    assert "1 pick is for a run that is not in export.json." in out
 
 
 def test_no_such_line_when_every_guess_is_a_run(here, capsys):
