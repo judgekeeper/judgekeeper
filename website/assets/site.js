@@ -759,37 +759,6 @@
     });
   }
 
-  /* The Guide's rail: the word of the step in view is green, the steps before it ringed
-     green, and the line green down to it. It only changes colour, so it moves nothing, also
-     without reduced motion. On a phone the row scrolls to show it. */
-  function setUpRail() {
-    var rail = document.querySelector(".sp-rail");
-    if (!rail || !("IntersectionObserver" in window)) return;
-    var links = $all("a", rail), shown = {}, now = null;
-    var steps = links.map(function (a) { return $(a.getAttribute("href").slice(1)); });
-    function mark(id) {
-      now = id;
-      var at = links.map(function (a) { return a.getAttribute("href"); }).indexOf("#" + id);
-      links.forEach(function (a, i) {
-        a.classList.toggle("is-done", i < at);
-        if (i !== at) { a.removeAttribute("aria-current"); return; }
-        a.setAttribute("aria-current", "step");
-        /* the line under the words is green to the end of the word in view */
-        rail.querySelector("ol").style.setProperty("--fill", a.offsetLeft + a.offsetWidth + "px");
-        var left = a.offsetLeft, right = left + a.offsetWidth;
-        if (left < rail.scrollLeft || right > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = left - 20;
-      });
-    }
-    var watch = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) { shown[e.target.id] = e.isIntersecting; });
-      var first = steps.filter(function (s) { return shown[s.id]; })[0];
-      if (first) mark(first.id);
-    }, { rootMargin: "-35% 0px -60% 0px" });
-    steps.forEach(function (s) { watch.observe(s); });
-    /* the words move apart or together with the window's width, so the green line follows */
-    window.addEventListener("resize", function () { if (now) mark(now); });
-  }
-
   /* On a phone only (a laptop's text stays as it is): "LLM-as-a-judge" in a step's words never
      breaks at its hyphens, and a path in a sentence may break after each "/". */
   function setUpPhoneBreaks() {
@@ -816,7 +785,6 @@
   setUpCopy();
   setUpPhoneBreaks();
   setUpShots();
-  setUpRail();
   setUpDemo();
   setUpTour();
   setUpCounts();
