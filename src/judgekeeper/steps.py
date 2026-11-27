@@ -59,9 +59,9 @@ NEXT_LABEL = ("in Label Studio, make a project with the labelling setup in {conf
 NEXT_NO_LABELS = ("label the runs in Label Studio (the first wrong step, 0 if all fine), export "
                   "the project as JSON and run `{command}`.")
 NEXT_MORE = "label more runs in Label Studio, export again and run `{command}`."
-NEXT_GUESSES = ("give your agent-as-a-judge's first wrong step for each run as a JSONL file (one line "
-                "per run: {{\"id\": ..., \"first_wrong_step\": ..., \"model\": ...}}) and run "
-                "`{command} --reviewer GUESSES.jsonl`.")
+NEXT_GUESSES = ("give your agent-as-a-judge's first wrong step for each run as a JSONL file "
+                "(one line per run: {{\"id\": ..., \"first_wrong_step\": ..., \"model\": "
+                "...}}) and run `{command} --reviewer GUESSES.jsonl`.")
 NEXT_AGAIN = ("change your agent-as-a-judge, save its new guesses as a JSONL file and run "
               "`{command} --reviewer NEW-GUESSES.jsonl`.")
 NEXT_MARK = ("click the first wrong step of each run on the page (or \"All steps are fine\"): "
@@ -628,7 +628,8 @@ def _screen(file: Path, given: Path, reviewer: str | None = None,
     marks = folder / MARKS_FILE
     if marks.is_file():  # marked on the page already: the numbers, with their own Next line
         export = read_marks(marks, runs)
-        return _report(export, *picks, str(given), reviewer, _say, runs_name=file.name)
+        return _report(export, *picks, str(given), reviewer, _say, runs_name=file.name,
+                       folder=folder)
     export = program("steps EXPORT.json")
     _say("Next: " + NEXT_LABEL.format(config=f"{SHOWN}/{CONFIG_FILE}",
                                        tasks=f"{SHOWN}/{TASKS_FILE}", export=export))
@@ -644,7 +645,7 @@ def say_numbers_from_marks(file: Path, shown: str, reviewer: str | None = None,
         return None
     picks = _picks({}, reviewer, model)
     return _report(read_marks(marks, read_runs(file)), *picks, shown, reviewer, _say,
-                   runs_name=file.name)
+                   runs_name=file.name, folder=marks.parent)
 
 
 def numbers_from_marks(runs: str | Path, marks: str | Path, reviewer: str | Path | None,
