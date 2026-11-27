@@ -86,6 +86,7 @@ class Run:
     id: str
     steps: list[dict]
     task: str | None = None  # what the agent was asked to do, when the run says
+    steps_hash: str = ""  # of `steps` as the runs file holds them (steps_hash)
 
 
 @dataclass
@@ -197,7 +198,8 @@ def read_runs(path: Path) -> list[Run]:
                                  "name.")
             out.append({"role": f"{k}. {role}", "content": step_text(step)})
         asked = next((row[k] for k in ("task", "input") if row.get(k) not in (None, "")), None)
-        runs.append(Run(run_id, out, None if asked is None else _text(asked)))
+        runs.append(Run(run_id, out, None if asked is None else _text(asked),
+                        steps_hash(steps)))
     if not runs:
         raise StepsError(f"{path.name} holds no runs.")
     return runs
@@ -333,10 +335,11 @@ def read_export(path: Path, wanted_name: str | None = None) -> Export:
 
 # The page's marks -> labels -------------------------------------------------------------------
 
-def steps_hash(run_steps: list[dict]) -> str:
-    """The hash a mark keeps of its run's steps (Run.steps, before scrubbing): a mark whose
-    run has changed since is not that run's any more."""
-    text = json.dumps(run_steps, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+def steps_hash(raw_steps: list) -> str:
+    """The hash a mark keeps of its run's steps, the `steps` value exactly as the runs file
+    holds it (never as shown): a mark whose run has changed since is not that run's any
+    more."""
+    text = json.dumps(raw_steps, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
@@ -385,7 +388,7 @@ def read_marks(path: Path, runs: list[Run]) -> Export:
             continue
         newest[mark[0]] = mark[1:]
     tasks = {r.id: Task(r.id, len(r.steps)) for r in runs}
-    hashes = {r.id: steps_hash(r.steps) for r in runs if r.id in newest}
+    hashes = {r.id: r.steps_hash for r in runs}
     changed = not_in_runs = 0
     for run_id, (step, kept) in newest.items():
         if step is None:

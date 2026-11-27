@@ -65,8 +65,14 @@ def write_marks(here: Path, lines, header=True) -> Path:
     return path
 
 
+def raw_steps(runs_path: Path) -> dict[str, list]:
+    """Each run's `steps` exactly as the runs file holds them."""
+    rows = [json.loads(x) for x in runs_path.read_text(encoding="utf-8").splitlines() if x]
+    return {str(row["id"]): row["steps"] for row in rows}
+
+
 def hashes_of(runs_path: Path) -> dict[str, str]:
-    return {r.id: canonical_hash(r.steps) for r in steps.read_runs(runs_path)}
+    return {run_id: canonical_hash(raw) for run_id, raw in raw_steps(runs_path).items()}
 
 
 def marked_project(here: Path, n=40):
@@ -98,8 +104,9 @@ def test_the_fixture_reads_newest_wins_and_null_takes_back(here):
     assert export.stats["no_label"] == 1 and export.stats["changed"] == 0
 
 
-def test_the_fixture_hashes_are_the_canonical_hash_of_the_steps_read():
+def test_the_fixture_hashes_are_the_canonical_hash_of_the_steps_in_the_file():
     runs = steps.read_runs(FIXTURES / "runs.jsonl")
+    raw = raw_steps(FIXTURES / "runs.jsonl")
     lines = (FIXTURES / "marks.jsonl").read_text(encoding="utf-8").splitlines()
     assert set(json.loads(lines[0])) == {"step_marks", "created_at", "judgekeeper_version",
                                          "runs", "runs_hash"}
@@ -108,8 +115,8 @@ def test_the_fixture_hashes_are_the_canonical_hash_of_the_steps_read():
         row = json.loads(line)
         assert set(row) - {"link"} == {"id", "first_wrong_step", "steps_hash", "at", "seconds",
                                        "by"}
-        assert row["steps_hash"] == canonical_hash(by_id[row["id"]].steps)
-        assert steps.steps_hash(by_id[row["id"]].steps) == row["steps_hash"]
+        assert row["steps_hash"] == canonical_hash(raw[row["id"]])
+        assert steps.steps_hash(raw[row["id"]]) == by_id[row["id"]].steps_hash == row["steps_hash"]
     links = {json.loads(line).get("link") for line in lines[1:]}
     assert {"printed", "browser-env"} <= links
 
@@ -149,8 +156,19 @@ def test_an_int_run_id_is_matched_as_its_string(here):
     path.write_text('{"id": 7, "steps": [{"role": "user", "content": "x"},'
                     ' {"role": "assistant", "content": "y"}]}\n', encoding="utf-8")
     runs = steps.read_runs(path)
-    write_marks(here, [mark("7", 2, {"7": canonical_hash(runs[0].steps)})])
+    write_marks(here, [mark("7", 2, hashes_of(path))])
     assert steps.read_marks(here / MARKS, runs).tasks[0].label == 2
+
+
+def test_how_steps_are_shown_does_not_change_the_hash(here, monkeypatch):
+    path = write_runs(here, 2)
+    kept = {r.id: r.steps_hash for r in steps.read_runs(path)}
+    assert kept == hashes_of(path)
+    assert all(kept[r.id] != steps.steps_hash(r.steps) for r in steps.read_runs(path))
+    monkeypatch.setattr(steps, "step_text", lambda step: "shown another way")
+    shown = steps.read_runs(path)
+    assert [r.steps[0]["content"] for r in shown] == ["shown another way"] * 2
+    assert {r.id: r.steps_hash for r in shown} == kept
 
 
 def test_a_broken_line_is_said_by_number_never_quoted_and_skipped(here):
