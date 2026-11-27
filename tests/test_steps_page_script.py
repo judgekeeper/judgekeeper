@@ -326,6 +326,18 @@ def test_a_long_step_is_cut_at_600_characters_and_show_all_never_marks():
     assert got["pick"] is None and got["sent"] == 0 and got["other"] is True
 
 
+@pytest.mark.parametrize(("before", "kept"), [(599, 599), (598, 600)])
+def test_the_cut_never_splits_a_character_in_two(before, kept):
+    """An emoji is two UTF-16 units: one across the cut goes whole to the hidden part."""
+    got = _run("""
+      var t = stepButtons()[0].children[1].children[1].textContent;
+      var body = t.slice(0, -1), last = body.charCodeAt(body.length - 1);
+      console.log(JSON.stringify({units: body.length, ell: t.slice(-1),
+        high: last >= 0xD800 && last <= 0xDBFF}));""",
+               data=_data(long="x" * before + "\U0001F600" + "y" * 100))
+    assert got == {"units": kept, "ell": "\u2026", "high": False}
+
+
 def test_a_stale_tab_says_so_and_takes_the_list_again():
     got = _run("""
       answer = function () { return Promise.resolve({ok: false, status: 409, json: function () {

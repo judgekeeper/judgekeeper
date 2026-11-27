@@ -380,7 +380,9 @@ __TOP__
   function stepText(text, whole) {
     if (!text) { return {text: WORDS.empty, empty: true}; }
     if (whole || text.length <= CUT) { return {text: text, empty: false}; }
-    return {text: text.slice(0, CUT) + "\\u2026", empty: false};
+    var end = CUT, last = text.charCodeAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) { end -= 1; }  // never half a character
+    return {text: text.slice(0, end) + "\\u2026", empty: false};
   }
   function drawText(span, text, whole) {
     var shown = stepText(text, whole);
