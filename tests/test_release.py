@@ -589,7 +589,7 @@ def test_the_browser_checks_example_files_reach_the_site(tmp_path):
     """Only the top-level examples link is left out: assets/examples/ is the check's own."""
     _build_pages(tmp_path)
     shipped = sorted(p.name for p in (ROOT / "website" / "assets" / "examples").iterdir())
-    assert len(shipped) == 3
+    assert len(shipped) == 5
     for name in shipped:
         built = tmp_path / "assets" / "examples" / name
         assert built.read_bytes() == (ROOT / "website" / "assets" / "examples" / name).read_bytes()
@@ -598,7 +598,8 @@ def test_the_browser_checks_example_files_reach_the_site(tmp_path):
     assert "'assets/examples/' + file + '.js'" in script
     cards = [el.attrs["data-example-file"] for el in parse(tmp_path / "check.html").iter()
              if "data-example-file" in el.attrs]
-    assert sorted(f"{file}.js" for file in cards) == shipped
+    assert cards == ["shop-answers.csv", "shop-answers-no-grades.csv", "agent-runs.jsonl"]
+    assert {f"{file}.js" for file in cards} <= set(shipped)  # each card's file is shipped
 
 
 def test_every_local_link_in_the_built_pages_finds_its_file(tmp_path):
