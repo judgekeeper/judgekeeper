@@ -102,8 +102,8 @@ MLflow, or a CSV, TSV or JSONL file with these columns:
   (input and output alone work too: you mark each answer Pass or Fail)"""
 FIX_HELP = ("show where your LLM-as-a-judge goes wrong, help you write a better rule and test "
             "it on marks kept aside")
-STEPS_HELP = ("for agents: label the first wrong step of each run in Label Studio, then see "
-              "how often your agent-as-a-judge finds the same one")
+STEPS_HELP = ("for agents: mark the first wrong step of each run in your browser, then see "
+              "how often your agent-as-a-judge picks the same one")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", FIX_HELP),
@@ -358,14 +358,14 @@ def _parser() -> argparse.ArgumentParser:
     st._positionals.title, st._optionals.title = "Arguments", "Options"
     st.add_argument("path", nargs="?", default=".", metavar="PATH",
                     help="your agent runs (a JSONL file, one run per line with an id and its "
-                         "steps) to make the Label Studio screen, or the Label Studio export "
-                         "(JSON) of that project to see the numbers")
+                         "steps) to mark on a page in your browser, or a Label Studio export "
+                         "(JSON) of those runs to see the numbers")
     st.add_argument("--reviewer", metavar="FILE",
                     help="your agent-as-a-judge's picks as a JSONL file, one line per run: "
                          '{"id": ..., "first_wrong_step": ..., "model": ...}; else the '
                          "predictions in the export")
     st.add_argument("--model", metavar="NAME",
-                    help="the agent-as-a-judge to look at, when the export holds several")
+                    help="the agent-as-a-judge to look at, when the picks hold several")
     _page_args(st, new=False)  # a runs file opens the steps marking page
     p.commands["steps"] = st
     return p
