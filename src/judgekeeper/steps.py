@@ -87,6 +87,11 @@ NO_STEPS_IN_EXPORT = ("{name} is a Label Studio export, but its tasks hold no `s
                       "hold: {keys}). This reads the export of the project made from "
                       f"{SHOWN}/{TASKS_FILE}.")
 
+RUN_IN_TASKS = ("{n} {runs} in more than one task of {name} ({first} is in tasks {tasks}), so "
+                "{its} labels would count more than once.")
+NEXT_ONE_IMPORT = ("export again from a Label Studio project where you imported "
+                   f"{SHOWN}/{TASKS_FILE} once, then run `{{command}}`.")
+
 
 class StepsError(StartError):
     """`steps` cannot go on: a usage error (exit 2), said with the line's Next:."""
@@ -327,13 +332,11 @@ def read_export(path: Path, wanted_name: str | None = None) -> Export:
                                                    keys=", ".join(keys[:10]) or "nothing"))
     export = Export(path.name, [], {}, {}, {})
     counts = dict.fromkeys(("labelled", "disagreed", "no_label", "unusable"), 0)
+    _once_each(tasks_in, path.name)
     for item in tasks_in:
         data = item["data"]
         n_steps = len(data["steps"]) if isinstance(data.get("steps"), list) else None
-        raw_id = next((data[k] for k in ("run_id", "id") if isinstance(data.get(k), (str, int))
-                       and not isinstance(data.get(k), bool) and str(data[k]).strip()),
-                      item.get("id"))
-        task = Task(str(raw_id), n_steps)
+        task = Task(str(_run_of(item)), n_steps)
         task.state, task.label = _people(item.get("annotations"), n_steps, export.who)
         counts["labelled" if task.state == "label" else task.state] += 1
         export.tasks.append(task)
@@ -352,6 +355,35 @@ def read_export(path: Path, wanted_name: str | None = None) -> Export:
                 export.created[name] = stamp
     export.stats = {"tasks": len(tasks_in), **counts}
     return export
+
+
+def _run_of(item: dict):
+    """The run a task of the export is: data.run_id, else data.id, else Label Studio's own
+    task id."""
+    data = item["data"]
+    return next((data[k] for k in ("run_id", "id") if isinstance(data.get(k), (str, int))
+                 and not isinstance(data.get(k), bool) and str(data[k]).strip()), item.get("id"))
+
+
+def _once_each(tasks: list[dict], name: str) -> None:
+    """StepsError when a run is in more than one task (label-these.json imported twice, or a
+    newer one on top): each would count more than once, and its picks overwrite each other.
+    It names how many runs and the first one's tasks, by Label Studio's task id (else their
+    place in the file), never a step's text; the run id is scrubbed as every error is."""
+    where: dict[str, list] = {}
+    for place, item in enumerate(tasks, 1):
+        task_id = item.get("id")
+        shown = task_id if type(task_id) is int or isinstance(task_id, str) and task_id else place
+        where.setdefault(str(_run_of(item)), []).append(str(shown))
+    repeated = [(run_id, at) for run_id, at in where.items() if len(at) > 1]
+    if not repeated:
+        return
+    first, at = repeated[0]
+    n = len(repeated)
+    raise StepsError(RUN_IN_TASKS.format(
+        n=n, runs="run is" if n == 1 else "runs are each", name=name, first=first,
+        tasks=", ".join(at[:-1]) + f" and {at[-1]}", its="its" if n == 1 else "their"),
+        NEXT_ONE_IMPORT.format(command=program("steps EXPORT.json")))
 
 
 # The page's marks -> labels -------------------------------------------------------------------

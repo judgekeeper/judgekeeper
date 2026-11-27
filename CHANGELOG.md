@@ -21,6 +21,7 @@
 - An answer or run whose id holds a hidden character (such as a zero-width space) is now marked as itself: the marking pages name each one by a key, never by its id. A tab opened before this update loads again instead of saving.
 - A run id that is not text or a whole number (such as 1.5 or true) is now named as such, not as missing.
 - A tab left open on the steps page after `judgekeeper` started the answers page (or the other way round) loads again at its next mark, instead of looking saved while nothing was saved.
+- `judgekeeper steps export.json` stops when a run is in more than one task of the export (`label-these.json` imported twice into the same project), instead of counting its labels more than once. It says how many runs and the first one's task ids, and to export from a project where `label-these.json` was imported once.
 - One damaged line in a marks file (a byte that is not UTF-8, or a NUL) is left out and said by its number; the other marks are read. It no longer says the whole file is not UTF-8.
 
 ## 1.4.0 (2026-11-23)
