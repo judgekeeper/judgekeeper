@@ -1,4 +1,4 @@
-judgekeeper 1.4.0
+judgekeeper 1.5.0
 
 Step 2 of 4: Measure
 

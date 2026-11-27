@@ -1,6 +1,6 @@
 [project]
 name = "judgekeeper"
-version = "1.4.0"
+version = "1.5.0"
 description = "The keeper of human judgment for AI: Read. Measure. Fix. Re-check."
 readme = "README.md"
 license = "Apache-2.0"
