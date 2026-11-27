@@ -42,6 +42,13 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: windows-latest
     steps:
+      # Windows runners write slowly to C:, where TEMP points; the workspace drive (D:) is
+      # faster, and the tests write many temp files (tmp_path follows TEMP and TMP).
+      - name: Put temp files on the workspace drive
+        shell: pwsh
+        run: |
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
@@ -56,6 +63,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,mlflow,inspect]"
+          python -c "import tempfile; print('temp folder:', tempfile.gettempdir())"
       - name: Test
         # -rfEs lists every failed, erroring and skipped test (and why); the TypeScript
         # snippet test may not skip here.
@@ -73,6 +81,14 @@ jobs:
       matrix:
         python-version: ["3.11", "3.14"]
     steps:
+      # Windows runners write slowly to C:, where TEMP points; the workspace drive (D:) is
+      # faster, and the tests write many temp files (tmp_path follows TEMP and TMP).
+      - name: Put temp files on the workspace drive
+        if: needs.changes.outputs.code != 'false'
+        shell: pwsh
+        run: |
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         if: needs.changes.outputs.code != 'false'
         with:
@@ -87,6 +103,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+          python -c "import tempfile; print('temp folder:', tempfile.gettempdir())"
       - name: Test
         if: needs.changes.outputs.code != 'false'
         run: pytest -n auto -rfEs
