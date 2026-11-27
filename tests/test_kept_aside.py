@@ -93,7 +93,8 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     shown = re.sub(r"<[^>]+>", "", site)
     (fix,) = re.findall(r"Get the answers it got wrong[^<]*?kept aside\.", shown)
     assert fix.endswith("judgekeeper tests it on marks kept aside.") and not re.search(r"\d", fix)
-    assert "github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md" in site
+    assert "github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md" in (
+        ROOT / "website/start.html").read_text(encoding="utf-8")
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "examples/kept-aside/report.md" in reference
     assert (f"A rule that fixes 9 in 10 of your LLM-as-a-judge's mistakes or a quarter of them, "
