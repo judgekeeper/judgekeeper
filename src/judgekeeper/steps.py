@@ -1,4 +1,4 @@
-"""`judgekeeper steps [PATH]`: check an agent reviewer's "first wrong step" against people's.
+"""`judgekeeper steps [PATH]`: check an agent-as-a-judge's "first wrong step" against people's.
 
 Given agent runs (a JSONL file, one run per line: `id`, `steps`, each step `{"role" or "name",
 "content"}`) it writes the Label Studio screen people label them on:
@@ -58,10 +58,10 @@ NEXT_LABEL = ("in Label Studio, make a project with the labelling setup in {conf
 NEXT_NO_LABELS = ("label the runs in Label Studio (the first wrong step, 0 if all fine), export "
                   "the project as JSON and run `{command}`.")
 NEXT_MORE = "label more runs in Label Studio, export again and run `{command}`."
-NEXT_GUESSES = ("give your reviewer's first wrong step for each run as a JSONL file (one line "
+NEXT_GUESSES = ("give your agent-as-a-judge's first wrong step for each run as a JSONL file (one line "
                 "per run: {{\"id\": ..., \"first_wrong_step\": ..., \"model\": ...}}) and run "
                 "`{command} --reviewer GUESSES.jsonl`.")
-NEXT_AGAIN = ("change your reviewer, save its new guesses as a JSONL file and run "
+NEXT_AGAIN = ("change your agent-as-a-judge, save its new guesses as a JSONL file and run "
               "`{command} --reviewer NEW-GUESSES.jsonl`.")
 NEXT_MARK = ("click the first wrong step of each run on the page (or \"All steps are fine\"): "
              "`{command}`.")
@@ -526,22 +526,24 @@ def _reviewer_lines(name: str, r: dict) -> list[str]:
     run, step = r["run_level"], r["step_level"]
     need = run["needed_of_each_kind"]
     compared = plural(r["runs_compared"], "run")
-    lines = [f'Reviewer "{name}" against your people, on {compared} both labelled:']
+    who = ("Your agent-as-a-judge" if name == DEFAULT_REVIEWER  # the default name: never said
+           else f'Agent-as-a-judge "{name}"')
+    lines = [f"{who} against the people marking, on {compared} both labelled:"]
     for what, key, n in (("went wrong", "tpr", run["n_wrong"]),
                          ("were fine", "tnr", run["n_fine"])):
-        said = (f"your reviewer also says so for {_pct(run[key])}." if run[key]
+        said = (f"your agent-as-a-judge also says so for {_pct(run[key])}." if run[key]
                 else f"too few ({n}) for a number; {need} are needed.")
-        lines.append(f"  Runs your people say {what}: {said}")
+        lines.append(f"  Runs the people marking say {what}: {said}")
     if run["kappa"] is not None:
         lo, hi = run["kappa_interval"]
         lines.append(f"  Kappa: {_num(run['kappa'])} (between {_num(lo)} and {_num(hi)}).")
     elif run["n_wrong"] >= need and run["n_fine"] >= need:
-        lines.append("  Kappa: none (your people or your reviewer gave the same answer for "
-                     "every run).")
+        lines.append("  Kappa: none (the people marking or your agent-as-a-judge gave the same "
+                     "answer for every run).")
     else:
         lines.append("  Kappa: too few runs of one kind for a number.")
-    lines.append(f"How often your reviewer finds the same first wrong step as your people, on "
-                 f"the {step['n']} runs both say went wrong:")
+    lines.append(f"How often your agent-as-a-judge finds the same first wrong step as the "
+                 f"people marking, on the {step['n']} runs both say went wrong:")
     if step["same"]:
         lines.append(f"  The same first wrong step: {_pct(step['same'])}.")
         lines.append(f"  Within one step: {_pct(step['within_one'])}.")
@@ -665,7 +667,7 @@ def _picks(guesses: dict, reviewer: str | None, model: str | None) -> tuple[dict
     if model is not None:
         if model not in guesses:
             names = ", ".join(sorted(guesses)) or "none"
-            raise StepsError(f"No reviewer named {model!r} in the guesses (found: {names}).")
+            raise StepsError(f"No agent-as-a-judge named {model!r} in the guesses (found: {names}).")
         guesses = {model: guesses[model]}
     return guesses, given
 
@@ -736,10 +738,10 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
         _marks_read(stats, name, say)
     else:
         if stats["tasks"] == 1:
-            labelled = ("your people labelled it" if stats["labelled"]
-                        else "your people did not label it")
+            labelled = ("the people marking labelled it" if stats["labelled"]
+                        else "the people marking did not label it")
         else:
-            labelled = f"your people labelled {stats['labelled']} of them"
+            labelled = f"the people marking labelled {stats['labelled']} of them"
         say(f"Read {plural(stats['tasks'], 'run')} from {name}: {labelled}.")
     if stats["disagreed"]:
         say(f"People disagreed on {plural(stats['disagreed'], 'run')}; they are left out of "
@@ -761,9 +763,9 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
     if not reviewers:
         say("")
         if marks:
-            say("There are no reviewer guesses to compare your marks with yet.")
+            say("There are no agent-as-a-judge guesses to compare your marks with yet.")
         else:
-            say(f"{name} has no reviewer guesses"
+            say(f"{name} has no agent-as-a-judge guesses"
                 + (": Label Studio exports hold only the ids of predictions unless you ask "
                    "for the full ones." if export.ids_only else "."))
         say("")
@@ -775,7 +777,7 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
             say(line)
         left = entry["left_out"]
         if left["no_guess"] or left["unusable"]:
-            say(f"  Left out: {left['no_guess']} with no guess from this reviewer, "
+            say(f"  Left out: {left['no_guess']} with no guess from this agent-as-a-judge, "
                 f"{left['unusable']} with a guess that is not a step of the run.")
         if left["not_in_export"]:
             n = left["not_in_export"]

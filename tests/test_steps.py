@@ -230,10 +230,10 @@ def test_the_numbers_with_ranges(here, capsys):
 
 def test_the_read_line_counts_runs_your_people_labelled_not_runs_that_went_wrong(here, capsys):
     _, out, _ = run(capsys, "steps", str(save(here, project())))  # 20 of 40 are "all fine"
-    assert "Read 40 runs from export.json: your people labelled 40 of them." in out
+    assert "Read 40 runs from export.json: the people marking labelled 40 of them." in out
     one = [task(0, [annotation(2, 0)], [prediction("rv", 0)], run_id="a")]
     _, out, _ = run(capsys, "steps", str(save(here, one, "one.json")))
-    assert "Read 1 run from one.json: your people labelled it." in out
+    assert "Read 1 run from one.json: the people marking labelled it." in out
 
 
 def test_never_a_raw_agreement_alone(here, capsys):
@@ -248,7 +248,7 @@ def test_too_few_runs_say_so_and_give_no_number(here, capsys):
     code, out, _ = run(capsys, "steps", str(export))
     saved = result(here)["reviewers"][0]
     assert code == 3
-    assert "Too few" in out and "%" not in out.split("Reviewer")[-1].split("Saved")[0]
+    assert "Too few" in out and "%" not in out.split("Agent-as-a-judge")[-1].split("Saved")[0]
     assert saved["run_level"]["tpr"] is None and saved["run_level"]["kappa"] is None
     assert saved["step_level"]["same"] is None
     assert saved["run_level"]["too_few"] and str(targets.ROUGH) in out
@@ -365,7 +365,7 @@ def test_several_reviewers_each_get_numbers_and_model_picks_one(here, capsys):
     assert code == 0
     names = [r["name"] for r in result(here)["reviewers"]]
     assert names == ["reviewer-a", "reviewer-b"]
-    assert out.count("Reviewer ") == 2
+    assert out.count("Agent-as-a-judge ") == 2
     perfect = result(here)["reviewers"][1]
     assert perfect["run_level"]["tpr"]["p"] == 1.0 and perfect["step_level"]["same"]["p"] == 1.0
     code, out, _ = run(capsys, "steps", str(export), "--model", "reviewer-b")

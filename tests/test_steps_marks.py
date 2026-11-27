@@ -208,8 +208,7 @@ def test_numbers_from_marks_are_the_numbers_of_an_export(here):
     assert result(here) == saved
     assert lines[0] == ("Read 40 runs from runs.jsonl and your marks from "
                         ".judgekeeper/steps/marks.jsonl: you marked 40 of them.")
-    assert 'Reviewer "reviewer-a" against your people, on 40 runs both labelled:' in lines
-    assert lines[-1].startswith("Next: change your reviewer")
+    assert lines[-1].startswith("Next: change your agent-as-a-judge")
     assert not any("Label Studio" in line for line in lines)
 
 
@@ -217,8 +216,8 @@ def test_numbers_from_marks_with_no_reviewer_say_how_to_add_one(here):
     runs = marked_project(here)
     lines, saved = steps.numbers_from_marks(runs, here / MARKS, None)
     assert saved["reviewers"] == [] and saved["source"]["reviewer_file"] is None
-    assert "There are no reviewer guesses to compare your marks with yet." in lines
-    assert lines[-1] == ("Next: give your reviewer's first wrong step for each run as a JSONL "
+    assert "There are no agent-as-a-judge guesses to compare your marks with yet." in lines
+    assert lines[-1] == ("Next: give your agent-as-a-judge's first wrong step for each run as a JSONL "
                          'file (one line per run: {"id": ..., "first_wrong_step": ..., '
                          '"model": ...}) and run `judgekeeper steps runs.jsonl --reviewer '
                          'GUESSES.jsonl`.')
@@ -306,7 +305,7 @@ def test_steps_runs_with_marks_prints_the_numbers(here, capsys):
             "you marked 40 of them.") in lines
     assert "  The same first wrong step: 60% (9 of 15; between 36% and 80%)." in lines
     assert sum(x.startswith("Next:") for x in lines) == 1
-    assert lines[-1].startswith("Next: change your reviewer")
+    assert lines[-1].startswith("Next: change your agent-as-a-judge")
     assert result(here)["source"]["marks"] == ".judgekeeper/steps/marks.jsonl"
 
 
@@ -314,7 +313,7 @@ def test_steps_runs_with_marks_and_no_reviewer_is_exit_3(here, capsys):
     marked_project(here)
     code, out, _ = run(capsys, "steps", "runs.jsonl")
     assert code == 3
-    assert out.rstrip().splitlines()[-1].startswith("Next: give your reviewer's first wrong")
+    assert out.rstrip().splitlines()[-1].startswith("Next: give your agent-as-a-judge's first wrong")
 
 
 def test_steps_runs_takes_the_model_option(here, capsys):
@@ -345,3 +344,33 @@ def test_steps_runs_with_a_reviewer_and_no_marks_writes_the_screen_as_before(her
     assert code == 0, err
     assert out.rstrip().splitlines()[-1].startswith("Next: in Label Studio, make a project")
     assert not (here / ".judgekeeper/steps/result.json").exists()
+
+
+def test_say_numbers_from_marks_says_nothing_with_no_marks_file(here, capsys):
+    runs = marked_project(here)
+    assert steps.say_numbers_from_marks(runs, "runs.jsonl", "g.jsonl") == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].startswith("Read 40 runs from runs.jsonl and your marks")
+    assert out[-1].startswith("Next: change your agent-as-a-judge")
+    assert steps.marks_path(Path("runs.jsonl")).resolve() == (here / MARKS).resolve()
+    (here / MARKS).unlink()
+    assert steps.say_numbers_from_marks(runs, "runs.jsonl", "g.jsonl") is None
+    assert capsys.readouterr().out == ""
+
+
+def test_the_default_name_is_never_printed(here, capsys):
+    runs = marked_project(here)
+    (here / "g.jsonl").write_text("".join(
+        json.dumps({"id": f"r{i}", "first_wrong_step": reviewer_first(i)}) + "\n"
+        for i in range(40)), encoding="utf-8")
+    lines, saved = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert saved["reviewers"][0]["name"] == steps.DEFAULT_REVIEWER == "reviewer"
+    assert "Your agent-as-a-judge against the people marking, on 40 runs both labelled:" in lines
+    assert not any("reviewer" in line.replace("--reviewer", "").lower() for line in lines)
+
+
+def test_a_named_agent_as_a_judge_is_quoted(here):
+    runs = marked_project(here)
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert ('Agent-as-a-judge "reviewer-a" against the people marking, on 40 runs both '
+            "labelled:") in lines

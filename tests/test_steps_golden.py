@@ -16,6 +16,26 @@ from tests.test_steps import FIXTURES, annotation, prediction, project, reviewer
 
 GOLDEN = FIXTURES / "golden_export_1_4.json"
 
+# 1.5.0's words for the 1.4.0 lines, in this order: the AI that checks an agent's steps is
+# the agent-as-a-judge, and its default name ("reviewer") is never printed. Nothing else.
+WORDS = [
+    ('Reviewer "reviewer" against your people,', "Your agent-as-a-judge against the people marking,"),
+    ('Reviewer "', 'Agent-as-a-judge "'),
+    ("Kappa: none (your people or your reviewer gave",
+     "Kappa: none (the people marking or your agent-as-a-judge gave"),
+    ("your reviewer", "your agent-as-a-judge"),
+    ("your people", "the people marking"),
+    ("no reviewer guesses", "no agent-as-a-judge guesses"),
+    ("no guess from this reviewer,", "no guess from this agent-as-a-judge,"),
+    ("No reviewer named", "No agent-as-a-judge named"),
+]
+
+
+def in_new_words(line: str) -> str:
+    for old, new in WORDS:
+        line = line.replace(old, new)
+    return line
+
 
 def _guesses(here: Path, rows) -> None:
     (here / "g.jsonl").write_text("\n".join(map(json.dumps, rows)) + "\n", encoding="utf-8")
@@ -130,8 +150,10 @@ def said(here: Path, capsys, name: str) -> dict:
 @pytest.mark.parametrize("name", sorted(SCENARIOS))
 def test_an_export_reads_line_for_line_as_in_1_4(tmp_path, monkeypatch, capsys, name):
     monkeypatch.chdir(tmp_path)
-    golden = json.loads(GOLDEN.read_text(encoding="utf-8"))
-    assert said(tmp_path, capsys, name) == golden[name]
+    golden = json.loads(GOLDEN.read_text(encoding="utf-8"))[name]
+    for stream in ("out", "err"):
+        golden[stream] = [in_new_words(line) for line in golden[stream]]
+    assert said(tmp_path, capsys, name) == golden
 
 
 def test_every_scenario_is_recorded():
