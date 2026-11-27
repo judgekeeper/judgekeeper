@@ -31,6 +31,18 @@ WORDS = [
 ]
 
 
+def to_places(data, places: int = 9):
+    """`data` with each float rounded: kappa's range comes from random draws, and on Windows
+    the last digits of those draws differ. The printed lines stay exact."""
+    if isinstance(data, float):
+        return round(data, places)
+    if isinstance(data, dict):
+        return {k: to_places(v, places) for k, v in data.items()}
+    if isinstance(data, list):
+        return [to_places(v, places) for v in data]
+    return data
+
+
 def in_new_words(line: str) -> str:
     for old, new in WORDS:
         line = line.replace(old, new)
@@ -153,7 +165,9 @@ def test_an_export_reads_line_for_line_as_in_1_4(tmp_path, monkeypatch, capsys, 
     golden = json.loads(GOLDEN.read_text(encoding="utf-8"))[name]
     for stream in ("out", "err"):
         golden[stream] = [in_new_words(line) for line in golden[stream]]
-    assert said(tmp_path, capsys, name) == golden
+    now = said(tmp_path, capsys, name)
+    assert (now["code"], now["out"], now["err"]) == (golden["code"], golden["out"], golden["err"])
+    assert to_places(now["result"]) == to_places(golden["result"])
 
 
 def test_every_scenario_is_recorded():
