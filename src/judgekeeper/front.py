@@ -3483,7 +3483,12 @@ def _compare_command(talk: FrontTalk, ws: Workspace) -> str:
 
 
 def _fix_command(talk: FrontTalk) -> str:
-    """`judgekeeper fix`, with the path when it is not this folder: `fix` takes no other flag."""
+    """`judgekeeper fix`, with the path when it is a folder other than this one: `fix` takes no
+    other flag, and given a results file (check.given_results) it tests a new rule on it."""
+    from judgekeeper.check import given_results
+
+    if given_results(str(talk.path)):  # the project is found from here (project.project_of)
+        return program("fix")
     return _check_command(talk).replace(program("check"), program("fix"), 1)
 
 
