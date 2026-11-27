@@ -1737,6 +1737,8 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     assert "position: absolute" in copied and "clip: rect(0 0 0 0)" in copied
     assert not [c for c in _all(parse(GUIDE), "code") if "path" in c.classes()]
     assert "overflow-wrap: normal" in _last(".cmd code", _narrow(300))
+    # each tab's two buttons: side by side, and on a phone the second goes under the first
+    assert "flex-wrap" not in _rule(".gd-foot") and "flex-wrap: wrap" in _rule(".gd-foot", phone)
 
 
 def test_a_picture_opens_over_the_page_at_every_width():

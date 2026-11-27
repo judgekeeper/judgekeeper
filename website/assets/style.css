@@ -789,6 +789,7 @@ html.has-view, html.has-view body { overflow: hidden; }
   .gi-foot { margin-inline: 20px; }
   .gd-sec h2 { font-size: 26px; }
 }
+@media (max-width: 600px) { .gd-foot { flex-wrap: wrap; } }  /* a phone: Full reference goes under the example button, never cut off */
 
 /* Guide hero: the eval tools it reads, then three facts */
 .gx-chips, .gx-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; }
