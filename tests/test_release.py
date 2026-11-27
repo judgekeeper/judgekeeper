@@ -23,7 +23,7 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 STABLE = "Development Status :: 5 - Production/Stable"
 EXAMPLE = ROOT / "docs" / "examples" / "jailbreakbench"
 # The old LLMBar run, kept only as a source of the real-data check
@@ -110,7 +110,7 @@ def _released(text: str) -> list[tuple[str, str]]:
 def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = [v for v, _ in _released(text)]
-    assert entries == [VERSION, "1.3.0", "1.2.0", "1.1.2", "1.1.1", "1.1.0", "1.0.2", "1.0.1", "1.0.0"]  # the earlier ones are on PyPI
+    assert entries == [VERSION, "1.4.0", "1.3.0", "1.2.0", "1.1.2", "1.1.1", "1.1.0", "1.0.2", "1.0.1", "1.0.0"]  # the earlier ones are on PyPI
     assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1) are no longer on PyPI.")
 
 

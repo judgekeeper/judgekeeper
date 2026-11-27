@@ -1,14 +1,16 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 (2026-11-27)
 
 - `judgekeeper steps runs.jsonl` now opens a page in your browser where you mark each agent run: click its first wrong step, or "All steps are fine", then Next. Keys: `1` to `9` for steps 1 to 9, `0` for all fine, Enter or `→` for Next, `Z` for Undo. The runs come in one random order, the same for the same runs file, and you see your agent-as-a-judge's picks only on the result page.
 - Your marks are saved in `.judgekeeper/steps/marks.jsonl`, one line per mark, with a hash of the run's steps. A run whose steps changed loses its mark, and a line that is not a mark is said by its number and left out. The file holds no step text, name or email.
 - `judgekeeper steps runs.jsonl --reviewer picks.jsonl` says how often your agent-as-a-judge picks the same first wrong step as you: TPR, TNR and kappa for the runs that went wrong or were fine, and the same step or one within a step, each with a range, as for a Label Studio export. On the page, "See the numbers so far" shows them, and on the last run to mark Next says "See your result".
 - `judgekeeper steps` takes the page flags `--port`, `--no-browser`, `--wait` and `--stop`. In CI no page opens. `--new` is for answers only: to take back a step mark, use Undo on the page.
 - Label Studio still works, as the way to bring in labels people already have: `judgekeeper steps runs.jsonl` still writes the import file and labelling setup, and `judgekeeper steps export.json` reads the export as before.
-- What judgekeeper prints for `steps` says "agent-as-a-judge" (the AI that checks an agent's steps) where it said "reviewer". The `--reviewer` flag and the keys in `result.json` are unchanged.
 - A plain `judgekeeper` in a folder with agent runs and no eval results now says: "Next: mark where each agent run in runs.jsonl first went wrong: `judgekeeper steps runs.jsonl`."
+- What judgekeeper prints for `steps` says "agent-as-a-judge" (the AI that checks an agent's steps) where it said "reviewer". The `--reviewer` flag and the keys in `result.json` are unchanged.
+- What judgekeeper prints, its pages and `--help` now say "your agent or chatbot" where they said "your AI", and "the people marking" where they said "your people". Flags and file fields are unchanged.
+- `judgekeeper --help` and the README now say: "Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to an agent-as-a-judge checking each step of an agent, and see if agreement goes up or down after each change."
 
 ## 1.4.0 (2026-11-23)
 
