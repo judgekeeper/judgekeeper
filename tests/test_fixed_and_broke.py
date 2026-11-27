@@ -43,7 +43,7 @@ NEW_SET = ("You have tested 3 changes on these questions kept aside, so they no 
 def new_set(n: int | None) -> str:
     """The 3-changes line asking for about `n` new questions; None: for harder ones."""
     add = (f"Add about {n} new questions" if n is not None
-           else "Add harder questions, ones your AI may get wrong,")
+           else "Add harder questions, ones your agent or chatbot may get wrong,")
     return f"{NEW_SET} {add} and mark their answers; half of them are kept aside as a new test."
 
 
@@ -683,8 +683,8 @@ def harder(need: int, kept: int) -> str:
     target = no_grades.clear_target(need)
     return (f"A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
             f"with none breaking. If your change fixes about 2 in 3 of them, that needs about "
-            f"{target} kept-aside questions that failed before your change; you had {kept}. Add harder questions, ones your AI may "
-            f"get wrong, and mark their answers.")
+            f"{target} kept-aside questions that failed before your change; you had {kept}. Add harder questions, ones your agent or "
+            f"chatbot may get wrong, and mark their answers.")
 
 
 @pytest.mark.parametrize("c, said", [

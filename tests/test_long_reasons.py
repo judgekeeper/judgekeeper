@@ -118,17 +118,17 @@ def test_a_reason_saved_puts_the_prompt_the_terminal_says_in_the_box():
       window.dispatchEvent = function () {};
       window.fetch = function () { return {then: function (ok) { return ok(REPLY); }}; };
       parts[".said-text"].querySelector = function () { return new El("b"); };
-      promptBox.textContent = "Read it. It lists answers my AI gave that I marked Fail.";
+      promptBox.textContent = "Read it. It lists answers my agent or chatbot gave that I marked Fail.";
       var seen = [];
       type("Gives the old price"); input.fire("keydown", {key: "Enter"});
       seen.push(promptBox.textContent);  // no prompt in the answer: the box stays as it is
-      PROMPT = "Read it. It lists answers my AI gave that I marked Fail, with my reasons.";
+      PROMPT = "Read it. It lists answers my agent or chatbot gave that I marked Fail, with my reasons.";
       type("Gives the old price again"); input.fire("keydown", {key: "Enter"});
       seen.push(promptBox.textContent);
       console.log(JSON.stringify(seen));"""
     assert _node(_REASONS_DOM + _REPLY + report_page.REASONS_SCRIPT + scenario) == [
-        "Read it. It lists answers my AI gave that I marked Fail.",
-        "Read it. It lists answers my AI gave that I marked Fail, with my reasons."]
+        "Read it. It lists answers my agent or chatbot gave that I marked Fail.",
+        "Read it. It lists answers my agent or chatbot gave that I marked Fail, with my reasons."]
 
 
 # The person's own reason buttons ---------------------------------------------------------------

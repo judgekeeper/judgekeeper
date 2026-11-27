@@ -83,7 +83,7 @@ def test_the_since_heading_is_left_out_when_it_has_nothing_under_it(project):
 
 # "Can't tell yet" with too few kept-aside Fails: the step its line asks for, the one step ----
 
-HARDER = "Add harder questions, ones your AI may get wrong, and mark their answers."
+HARDER = "Add harder questions, ones your agent or chatbot may get wrong, and mark their answers."
 
 
 def _without_page_flags(step: str) -> str:
@@ -111,7 +111,7 @@ def test_too_few_kept_aside_fails_for_a_clear_answer_the_step_is_harder_question
     project.first(fails=set(range(4)), n=40)  # 4 in 40 fail: new ones would rarely fail
     said = project.again({i: "pass" for i in project.kept("fail") + project.shown("fail")})
     assert "Can't tell yet" in said and HARDER in said, said  # the line as it was
-    _one_step(project, said, "add harder questions, ones your AI may get wrong, to ")
+    _one_step(project, said, "add harder questions, ones your agent or chatbot may get wrong, to ")
 
 
 def test_kept_aside_fails_short_of_a_clear_answer_the_step_is_the_questions_it_asks(project):
@@ -129,7 +129,7 @@ def test_with_no_answer_failed_the_one_step_is_harder_questions(here, capsys):  
     mark(here, ["pass"] * 10)
     said = flat(_say(capsys)[1])
     assert "You passed 10 of 10" in said and SURER not in said, said
-    step = "add harder questions, ones your AI may get wrong, to "
+    step = "add harder questions, ones your agent or chatbot may get wrong, to "
     assert _next(said).startswith(step + "results.csv, then run "), said
     _code, out, err = run(capsys, "fix")  # fix takes no page flags
     assert _next(flat(out + err)) == _without_page_flags(_next(said)), out + err
@@ -151,7 +151,8 @@ def test_with_no_kept_aside_answer_changed_the_one_step_is_the_change_to_test(pr
     project.first(fails=set(range(6)), n=12)
     said = project.again({i: "fail" for i in project.shown("fail")})  # none kept aside
     assert "your change can't be tested yet" in said, said
-    step = "paste the prompt above into your coding agent. After it changes your AI's prompt,"
+    step = ("paste the prompt above into your coding agent. After it changes the prompt of your "
+            "agent or chatbot,")
     assert _next(said).startswith(step), said
     _code, out, err = run(project.capsys, "mark", "--no-browser")
     assert _next(flat(out + err)) == _next(said), out + err
@@ -160,7 +161,7 @@ def test_with_no_kept_aside_answer_changed_the_one_step_is_the_change_to_test(pr
     assert _next(flat(out + err)) == _without_page_flags(_next(said)), out + err
     after = flat(_ws(project.here).report_html.read_text(encoding="utf-8")).split(
         "What next", 1)[1]
-    assert "After you change the prompt, run your AI again" in after, after
+    assert "After you change the prompt, run your agent or chatbot again" in after, after
     assert "for a surer number" not in after, after
 
 
@@ -168,5 +169,5 @@ def test_with_failed_answers_left_to_fix_the_one_step_is_still_harder_questions(
     project.first(fails=set(range(4)), n=40)  # 2 Fails kept aside, 2 shown
     said = project.again({i: "pass" for i in project.kept("fail")})  # the shown ones still fail
     assert "Can't tell yet" in said and HARDER in said, said  # the line as it was
-    _one_step(project, said, "add harder questions, ones your AI may get wrong, to ")
+    _one_step(project, said, "add harder questions, ones your agent or chatbot may get wrong, to ")
 

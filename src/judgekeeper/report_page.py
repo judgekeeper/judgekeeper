@@ -1688,12 +1688,12 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
         if fixing.get("prompt"):  # the answers failed, for a coding agent, first
             saved = _path_code(_e(no_grades.FAILED_SAVED.format(file=_PATH)), fixing["failed"])
             act = (f"<p>{saved} Give it to "
-                   "your coding agent to improve your AI's prompt:</p>"
+                   "your coding agent to improve the prompt of your agent or chatbot:</p>"
                    f'<div class="cmd prompt"><code>{_e(fixing["prompt"])}</code>'
                    '<button type="button" class="copy" data-copy aria-label="Copy the prompt">'
                    f"{COPY_ICONS}</button></div>"
                    + ("" if asks else  # the questions it asks for: the one step
-                      "<p>After you change the prompt, run your AI again on the same "
+                      "<p>After you change the prompt, run your agent or chatbot again on the same "
                       "questions, save its new answers in "
                       + (f"<code>{_e(file)}</code>" if file else "your results file")
                       + " or a new file next to it, and run "

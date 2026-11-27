@@ -88,8 +88,8 @@ def test_the_switch_line_names_the_grade_column(here, capsys):
     _, out, _ = run(capsys, "res.csv", "--no-browser", "--port", "0")
     main(["--stop"])
     said = flat(out)
-    assert ("To check your AI's answers instead, use a copy of the file without the grade "
-            "column.") in said, said
+    assert ("To check the answers of your agent or chatbot instead, use a copy of the file "
+            "without the grade column.") in said, said
     assert "verdict column" not in said, said
 
 
