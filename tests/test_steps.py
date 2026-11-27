@@ -160,12 +160,6 @@ def test_the_screen_header_says_zero_means_all_fine():
     assert "0" in steps.INSTRUCTIONS and "all fine" in steps.INSTRUCTIONS
 
 
-def test_a_runs_file_takes_no_reviewer(here, capsys):
-    runs = shutil.copy(FIXTURES / "runs.jsonl", here / "runs.jsonl")
-    code, _, err = run(capsys, "steps", str(runs), "--reviewer", "g.jsonl")
-    assert code == 2 and "Next:" in err
-
-
 @pytest.mark.parametrize("body, said", [
     ('{"steps": [{"role": "user", "content": "x"}]}\n', "no id"),
     ('{"id": "a", "steps": []}\n', "no steps"),

@@ -1,0 +1,347 @@
+"""Step marks in, numbers out: .judgekeeper/steps/marks.jsonl (the first wrong step a person
+clicked for each run on the page) read against the runs file, and the same numbers as for a
+Label Studio export. Synthetic data only; no test calls an AI."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+from pathlib import Path
+
+import pytest
+
+from judgekeeper import metrics, steps
+from judgekeeper.cli import main
+from tests.test_steps import FIXTURES, people_first, reviewer_first
+
+MARKS = Path(".judgekeeper") / "steps" / "marks.jsonl"
+HEADER = {"step_marks": 1, "created_at": "2026-11-26T10:00:00Z",
+          "judgekeeper_version": "1.5.0", "runs": "runs.jsonl", "runs_hash": "0" * 64}
+
+
+@pytest.fixture
+def here(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def run(capsys, *argv):
+    code = main(list(argv))
+    out, err = capsys.readouterr()
+    return code, out, err
+
+
+def result(here: Path) -> dict:
+    return json.loads((here / ".judgekeeper/steps/result.json").read_text(encoding="utf-8"))
+
+
+def canonical_hash(run_steps) -> str:
+    """The marks file's steps_hash, written out from its definition."""
+    return hashlib.sha256(json.dumps(run_steps, sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def write_runs(here: Path, n=40, n_steps=6) -> Path:
+    rows = [{"id": f"r{i}", "steps": [{"role": "assistant" if k % 2 else "user",
+                                       "content": f"made up step {k + 1} of run {i}"}
+                                      for k in range(n_steps)]} for i in range(n)]
+    path = here / "runs.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return path
+
+
+def mark(run_id, step, hashes, **more):
+    return {"id": run_id, "first_wrong_step": step, "steps_hash": hashes.get(run_id, "f" * 64),
+            "at": "2026-11-26T10:00:12Z", "seconds": 4.5, "by": "page", **more}
+
+
+def write_marks(here: Path, lines, header=True) -> Path:
+    path = here / MARKS
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = ([json.dumps(HEADER)] if header else []) + [
+        x if isinstance(x, str) else json.dumps(x) for x in lines]
+    path.write_text("".join(x + "\n" for x in body), encoding="utf-8")
+    return path
+
+
+def hashes_of(runs_path: Path) -> dict[str, str]:
+    return {r.id: canonical_hash(r.steps) for r in steps.read_runs(runs_path)}
+
+
+def marked_project(here: Path, n=40):
+    """40 runs; the person marks each as the people did in test_steps.project; the reviewer
+    guesses as there."""
+    runs = write_runs(here, n)
+    hashes = hashes_of(runs)
+    write_marks(here, [mark(f"r{i}", people_first(i), hashes) for i in range(n)])
+    (here / "g.jsonl").write_text("".join(
+        json.dumps({"id": f"r{i}", "first_wrong_step": reviewer_first(i),
+                    "model": "reviewer-a"}) + "\n" for i in range(n)), encoding="utf-8")
+    return runs
+
+
+# The marks file -> an Export ---------------------------------------------------------------
+
+def test_the_fixture_reads_newest_wins_and_null_takes_back(here):
+    runs = steps.read_runs(FIXTURES / "runs.jsonl")
+    export = steps.read_marks(FIXTURES / "marks.jsonl", runs)
+    assert isinstance(export, steps.Export)
+    by_id = {t.id: t for t in export.tasks}
+    assert list(by_id) == ["run-1", "run-2", "3"]
+    assert (by_id["run-1"].state, by_id["run-1"].label) == ("label", 4)  # 2, then 4
+    assert (by_id["run-2"].state, by_id["run-2"].label) == ("label", 0)
+    assert (by_id["3"].state, by_id["3"].label) == ("no_label", None)  # 1, then taken back
+    assert [t.n_steps for t in export.tasks] == [4, 2, 1]
+    assert export.who == {} and export.guesses == {}
+    assert export.stats["tasks"] == 3 and export.stats["labelled"] == 2
+    assert export.stats["no_label"] == 1 and export.stats["changed"] == 0
+
+
+def test_the_fixture_hashes_are_the_canonical_hash_of_the_steps_read():
+    runs = steps.read_runs(FIXTURES / "runs.jsonl")
+    lines = (FIXTURES / "marks.jsonl").read_text(encoding="utf-8").splitlines()
+    assert set(json.loads(lines[0])) == {"step_marks", "created_at", "judgekeeper_version",
+                                         "runs", "runs_hash"}
+    by_id = {r.id: r for r in runs}
+    for line in lines[1:]:
+        row = json.loads(line)
+        assert set(row) - {"link"} == {"id", "first_wrong_step", "steps_hash", "at", "seconds",
+                                       "by"}
+        assert row["steps_hash"] == canonical_hash(by_id[row["id"]].steps)
+        assert steps.steps_hash(by_id[row["id"]].steps) == row["steps_hash"]
+    assert any(json.loads(line).get("link") == "printed" for line in lines[1:])
+
+
+def test_link_printed_is_the_one_extra_field_a_mark_may_carry(here):
+    runs_path = write_runs(here, 3)
+    hashes = hashes_of(runs_path)
+    write_marks(here, [mark("r0", 2, hashes, link="printed"), mark("r1", 1, hashes, link="x"),
+                       mark("r2", 1, hashes, note="SECRET-TEXT")])
+    export = steps.read_marks(here / MARKS, steps.read_runs(runs_path))
+    assert [t.label for t in export.tasks] == [2, None, None]
+    assert export.stats["broken"] == [3, 4]
+
+
+def test_a_run_whose_steps_changed_loses_its_mark_and_is_counted(here):
+    runs_path = write_runs(here, 3)
+    hashes = hashes_of(runs_path)
+    write_marks(here, [mark("r0", 2, hashes), mark("r1", 1, {"r1": "a" * 64}),
+                       mark("r2", 0, {"r2": "b" * 64})])
+    export = steps.read_marks(here / MARKS, steps.read_runs(runs_path))
+    assert [(t.id, t.label) for t in export.tasks] == [("r0", 2), ("r1", None), ("r2", None)]
+    assert export.stats["changed"] == 2 and export.stats["labelled"] == 1
+
+
+def test_a_mark_for_a_run_not_in_the_runs_is_counted(here):
+    runs_path = write_runs(here, 2)
+    hashes = hashes_of(runs_path)
+    write_marks(here, [mark("r0", 1, hashes), mark("gone", 1, hashes), mark("gone2", 0, hashes),
+                       mark("undone", 1, hashes), mark("undone", None, hashes)])
+    export = steps.read_marks(here / MARKS, steps.read_runs(runs_path))
+    assert export.stats["not_in_runs"] == 2  # a taken-back mark is no mark at all
+
+
+def test_an_int_run_id_is_matched_as_its_string(here):
+    path = here / "runs.jsonl"
+    path.write_text('{"id": 7, "steps": [{"role": "user", "content": "x"},'
+                    ' {"role": "assistant", "content": "y"}]}\n', encoding="utf-8")
+    runs = steps.read_runs(path)
+    write_marks(here, [mark("7", 2, {"7": canonical_hash(runs[0].steps)})])
+    assert steps.read_marks(here / MARKS, runs).tasks[0].label == 2
+
+
+def test_a_broken_line_is_said_by_number_never_quoted_and_skipped(here):
+    runs_path = write_runs(here, 3)
+    hashes = hashes_of(runs_path)
+    write_marks(here, [mark("r0", 2, hashes), "not json SECRET-TEXT",
+                       '{"id": "r0", "first_wrong_step": "SECRET-TEXT", "steps_hash": "x"}',
+                       json.dumps(mark("r1", True, hashes)), json.dumps(mark("r1", -1, hashes)),
+                       json.dumps(mark("r1", 1.5, hashes)), '["SECRET-TEXT"]',
+                       json.dumps({"first_wrong_step": 1, "steps_hash": hashes["r2"]}),
+                       json.dumps({"id": "r2", "first_wrong_step": 1}),
+                       json.dumps({k: v for k, v in mark("r2", 1, hashes).items() if k != "at"}),
+                       json.dumps(mark("r2", 1, hashes, by="SECRET-TEXT")),
+                       json.dumps(mark(5, 1, hashes)), json.dumps(HEADER)])
+    export = steps.read_marks(here / MARKS, steps.read_runs(runs_path))
+    assert export.tasks[0].label == 2  # a broken line never undoes a mark
+    assert export.stats["broken"] == [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    assert export.stats["labelled"] == 1
+
+
+def test_a_mark_past_the_last_step_is_unusable(here):
+    runs_path = write_runs(here, 2, n_steps=3)
+    hashes = hashes_of(runs_path)
+    write_marks(here, [mark("r0", 4, hashes), mark("r1", 3, hashes)])
+    export = steps.read_marks(here / MARKS, steps.read_runs(runs_path))
+    assert [t.state for t in export.tasks] == ["unusable", "label"]
+    assert export.stats["unusable"] == 1
+
+
+def test_no_header_and_an_empty_file_read_as_no_marks(here):
+    runs_path = write_runs(here, 2)
+    hashes = hashes_of(runs_path)
+    write_marks(here, [mark("r0", 1, hashes)], header=False)
+    assert steps.read_marks(here / MARKS, steps.read_runs(runs_path)).stats["labelled"] == 1
+    (here / MARKS).write_text("", encoding="utf-8")
+    export = steps.read_marks(here / MARKS, steps.read_runs(runs_path))
+    assert export.stats["labelled"] == 0 and export.stats["broken"] == []
+
+
+# Marks -> the numbers ------------------------------------------------------------------------
+
+def test_numbers_from_marks_are_the_numbers_of_an_export(here):
+    runs = marked_project(here)
+    lines, saved = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    people = ["wrong" if people_first(i) else "fine" for i in range(40)]
+    guess = ["wrong" if reviewer_first(i) else "fine" for i in range(40)]
+    ag = metrics.agreement(people, guess, "wrong", "fine")
+    reviewer = saved["reviewers"][0]
+    assert reviewer["name"] == "reviewer-a"
+    assert reviewer["run_level"]["tpr"]["p"] == ag["tpr"] == 15 / 20
+    assert reviewer["run_level"]["tnr"]["p"] == ag["tnr"] == 16 / 20
+    assert reviewer["run_level"]["kappa"] == pytest.approx(ag["kappa"])
+    assert reviewer["step_level"]["same"] == metrics.wilson(9, 15)
+    assert saved["source"] == {"marks": ".judgekeeper/steps/marks.jsonl", "runs": "runs.jsonl",
+                               "reviewer_file": "g.jsonl"}
+    assert saved["kind"] == "agent-steps" and "fingerprint" in reviewer
+    assert result(here) == saved
+    assert lines[0] == ("Read 40 runs from runs.jsonl and your marks from "
+                        ".judgekeeper/steps/marks.jsonl: you marked 40 of them.")
+    assert 'Reviewer "reviewer-a" against your people, on 40 runs both labelled:' in lines
+    assert lines[-1].startswith("Next: change your reviewer")
+    assert not any("Label Studio" in line for line in lines)
+
+
+def test_numbers_from_marks_with_no_reviewer_say_how_to_add_one(here):
+    runs = marked_project(here)
+    lines, saved = steps.numbers_from_marks(runs, here / MARKS, None)
+    assert saved["reviewers"] == [] and saved["source"]["reviewer_file"] is None
+    assert "There are no reviewer guesses to compare your marks with yet." in lines
+    assert lines[-1] == ("Next: give your reviewer's first wrong step for each run as a JSONL "
+                         'file (one line per run: {"id": ..., "first_wrong_step": ..., '
+                         '"model": ...}) and run `judgekeeper steps runs.jsonl --reviewer '
+                         'GUESSES.jsonl`.')
+
+
+def test_no_marks_yet_says_click_on_the_page(here):
+    runs = write_runs(here, 3)
+    write_marks(here, [])
+    lines, saved = steps.numbers_from_marks(runs, here / MARKS, None)
+    assert lines[0] == ("Read 3 runs from runs.jsonl and your marks from "
+                        ".judgekeeper/steps/marks.jsonl: you marked 0 of them.")
+    assert "You have not marked a run yet." in lines
+    assert lines[-1] == ("Next: click the first wrong step of each run on the page (or \"All "
+                         "steps are fine\"): `judgekeeper steps runs.jsonl`.")
+    assert saved["people"]["labelled"] == 0
+
+
+def test_one_run_reads_it(here):
+    runs = write_runs(here, 1)
+    write_marks(here, [mark("r0", 1, hashes_of(runs))])
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, None)
+    assert lines[0] == ("Read 1 run from runs.jsonl and your marks from "
+                        ".judgekeeper/steps/marks.jsonl: you marked it.")
+    write_marks(here, [])
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, None)
+    assert lines[0].endswith(": you have not marked it.")
+
+
+def test_too_few_marks_say_mark_more_on_the_page(here):
+    runs = marked_project(here, n=10)
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert lines[-1] == ("Next: mark more runs on the page: "
+                         "`judgekeeper steps runs.jsonl --reviewer g.jsonl`.")
+
+
+def test_left_out_marks_are_said_one_line_each(here):
+    runs = write_runs(here, 4)
+    hashes = hashes_of(runs)
+    write_marks(here, [mark("r0", 1, hashes), mark("r1", 1, {}), mark("gone", 1, hashes),
+                       "not json SECRET-TEXT", mark("r2", 99, hashes)])
+    lines, saved = steps.numbers_from_marks(runs, here / MARKS, None)
+    said = "\n".join(lines)
+    assert ("1 mark is for a run whose steps changed after you marked it; it is left out "
+            "(mark that run again).") in lines
+    assert "1 mark is for a run that is not in runs.jsonl; it is left out." in lines
+    assert ("Line 5 of .judgekeeper/steps/marks.jsonl is not a mark judgekeeper can read; it "
+            "is left out.") in lines
+    assert ("1 run had a number that is not a step of the run (a whole number from 0 to the "
+            "last step); they are left out.") in lines
+    assert "SECRET-TEXT" not in said and "People disagreed" not in said
+    assert saved["people"]["changed"] == 1 and saved["people"]["not_in_runs"] == 1
+
+
+def test_several_left_out_marks_are_said_in_the_plural(here):
+    runs = write_runs(here, 4)
+    hashes = hashes_of(runs)
+    write_marks(here, [mark("r0", 1, {}), mark("r1", 1, {}), mark("x", 1, hashes),
+                       mark("y", 1, hashes), "{", "[", "{", "[", "{", "[", "{"])
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, None)
+    assert ("2 marks are for runs whose steps changed after you marked them; they are left "
+            "out (mark those runs again).") in lines
+    assert "2 marks are for runs that are not in runs.jsonl; they are left out." in lines
+    assert ("Lines 6, 7, 8, 9, 10 and 2 more of .judgekeeper/steps/marks.jsonl are not marks "
+            "judgekeeper can read; they are left out.") in lines
+
+
+def test_guesses_for_runs_not_in_the_runs_file_name_the_runs_file(here):
+    runs = marked_project(here)
+    with (here / "g.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"id": "x1", "first_wrong_step": 1, "model": "reviewer-a"}) + "\n")
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert "  Left out: 1 guess is for a run that is not in runs.jsonl." in lines
+
+
+# The command ---------------------------------------------------------------------------------
+
+def test_steps_runs_with_marks_prints_the_numbers(here, capsys):
+    marked_project(here)
+    code, out, err = run(capsys, "steps", "runs.jsonl", "--reviewer", "g.jsonl")
+    assert code == 0, err
+    lines = out.splitlines()
+    assert lines[0].startswith("judgekeeper ")
+    assert any(x.startswith("Wrote 40 runs for Label Studio") for x in lines)
+    assert ("Read 40 runs from runs.jsonl and your marks from .judgekeeper/steps/marks.jsonl: "
+            "you marked 40 of them.") in lines
+    assert "  The same first wrong step: 60% (9 of 15; between 36% and 80%)." in lines
+    assert sum(x.startswith("Next:") for x in lines) == 1
+    assert lines[-1].startswith("Next: change your reviewer")
+    assert result(here)["source"]["marks"] == ".judgekeeper/steps/marks.jsonl"
+
+
+def test_steps_runs_with_marks_and_no_reviewer_is_exit_3(here, capsys):
+    marked_project(here)
+    code, out, _ = run(capsys, "steps", "runs.jsonl")
+    assert code == 3
+    assert out.rstrip().splitlines()[-1].startswith("Next: give your reviewer's first wrong")
+
+
+def test_steps_runs_takes_the_model_option(here, capsys):
+    marked_project(here)
+    with (here / "g.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"id": "r0", "first_wrong_step": 0, "model": "reviewer-b"}) + "\n")
+    code, _, err = run(capsys, "steps", "runs.jsonl", "--reviewer", "g.jsonl",
+                       "--model", "reviewer-a")
+    assert code == 0, err
+    assert [r["name"] for r in result(here)["reviewers"]] == ["reviewer-a"]
+
+
+def test_a_bad_reviewer_file_stops_before_anything_is_written(here, capsys):
+    shutil.copy(FIXTURES / "runs.jsonl", here / "runs.jsonl")
+    (here / "g.jsonl").write_text('{"id": "run-1", "first_wrong_step": "SECRET-TEXT"}\n',
+                                  encoding="utf-8")
+    code, out, err = run(capsys, "steps", "runs.jsonl", "--reviewer", "g.jsonl")
+    assert code == 2 and "Line 1 of g.jsonl" in err and "SECRET-TEXT" not in out + err
+    assert not (here / ".judgekeeper/steps/label-these.json").exists()
+    code, _, err = run(capsys, "steps", "runs.jsonl", "--reviewer", "none.jsonl")
+    assert code == 2 and "Next:" in err
+
+
+def test_steps_runs_with_a_reviewer_and_no_marks_writes_the_screen_as_before(here, capsys):
+    shutil.copy(FIXTURES / "runs.jsonl", here / "runs.jsonl")
+    (here / "g.jsonl").write_text('{"id": "run-1", "first_wrong_step": 1}\n', encoding="utf-8")
+    code, out, err = run(capsys, "steps", "runs.jsonl", "--reviewer", "g.jsonl")
+    assert code == 0, err
+    assert out.rstrip().splitlines()[-1].startswith("Next: in Label Studio, make a project")
+    assert not (here / ".judgekeeper/steps/result.json").exists()
