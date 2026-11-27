@@ -75,6 +75,13 @@ def lenient_streams() -> None:
             pass
 
 
+def to_stderr(text: str, end: str = "\n") -> None:
+    """Print `text` to stderr, stdout flushed first: where both are read as one stream (piped,
+    or captured by a program), what came before on stdout (the version line) stays before it."""
+    flush_stdout()
+    print(text, file=sys.stderr, end=end, flush=True)
+
+
 def flush_stdout(err: bool = False) -> None:
     """Flush stdout (`err`: stderr). When it can't take the output (the program reading it
     stopped, as `| head` does, the disk is full, or it was closed), the rest goes to the null
@@ -647,8 +654,7 @@ def reading(n: int, name: str | None = None) -> None:
                                                     and now - said < PROGRESS_EVERY):
         return
     _reading["said"] = now
-    print(f"Reading {name or last_read or 'your results'} ({n:,} answers so far)...",
-          file=sys.stderr, flush=True)
+    to_stderr(f"Reading {name or last_read or 'your results'} ({n:,} answers so far)...")
 
 
 def read_utf8(path: str | Path, error: type[Exception]) -> str:

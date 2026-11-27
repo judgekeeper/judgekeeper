@@ -192,6 +192,8 @@ def _say(text: str, file=None, end: str = "\n") -> None:
     reading it) goes to the null device: the exit code stays the command's."""
     textio.said_next(text)
     text = grader_words.swap(text)
+    if file is sys.stderr:
+        flush_stdout()  # what stdout holds comes first where both streams are read as one
     try:
         print(one_line(text), file=file, end=end)
         for line in held_lines(text):  # a name left out of the command above, as data
@@ -544,14 +546,13 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
     args_list = command_first(args_list)
     command = _command(args_list)
     if command in REMOVED:
-        print(f"judgekeeper {command} was removed. Run {program()} in your project.",
-              file=sys.stderr)
+        textio.to_stderr(f"judgekeeper {command} was removed. Run {program()} in your project.")
         _next(NEXT_REMOVED.replace("{command}", program()))
         raise SystemExit(EXIT_USAGE)
     if command in ("fix", "check") and (kept := _without_page_flags(args_list)) != args_list:
         _say(f"judgekeeper {__version__}")  # the first line, as every run of `check` says it
         _say("")
-        print(NO_PAGE.format(command=command), file=sys.stderr)
+        textio.to_stderr(NO_PAGE.format(command=command))
         _next(f"run `{program(' '.join(textio.quote_arg(a) for a in kept))}`.")
         raise SystemExit(EXIT_USAGE)
     parser = _parser() if command else _front_parser()
@@ -698,7 +699,7 @@ def _main(argv: list[str] | None) -> int:
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see
         if args.debug:
             try:
-                print(printable(scrub(_frames(e))), file=sys.stderr, end="")
+                textio.to_stderr(printable(scrub(_frames(e))), end="")
             except OSError:  # stderr can't take it: still an error (2)
                 flush_stdout(err=True)
         workspace = textio.workspace_problem(e) if isinstance(e, OSError) else None
