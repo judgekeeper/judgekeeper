@@ -781,8 +781,8 @@ def test_what_next_sends_to_marking_only_to_change_a_mark_when_every_answer_is_m
         saved = unwrapped(_part(start_label.result_html(_result(*counts, left=0)), NEXT_OPEN))
         assert SAVED in live and SAVED in saved, counts
         assert "Keep marking" not in live and "To mark more" not in saved, counts
-        assert ('<a href="/?token=t">Change a mark</a>: click it in the list and mark it '
-                "again.") in live, counts
+        assert ('<a href="/?token=t">Change a mark</a> opens the list of your answers: click '
+                "one and mark it again.") in live, counts
         assert f"To change a mark, run <code>{mark}</code> in your project folder." in saved
         assert mark not in live, counts
     left = unwrapped(_part(start_label.result_html(_result(*GATE, left=3)), NEXT_OPEN))

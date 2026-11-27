@@ -63,7 +63,8 @@ def test_every_answer_marked_mark_opens_the_list_and_a_changed_mark_counts(
     assert _post(url, {"id": item["id"], "label": other, "seconds": 4}) == 200
     page = _get(url.replace("/?", "/result?"))
     assert _result(ws)["disagreements"] == 1
-    assert "Change a mark</a>: click it in the list and mark it again." in page
+    assert "Change a mark</a> opens the list of your answers: click one and mark it again." in page
+    assert "click it in the list" not in page  # this page has no list
     main(["--stop"])
 
 

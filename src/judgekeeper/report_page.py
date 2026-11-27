@@ -1325,6 +1325,7 @@ EVERY_MARKED = "you marked every answer"
 EXACT = "You marked every answer, so these numbers are exact."  # said once, under the numbers
 NUM_HEAD = "How often your LLM-as-a-judge agrees with you"  # the numbers' heading
 CHANGE_MARK = "Change a mark"  # the result page's link to marking, every answer marked
+CHANGE_HOW = "opens the list of your answers: click one and mark it again."  # after the link
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
 
@@ -1477,8 +1478,7 @@ def _next(r: dict, back: str | None, extra: list[str]) -> str:
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
         then = ""
     elif back is not None:  # every answer marked: a mark can still be changed
-        then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
-                "it again.</p>")
+        then = f'<p><a href="{_e(back)}">{CHANGE_MARK}</a> {CHANGE_HOW}</p>'
     else:
         then = f"<p>To change a mark, run {mark} in your project folder.</p>"
     return ('<section class="sec next-box" aria-labelledby="next-h"><div class="nx">'
@@ -1682,8 +1682,7 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
             then = ""
         else:
             act = f"<p>{_path_code(_code_line(more), file)}</p>"
-            then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
-                    "it again.</p>" if live else
+            then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a> {CHANGE_HOW}</p>' if live else
                     f"<p>To change a mark, run {mark} in your project folder.</p>")
         if fixing.get("prompt"):  # the answers failed, for a coding agent, first
             saved = _path_code(_e(no_grades.FAILED_SAVED.format(file=_PATH)), fixing["failed"])
