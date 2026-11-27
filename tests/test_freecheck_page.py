@@ -154,8 +154,8 @@ NOT_CHECKED = {
     "page-records.jsonl": ("This is a judgekeeper.record() file. This page does not read it. "
                            "Run `uvx judgekeeper` in your project for this file."),
     "not-results.json": ("This isn't a results file this page can read. It reads promptfoo, "
-                         "DeepEval, CSV, TSV and JSONL files. For other results, run "
-                         "`uvx judgekeeper` in your project."),
+                         "DeepEval, CSV, TSV and JSONL files, and agent runs. For other results, "
+                         "run `uvx judgekeeper` in your project."),
     "table-output.json": ("This is promptfoo's table output, which doesn't keep the LLM-as-a-judge's "
                           "own decisions. Save the full results with promptfoo eval -o "
                           "results.json."),
