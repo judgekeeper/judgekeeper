@@ -100,11 +100,14 @@ def test_the_page_never_gets_the_run_ids(tmp_path, steps_client):
         assert redact.item_key("plain-id") in text, path
 
 
-def test_a_tab_that_sends_a_run_id_instead_of_its_key_saves_nothing(tmp_path, steps_client):
+def test_an_older_tab_that_sends_a_run_id_is_told_to_load_again_and_saves_nothing(
+        tmp_path, steps_client):
     client = steps_client(_runs(tmp_path, ["ab", "a\u200bb"]))
-    status, body = _post(client, "ab", 1)  # an id, not a key
-    assert status == 404 and body == {"error": "no item with that id"}
+    status, body = _post(client, "ab", 1)  # an id, as a page from before the keys sends it
+    assert status == 409 and body["stale"] is True  # the page loads its runs again
     assert not (tmp_path / ".judgekeeper" / "steps" / "marks.jsonl").exists()
+    status, body = _post(client, "nope", 1)  # neither a key nor an id
+    assert status == 404 and body == {"error": "no item with that id"}
 
 
 def test_two_run_ids_with_one_key_stop_at_the_runs_file(tmp_path, monkeypatch):
@@ -189,11 +192,14 @@ def test_the_answers_page_never_gets_the_answer_ids(answers_client):
         assert redact.item_key("plain-id") in text, path
 
 
-def test_a_tab_that_sends_an_answer_id_instead_of_its_key_saves_nothing(answers_client):
+def test_an_older_tab_that_sends_an_answer_id_is_told_to_load_again_and_saves_nothing(
+        answers_client):
     ws, client = answers_client(_ids(at0="ab", at1="a\u200bb"))
     resp, payload = client.request("POST", "/label", {"id": "ab", "label": "pass", "seconds": 1})
-    assert resp.status == 404 and json.loads(payload) == {"error": "no item with that id"}
+    assert resp.status == 409 and json.loads(payload)["stale"] is True  # the page loads again
     assert len(ws.marks.read_text(encoding="utf-8").splitlines()) <= 1  # no mark line
+    resp, payload = client.request("POST", "/label", {"id": "nope", "label": "pass"})
+    assert resp.status == 404 and json.loads(payload) == {"error": "no item with that id"}
 
 
 def test_two_answer_ids_with_one_key_are_refused(tmp_path, monkeypatch):
@@ -226,3 +232,9 @@ def test_a_run_with_no_id_says_it_has_none(tmp_path, row):
     with pytest.raises(steps.StepsError) as e:
         steps.read_runs(_one_run(tmp_path, row))
     assert str(e.value) == "Line 1 of runs.jsonl has no id."
+
+
+def test_the_page_gets_a_key_for_every_id_it_is_sent():
+    data = label.page_data({"runs": [{"id": "r1"}], "items": [{"id": "a"}], "again": {"id": "b"}})
+    assert data == {"runs": [{"id": redact.item_key("r1")}],
+                    "items": [{"id": redact.item_key("a")}], "again": {"id": redact.item_key("b")}}

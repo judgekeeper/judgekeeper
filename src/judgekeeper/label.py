@@ -83,23 +83,21 @@ class LabelError(Exception):
     """The items or the output file cannot be used: a usage error."""
 
 
+OLDER_PAGE = "this page is older than the marking page, so it loads again"
 TWO_KEYS = ("Two answers have ids judgekeeper can't tell apart on the marking page. Give each "
             "answer its own id, then run it again.")
 
 
-def page_data(session, data: dict) -> dict:
+def page_data(data: dict) -> dict:
     """`data` (a session's state or summary) as a page gets it: each item's id (an answer's, a
-    run's) as its key. The page's text is cleaned of hidden characters (shown), so it never
-    holds an id; the POST it sends names the item by the key."""
-    def key(item_id):
-        return item_key(item_id) if item_id in session.by_id else item_id
-
+    run's) as its key, always. The page's text is cleaned of hidden characters (shown), so it
+    never holds an id; the POST it sends names the item by the key."""
     out = dict(data)
     for name in ("items", "runs"):  # the answers page, the steps page
         if isinstance(out.get(name), list):
-            out[name] = [{**x, "id": key(x["id"])} for x in out[name]]
+            out[name] = [{**x, "id": item_key(x["id"])} for x in out[name]]
     if isinstance(out.get("again"), dict):  # an answer to show again
-        out["again"] = {**out["again"], "id": key(out["again"]["id"])}
+        out["again"] = {**out["again"], "id": item_key(out["again"]["id"])}
     return out
 
 
@@ -649,8 +647,7 @@ class LabelServer:
         nonce = secrets.token_urlsafe(16)
         return (self.template.replace("__NONCE__", nonce)
                 .replace("__TOKEN__", self.token)
-                .replace("__DATA__", _json_for_html(page_data(self.session,
-                                                              self.session.state())))), nonce
+                .replace("__DATA__", _json_for_html(page_data(self.session.state())))), nonce
 
 
 def _handler(server: LabelServer):
@@ -862,7 +859,7 @@ def _handler(server: LabelServer):
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
             elif url.path == "/state":
-                self._json(200, page_data(server.session, server.session.state()))
+                self._json(200, page_data(server.session.state()))
             elif url.path == "/result" and server.result is not None:
                 try:
                     page = server.result(server.session, f"/?token={server.token}")
@@ -928,6 +925,9 @@ def _handler(server: LabelServer):
                 self._json(400, {"error": "expected a JSON object"})
                 return
             item_id = server.session.by_key.get(body["id"])  # the page sends a key, not the id
+            if item_id is None and body["id"] in server.session.by_id:  # an older page's id
+                self._json(409, {"error": OLDER_PAGE, "stale": True})  # it loads again
+                return
             if item_id not in server.session.by_id:
                 self._json(404, {"error": "no item with that id"})
                 return
@@ -958,7 +958,7 @@ def _handler(server: LabelServer):
             pop_up = getattr(server.session, "pop_up", None)
             if pop_up is not None and pop_up(summary["status"]):
                 summary["popup"] = True
-            reply = {"summary": page_data(server.session, summary)}
+            reply = {"summary": page_data(summary)}
             if "note" in body and hasattr(server.session, "workspace"):  # the result page's
                 # own buttons as they are now, for the other answers' boxes
                 from judgekeeper import reasons
