@@ -94,7 +94,7 @@ jobs:
         run: |
           python -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install dist/judgekeeper-*.whl "pytest>=8" "pyyaml>=6" \
-            "jsonschema>=4.18"
+            "jsonschema>=4.18" "pytest-xdist>=3"
       - name: Run the installed judgekeeper outside the checkout
         working-directory: ${{ runner.temp }}
         run: |
