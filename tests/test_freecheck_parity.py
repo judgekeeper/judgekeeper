@@ -258,8 +258,8 @@ def test_answers_with_no_grades_print_the_approved_lines(tmp_path):
         "Answers:         40 answers",
         "LLM-as-a-judge:  none in your file",
         "",
-        ("This file has no LLM-as-a-judge grades, so judgekeeper checks your AI's answers: you "
-         "mark each one Pass or Fail."),
+        ("This file has no LLM-as-a-judge grades, so judgekeeper checks the answers of your "
+         "agent or chatbot: you mark each one Pass or Fail."),
         "",
         "First answer in your file:",
         "  Question:      Can I return a lamp after 60 days?",
