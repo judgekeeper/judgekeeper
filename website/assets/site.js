@@ -70,7 +70,7 @@
   /* The demo works like the marking page: the LLM-as-a-judge's grade stays hidden while you
      mark, and the end card shows, answer by answer, where you and it disagreed. Its second
      tab, Agent steps, works like `judgekeeper steps`: you click the first wrong step of each
-     run, and the end card shows, run by run, where you and the reviewer picked differently. */
+     run, and the end card shows, run by run, where you and the agent-as-a-judge picked differently. */
   function setUpDemo() {
     var card = $("demo");
     if (!card) return;
@@ -163,11 +163,11 @@
       items.forEach(function (item, i) { if (state[i] !== item[2]) n += 1; });
       var sum = $("d-sum");
       sum.textContent = "";
-      var parts = n ? ["You and your LLM-as-a-judge disagreed on ", [n], " of ", [items.length], "."]
-        : ["You and your LLM-as-a-judge agreed on all ", [items.length], "."];
-      parts.forEach(function (part) {
+      var parts = n ? ["You and your ", {nb: "LLM-as-a-judge"}, " disagreed on ", [n], " of ", [items.length], "."]
+        : ["You and your ", {nb: "LLM-as-a-judge"}, " agreed on all ", [items.length], "."];
+      parts.forEach(function (part) {  // the term never breaks at its hyphens
         sum.appendChild(typeof part === "string" ? document.createTextNode(part)
-          : make("span", "mono", String(part[0])));
+          : part.nb ? make("b", "nb", part.nb) : make("span", "mono", String(part[0])));
       });
       sum.classList.toggle("ok", !n);
       fillList(state);
@@ -209,14 +209,14 @@
       stepsPane.classList.remove("is-done");
       renderRun();
     }
-    /* After a pick, your step and the reviewer's are tagged ("Both" when they are one step).
-       widest (a step number) tags that one step "Reviewer", the widest tag, to measure the
+    /* After a pick, your step and the agent-as-a-judge's are tagged ("Both" when they are one step).
+       widest (a step number) tags that one step "Agent-as-a-judge", the widest tag, to measure the
        card at its tallest. */
     function renderRun(widest) {
       var run = runs[at], list = $("s-steps"), mine = picks[at], theirs = run[2];
       var tagged = saidRun || widest;
       $("s-task").textContent = run[0];
-      $("s-state").textContent = "Run " + (at + 1) + " of " + runs.length;
+      $("s-state").textContent = "Example " + (at + 1) + " of " + runs.length;
       stepsPane.classList.toggle("is-said", !!tagged);
       list.textContent = "";
       run[1].forEach(function (text, i) {
@@ -224,19 +224,19 @@
         b.type = "button";
         b.appendChild(make("span", "n", String(n)));
         b.appendChild(make("span", "", text));
-        if (widest) tag = widest === n ? "Reviewer" : "";
-        else if (saidRun) tag = mine === n && theirs === n ? "Both" : mine === n ? "You" : theirs === n ? "Reviewer" : "";
-        if (tagged) b.appendChild(make("span", "tag" + (tag === "Reviewer" ? "" : " you"), tag));
-        if (tag && tag !== "Reviewer") b.classList.add("you");
+        if (widest) tag = widest === n ? "Agent-as-a-judge" : "";
+        else if (saidRun) tag = mine === n && theirs === n ? "Both" : mine === n ? "You" : theirs === n ? "Agent-as-a-judge" : "";
+        if (tagged) b.appendChild(make("span", "tag" + (tag === "Agent-as-a-judge" ? "" : " you"), tag));
+        if (tag && tag !== "Agent-as-a-judge") b.classList.add("you");
         b.addEventListener("click", function () { pickStep(i + 1); });
         li.appendChild(b);
         list.appendChild(li);
       });
       if (tagged) {
         var m = $("s-match"), same = mine === theirs;
-        m.textContent = "Reviewer: " + stepName(theirs) + " · " + (same ? "Agrees with you" : "Disagrees with you");
+        m.textContent = "Agent-as-a-judge: " + (theirs ? stepName(theirs) : "All steps are fine") + ". " + (same ? "Agrees with you." : "Disagrees with you.");
         m.className = "jk-match " + (same ? "agree" : "differ");
-        $("s-next").firstChild.nodeValue = at === runs.length - 1 ? "See your result " : "Next run ";
+        $("s-next").firstChild.nodeValue = at === runs.length - 1 ? "See your result " : "Next ";
       }
     }
     function fillRuns(yours) {
@@ -245,7 +245,7 @@
       head.appendChild(make("span", "", ""));
       head.appendChild(make("span", "", "Agent run"));
       head.appendChild(make("span", "g", "You"));
-      head.appendChild(make("span", "g", "Reviewer"));
+      head.appendChild(make("span", "g", "Agent-as-a-judge"));
       list.appendChild(head);
       runs.forEach(function (run, i) {
         var li = make("li", yours[i] === run[2] ? "agree" : "differ", "");
@@ -253,7 +253,7 @@
         li.appendChild(make("span", "q", run[0]));
         var mine = make("b", "g s", stepName(yours[i])), its = make("b", "g s", stepName(run[2]));
         mine.setAttribute("data-label", "You");
-        its.setAttribute("data-label", "Reviewer");
+        its.setAttribute("data-label", "Agent-as-a-judge");
         li.appendChild(mine);
         li.appendChild(its);
         list.appendChild(li);
@@ -262,11 +262,11 @@
     function sayRuns(n) {
       var sum = $("s-sum");
       sum.textContent = "";
-      var parts = n ? ["You and the reviewer disagreed on ", [n], " of ", [runs.length], " runs."]
-        : ["You and the reviewer agreed on all ", [runs.length], " runs."];
-      parts.forEach(function (part) {
+      var parts = n ? ["You and your ", {nb: "agent-as-a-judge"}, " disagreed on ", [n], " of ", [runs.length], "."]
+        : ["You and your ", {nb: "agent-as-a-judge"}, " agreed on all ", [runs.length], "."];
+      parts.forEach(function (part) {  // the term never breaks at its hyphens
         sum.appendChild(typeof part === "string" ? document.createTextNode(part)
-          : make("span", "mono", String(part[0])));
+          : part.nb ? make("b", "nb", part.nb) : make("span", "mono", String(part[0])));
       });
       sum.classList.toggle("ok", !n);
     }
@@ -420,7 +420,7 @@
     $("d-title").hidden = true;
     reset();
     resetRuns();
-    show("steps");  // agents first: the card opens on Agent steps (without JavaScript it is the marking demo)
+    show("answer");  // the card opens on Mark answers, its two buttons first; Mark steps is the next tab
     lockHeight();
     var resized;
     window.addEventListener("resize", function () {
@@ -634,6 +634,69 @@
 
   /* The two public-dataset numbers count up once when they come into view (not under reduced
      motion). The page's own text already holds the final numbers. */
+  /* "On public datasets.": the list on the left picks which result the window shows; arrow
+     keys move between the three. Without the script all three show, one under another. */
+  function setUpDatasets() {
+    var tabs = $all(".ds-list [role=tab]");
+    if (!tabs.length) return;
+    function pick(tab, focus) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        t.tabIndex = on ? 0 : -1;
+        $(t.getAttribute("aria-controls")).classList.toggle("is-off", !on);  // keeps its room: no jump
+      });
+      if (focus) tab.focus();
+    }
+    tabs.forEach(function (t, i) {
+      t.addEventListener("click", function () { pick(t); });
+      t.addEventListener("keydown", function (e) {
+        var n = tabs.length, j = e.key === "ArrowDown" || e.key === "ArrowRight" ? (i + 1) % n
+          : e.key === "ArrowUp" || e.key === "ArrowLeft" ? (i + n - 1) % n : -1;
+        if (j < 0) return;
+        e.preventDefault();
+        pick(tabs[j], true);
+      });
+    });
+    pick(tabs[0]);
+  }
+
+  /* The Guide's tabs: how to install, and what you have. Without JavaScript every panel shows,
+     one after another. A link to a part of a panel (#own-format, #agent-steps ...) opens its tab. */
+  function setUpTabs(list) {
+    var tabs = $all("[role=tab]", list);
+    list.hidden = false;
+    list.parentNode.classList.add("tabs-on");
+    function pick(tab, focus) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        t.tabIndex = on ? 0 : -1;
+        $(t.getAttribute("aria-controls")).classList.toggle("is-off", !on);  // keeps its room: no jump
+      });
+      if (focus) tab.focus();
+    }
+    tabs.forEach(function (t, i) {
+      t.addEventListener("click", function () { pick(t); });
+      t.addEventListener("keydown", function (e) {
+        var n = tabs.length, j = e.key === "ArrowRight" ? (i + 1) % n : e.key === "ArrowLeft" ? (i + n - 1) % n : -1;
+        if (j < 0) return;
+        e.preventDefault();
+        pick(tabs[j], true);
+      });
+    });
+    function fromHash() {
+      var to = location.hash.length > 1 && document.getElementById(location.hash.slice(1));
+      var tab = null;
+      tabs.forEach(function (t) { if (to && $(t.getAttribute("aria-controls")).contains(to)) tab = t; });
+      pick(tab || tabs[0]);
+      if (tab && to.scrollIntoView) list.parentNode.scrollIntoView();
+    }
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+  }
+  function setUpGuide() { $all(".gd-tabs, .gi-tabs").forEach(setUpTabs); }
+
   function setUpCounts() {
     var nums = $all(".rt-n");
     if (!nums.length || reduce || !("IntersectionObserver" in window)) return;
@@ -757,4 +820,6 @@
   setUpDemo();
   setUpTour();
   setUpCounts();
+  setUpDatasets();
+  setUpGuide();
 })();

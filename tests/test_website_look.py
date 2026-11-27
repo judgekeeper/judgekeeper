@@ -325,14 +325,17 @@ COLOUR_ONLY = {"color", "background", "background-color", "border-color", "filte
 
 
 def test_the_only_motion_is_the_underline_the_typing_and_the_count_up():
-    """Hover colours may fade; nothing else moves, slides, turns or appears by itself. The green
-    line under the four words grows, a click on a word scrolls to the steps, the public-dataset
-    tiles grow a green line on hover and their numbers count up once, and the browser check's
-    example cards lift 1px on hover (not under reduced motion)."""
-    # one animation: the browser check's cursor blinks while it waits for a file
-    assert re.findall(r"@keyframes ([\w-]+)", CSS) == ["ck-blink"]
+    """Hover colours may fade; nothing else moves, slides, turns or appears by itself. The line
+    under "human judgment." draws once, the green line under the four words grows, a click on a
+    word scrolls to the steps, the public-dataset numbers count up once, the demo plays one
+    round with a cursor, and the browser check's example cards lift 1px on hover (none of it
+    under reduced motion)."""
+    # two animations: the headline's line draws once, the browser check's cursor blinks
+    assert re.findall(r"@keyframes ([\w-]+)", CSS) == ["ck-blink", "hl-draw"]
     assert re.findall(r"animation:\s*([^;]+);", CSS.replace("animation: none !important", "")) == [
-        "ck-blink 1.1s steps(1) infinite"]
+        "ck-blink 1.1s steps(1) infinite", "hl-draw 900ms cubic-bezier(.6,.1,.2,1) 350ms forwards",
+        "none"]
+    assert "stroke-dashoffset: 0" in CSS[CSS.rindex("@media (prefers-reduced-motion: reduce)"):]
     for selector, declarations in _rules():
         for value in re.findall(r"transition:\s*([^;]+)", declarations):
             if value.startswith("none"):
@@ -341,8 +344,11 @@ def test_the_only_motion_is_the_underline_the_typing_and_the_count_up():
             if selector.endswith(".five a::after"):  # the selector may follow a comment
                 assert value == "transform 240ms ease"
                 continue
-            if selector.endswith(".rt::before"):
-                assert value == "transform 300ms ease"
+            if selector.endswith(".demo-cursor"):
+                assert value == "transform 900ms cubic-bezier(.3,.7,.2,1), opacity 200ms ease"
+                continue
+            if selector.endswith(".demo-cursor svg"):
+                assert value == "transform 120ms ease"
                 continue
             if selector.endswith(".ex-card"):
                 assert value == "border-color 140ms ease, transform 140ms ease"
@@ -352,7 +358,8 @@ def test_the_only_motion_is_the_underline_the_typing_and_the_count_up():
     assert "*, *::before, *::after { transition: none !important" in reduce[:200]
     # the two moving parts, and both stop under reduced motion
     assert JS.count("prefers-reduced-motion: reduce") == 1
-    assert "function type(" in JS and "function sweep(" in JS
+    assert "function type(" in JS and "function sweep(" in JS and "function autoplay(" in JS
+    assert "if (reduce || !window.IntersectionObserver) return;" in JS
     assert 'if (!nums.length || reduce || !("IntersectionObserver" in window)) return;' in JS
     assert JS.count("smooth") == 1 and 'behavior: reduce ? "auto" : "smooth"' in JS
     for gone in ("IntersectionObserver(function (e) { reveal", "animate(", "count-up",
@@ -471,32 +478,30 @@ def _main(page: Path) -> Element:
     return next(el for el in _els(page) if el.tag == "main")
 
 
-def test_home_is_the_hero_the_steps_the_public_datasets_and_the_closing_box():
+def test_home_is_the_hero_the_demo_the_steps_the_public_datasets_and_the_closing_row():
     sections = [el for el in _main(HOME).children if isinstance(el, Element)]
-    assert [s.classes() for s in sections] == [{"hero"}, {"steps"}, {"close"}, {"real"},
-                                               {"close"}]
-    assert [s.attrs.get("id") for s in sections] == [None, "steps", "ai-check", "real", None]
-
-
-def test_home_tells_about_checking_an_ais_answers_in_a_window_like_the_closing_one():
-    """No LLM-as-a-judge: a window like the closing one (green border, green button), titled
-    "your AI's answers", with one heading, one short line, the command to run and a link to
-    the Guide's section. No cursor and no script."""
-    (box,) = [s for s in _all(_main(HOME), "section", "close") if s.attrs.get("id") == "ai-check"]
-    (win,) = _all(box, "div", "close-win")
-    assert win.classes() == {"close-win"}
-    assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == "your AI's answers"
-    assert _flat(_all(box, "h2")[0]) == "No LLM-as-a-judge? Check your AI's answers."
-    assert _flat(_all(box, "p")[0]) == "For a chatbot, agent or any AI. Mark its answers Pass or Fail."
+    assert [s.classes() for s in sections] == [{"hero", "home-hero"}, {"demo-sec"}, {"steps"},
+                                               {"real"}, {"close"}]
+    assert [s.attrs.get("id") for s in sections] == [None, None, "steps", "real", "ai-check"]
+def test_the_closing_row_is_eval_results_then_your_ais_answers():
+    """Two columns on thin lines, no window: "Have eval results?" with the green button to the
+    browser check, then "No LLM-as-a-judge?" with the command and a link to the Guide."""
+    (box,) = _all(_main(HOME), "section", "close")
+    assert box.attrs.get("id") == "ai-check"
+    cols = _all(box, "div", "close-col")
+    assert [_flat(_all(c, "h2")[0]) for c in cols] == [
+        "Have eval results?", "No LLM-as-a-judge? Check your AI's answers."]
+    assert [_flat(_all(c, "p")[0]) for c in cols] == [
+        "Check your LLM-as-a-judge. Your file stays on your computer.",
+        "For a chatbot, agent or any AI. Mark its answers Pass or Fail."]
     (prompt,) = _all(box, "p", "close-prompt")
     assert _flat(prompt) == "$ judgekeeper results.csv"
-    assert not _all(prompt, "span", "ck-cursor") and not _all(box, "script")
-    (link,) = _all(box, "a")
-    assert "b-main" in link.classes()
-    assert (link.attrs["href"], _flat(link)) == ("start.html#ai-check", "See the steps →")
-    assert ".ai-win" not in CSS
-
-
+    links = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(box, "a")]
+    assert links == [("check.html", {"b-main"}, "Try it in your browser"),
+                     ("start.html#ai-check", {"b-side"}, "See the steps")]
+    assert not _all(box, "script") and not _all(box, "div", "rt-bar")
+    for gone in (".close-win", ".close-box", ".rt-win", ".ai-win"):
+        assert gone not in CSS, gone
 def test_the_demo_card_keeps_one_height():
     """The card is as tall as its tallest answer or its end card, measured on load, when the
     fonts arrive and on resize, so nothing below it moves while you mark."""
@@ -511,10 +516,14 @@ def test_the_demo_card_keeps_one_height():
     assert "flex: 1" in _rule(".jk-card.is-end .jk-end")
 
 
-def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
+def test_the_hero_is_the_headline_the_four_words_two_buttons_and_three_facts():
     hero = _all(_main(HOME), "section", "hero")[0]
     (h1,) = _all(hero, "h1")
     assert _flat(h1) == "Check your AI agents with human judgment."
+    # "human judgment." in green with a line drawn under it, the page's one signature moment
+    (hl,) = _all(h1, "span", "hl")
+    assert _flat(hl) == "human judgment."
+    assert "color: var(--green)" in _rule(".hl") and _all(hl, "svg", "hl-line")
     (five,) = _all(hero, "nav", "five")
     words = [(a.attrs["href"], a.attrs["data-step"], _flat(a)) for a in _all(five, "a")]
     assert words == [("#steps", key, f"{label}.") for key, label, _ in STEPS]
@@ -528,9 +537,15 @@ def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
             if not any("jk-card" in a.classes() for a in p.ancestors())] == []
     # the sub-line sits under the steps heading, not in the hero
     (steps_lede,) = _all(_main(HOME), "p", "steps-lede")
-    assert _flat(steps_lede) == (sub_line + " It's open source, runs on your computer and needs "
-                                 "no API key.")
-    assert not _all(hero, "ul", "hero-facts")
+    assert _flat(steps_lede) == sub_line
+    (facts,) = _all(hero, "ul", "hero-facts")
+    assert [_flat(li) for li in _all(facts, "li")] == [
+        "Open source", "Runs on your computer", "No API key needed"]
+    # the demo waits one scroll below, on its own, with no light around it
+    (demo,) = _all(_main(HOME), "section", "demo-sec")
+    assert _flat(_all(demo, "p", "demo-try")[0]) == "Try it: click the first step the agent got wrong."
+    assert _all(demo, "section", "jk-card") and not _all(hero, "section", "jk-card")
+    assert "box-shadow" not in _rule(".demo-sec") and "gradient" not in _rule(".home-hero::before").replace("linear-gradient(rgba(255,255,255,.045)", "")
     # the chosen step's green line, which gives way while another word is hovered or focused
     assert "var(--green)" in _rule(".five a::after")
     assert ".five a.is-on::after" in CSS and ".five:hover a.is-on:not(:hover)::after" in CSS
@@ -670,54 +685,31 @@ def test_the_closing_box_points_to_the_browser_check():
     assert (button.attrs["href"], _flat(button)) == ("check.html", "Try it in your browser")
 
 
-def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
-    """A window like the others, titled "your project", with a green border and no glow; a
-    "$" and a blinking cursor wait under the line, with the same space above it as above
-    "On public datasets." (8 + 17 + 80 = 24 + 1 + 80 on a laptop, 8 + 17 + 56 on a phone)."""
-    close = _all(_main(HOME), "section", "close")[-1]
-    (win,) = _all(close, "div", "close-win")
-    assert "ai-win" not in win.classes()
-    (bar,) = _all(win, "div", "rt-bar")
-    assert _flat(_all(bar, "span", "rt-title")[0]) == "your project"
-    (prompt,) = _all(win, "p", "close-prompt")
-    assert prompt.attrs.get("aria-hidden") == "true"
-    assert _flat(_all(prompt, "span", "t-prompt")[0]) == "$"
-    assert _all(prompt, "span", "ck-cursor")
-    rule = _rule(".close-win")
-    assert "border-radius: 12px" in rule and "var(--green)" in rule
-    assert "box-shadow" not in rule
-    assert "font-family: var(--mono)" in _rule(".close-win h2")
-    assert "font-size: 26px" in _rule(".close-win h2")
-    assert "padding-top: 17px" in _rule(".close")
-    assert "padding: 24px 0 8px" in _rule(".real")
-    assert "> " not in _flat(win)
-
-
-def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
-    """"On public datasets.": a window titled "public datasets", two columns (one on a
-    phone), mono text, a green number that counts up once (not under reduced motion), and a
-    green line across the top on hover."""
+def test_the_closing_row_continues_the_public_datasets_lines():
+    """The closing row sits right under the results, so their thin lines run on."""
+    assert "padding-top: 0" in _rule(".real + .close .wrap")
+    assert "border-block: 1px solid var(--line)" in _rule(".close-row")
+def test_the_public_datasets_are_two_linked_numbers_each_over_its_100_tests():
+    """"On public datasets.": no window, two columns on thin lines (one on a phone), a number
+    that counts up once (not under reduced motion) over a grid with one square per test."""
     (real,) = _all(_main(HOME), "section", "real")
     assert _flat(_all(real, "h2")[0]) == "On public datasets."
-    (win,) = _all(real, "div", "rt-win")
-    (bar,) = _all(win, "div", "rt-bar")
-    assert _flat(_all(bar, "span", "rt-title")[0]) == "public datasets"
-    tiles = _all(win, "a", "rt")
+    assert not _all(real, "div", "rt-bar")
+    tiles = _all(real, "a", "rt")
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
                                                                     "Real-data check"]
     assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
         "random tests where judgekeeper's ranges held the true numbers",
         "times, on average, the true number fell inside judgekeeper's range"]
-    assert [len(_all(t, "span", "rt-n")) for t in tiles] == [1, 1]  # each a green number
     for tile in tiles:
-        assert not _flat(tile).startswith(">")
-    assert "border-radius: 12px" in _rule(".rt-win")
+        (n,) = _all(tile, "span", "rt-n")
+        (waf,) = _all(tile, "span", "waf")
+        squares = _all(waf, "i", None)
+        assert len(squares) == 100
+        assert sum("on" in i.classes() for i in squares) == int(n.attrs["data-to"])
     assert "repeat(2, minmax(0, 1fr))" in _rule(".rt-grid")
     narrow = CSS[CSS.index("@media (max-width: 560px) {\n  .real h2"):]
     assert _rule(".rt-grid", narrow).strip() == "grid-template-columns: 1fr;"
-    assert "font-family: var(--mono)" in _rule(".rt")
-    assert "color: var(--green)" in _rule(".rt-big")
-    assert "scaleX(1)" in _rule(".rt:hover::before")
     assert "function setUpCounts()" in JS and "setUpCounts();" in JS
 
 
