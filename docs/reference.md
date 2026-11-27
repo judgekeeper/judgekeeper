@@ -57,7 +57,7 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 | `--judge-model NAME` | The LLM-as-a-judge's model, when the results do not record it. Given after marking started, it is written down with your marks, not a change |
 | `--before FILE` | Results with grades to compare these with, question by question, in place of the last results read here: exit 1 when the change made it worse, 3 when nothing could be compared. Read the same way as these, with the same `--label-map`. See [Did your change make it worse?](#did-your-change-make-it-worse) |
 | `--yes` | Without a terminal: yes to the questions judgekeeper printed. Never to a choice of tool, LLM-as-a-judge or pass mark |
-| `--port PORT` | Port on 127.0.0.1 for the page (default 8765). `0` means any open port |
+| `--port PORT` | Port on 127.0.0.1 for the page (default 8765, or 0 for any free port) |
 | `--no-browser` | Print the page's link without opening a browser |
 | `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first when you have marks; nothing is deleted). `history.jsonl`, `verdicts/`, `records/` and `.gitignore` stay where they are |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
@@ -242,7 +242,7 @@ judgekeeper steps [PATH] [--reviewer FILE] [--model NAME] [--port PORT] [--no-br
 | `PATH` | Your agent runs (a JSONL file, one run per line with an id and its steps) to mark on a page in your browser, or a Label Studio export (JSON) of those runs to see the numbers |
 | `--reviewer FILE` | Your agent-as-a-judge's picks as a JSONL file, one line per run: {"id": ..., "first_wrong_step": ..., "model": ...}; else the predictions in the export |
 | `--model NAME` | The agent-as-a-judge to look at, when the picks hold several |
-| `--port PORT` | Port on 127.0.0.1 for the page (default 8765). `0` means any open port |
+| `--port PORT` | Port on 127.0.0.1 for the page (default 8765, or 0 for any free port) |
 | `--no-browser` | Print the page's link without opening a browser |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background. When the page closes, it says the numbers from your marks |
 | `--stop` | Close the open page |

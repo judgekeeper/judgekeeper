@@ -274,3 +274,10 @@ def test_steps_help_lists_the_page_flags_but_not_new(capsys):
     for flag in ("--port", "--no-browser", "--wait", "--stop"):
         assert flag in out, flag
     assert "[--wait | --stop]" in " ".join(out.split())
+
+
+@pytest.mark.parametrize("argv", [["steps", "--help"], ["--help"]])
+def test_help_says_port_0_is_any_free_port(capsys, argv):
+    assert main(argv) == 0
+    out = " ".join(capsys.readouterr().out.split())
+    assert "port on 127.0.0.1 for the page (default 8765, or 0 for any free port)" in out, out

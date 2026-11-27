@@ -375,7 +375,7 @@ def _page_args(p: argparse.ArgumentParser, new: bool = True) -> None:
     """The marking page's options, the same for `judgekeeper` and `mark`; `steps` takes them
     too, with --new left out of its help (`new` False: it is refused there)."""
     p.add_argument("--port", type=_port, default=8765,
-                   help="port on 127.0.0.1 for the page (default 8765)")
+                   help="port on 127.0.0.1 for the page (default 8765, or 0 for any free port)")
     p.add_argument("--no-browser", action="store_true",
                    help="print the page's link without opening a browser")
     what = p.add_mutually_exclusive_group()
