@@ -15,7 +15,7 @@
   </p>
 </div>
 
-Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to a reviewer checking each step of an agent, and see if agreement goes up or down after each change.
+Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to an agent-as-a-judge checking each step of an agent, and see if agreement goes up or down after each change.
 
 An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong. No LLM-as-a-judge? judgekeeper can also check the answers of your chatbot, agent or any AI that answers questions (see below).
 

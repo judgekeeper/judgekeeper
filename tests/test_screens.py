@@ -324,11 +324,12 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:29] == [
+    assert lines[:30] == [
         "The keeper of human judgment for AI.",
         "Human judgment decides what's right. See how often each automated check agrees",
-        "with it, from an LLM-as-a-judge grading one answer to a reviewer checking each",
-        "step of an agent, and see if agreement goes up or down after each change.",
+        "with it, from an LLM-as-a-judge grading one answer to an agent-as-a-judge",
+        "checking each step of an agent, and see if agreement goes up or down after each",
+        "change.",
         "",
         "Read. Measure. Fix. Re-check.",
         "",
@@ -355,12 +356,12 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[29:35] == [
+    assert lines[30:36] == [
         "  fix     show where your LLM-as-a-judge goes wrong, help you write a better",
         "          rule and test it on marks kept aside",
         "  check   see if your check still agrees with your marks after a change",
         "  steps   for agents: label the first wrong step of each run in Label Studio,",
-        "          then see how often your reviewer finds the same one",
+        "          then see how often your agent-as-a-judge finds the same one",
         "",
     ]
     assert "Options:" in lines
