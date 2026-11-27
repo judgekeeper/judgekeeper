@@ -1112,14 +1112,16 @@
       try { row = JSON.parse(line); } catch (e) { return { error: 'bad-run', message: said + ' is not valid JSON.' }; }
       if (row !== null && typeof row === 'object' && tooDeep(row)) return { error: 'bad-run', message: said + ' is not valid JSON.' };
       if (!isObj(row)) return { error: 'bad-run', message: said + ' is not a JSON object.' };
-      var id = row.id;
+      var id = row.id, floatId = false;
       // a whole number written as one: 2, not 2.0 (read again only when the line may say 2.0)
       if (typeof id === 'number' && Number.isInteger(id) && (!first || /"id"\s*:\s*-?\d+[.eE]/.test(line) || line.indexOf('\\u') >= 0)) {
         var again = parseJSON(line);
-        if (numberKind(again, 'id') === 'float') id = null;
+        if (numberKind(again, 'id') === 'float') floatId = true;
         if (!first) row = again;
       } else if (!first) row = parseJSON(line);  // the first run: how its numbers were written, for its steps
-      if (!(isStr(id) && id.trim()) && !(typeof id === 'number' && Number.isInteger(id))) return { error: 'bad-run', message: said + ' has no id.' };
+      // steps.read_runs: missing, null or blank is no id; any other id not text or a whole number is said as such
+      if (id === undefined || id === null || (isStr(id) && !id.trim())) return { error: 'bad-run', message: said + ' has no id.' };
+      if (floatId || !(isStr(id) || (typeof id === 'number' && Number.isInteger(id)))) return { error: 'bad-run', message: said + ' has an id that is not text or a whole number.' };
       id = String(id);
       if (ids.has(id)) return { error: 'bad-run', message: said + ' has an id used twice.' };
       ids.add(id);
