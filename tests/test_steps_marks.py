@@ -432,3 +432,15 @@ def test_a_huge_whole_number_of_seconds_is_a_broken_line(here):
     write_marks(here, [mark("r1", 2, hashes), huge])
     export = steps.read_marks(here / MARKS, steps.read_runs(runs_path))
     assert export.stats["broken"] == [3] and [t.label for t in export.tasks] == [None, 2]
+
+
+def test_a_lone_surrogate_in_a_run_is_said_by_line(here, capsys):
+    (here / "runs.jsonl").write_text(
+        '{"id": "a", "steps": [{"role": "user", "content": "x"}]}\n'
+        '{"id": "b", "steps": [{"role": "user", "content": "SECRET-TEXT \\ud800"}]}\n',
+        encoding="utf-8")
+    with pytest.raises(steps.StepsError, match="Line 2 of runs.jsonl") as e:
+        steps.read_runs(here / "runs.jsonl")
+    assert "SECRET-TEXT" not in str(e.value)
+    code, out, err = run(capsys, "steps", "runs.jsonl")
+    assert code == 2 and "Line 2 of runs.jsonl" in err and "SECRET-TEXT" not in out + err

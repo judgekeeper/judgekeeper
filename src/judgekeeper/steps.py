@@ -178,6 +178,8 @@ def read_runs(path: Path) -> list[Run]:
             raise StepsError(f"Line {number} of {path.name} is not valid JSON.") from None
         if not isinstance(row, dict):
             raise StepsError(f"Line {number} of {path.name} is not a JSON object.")
+        if textio.lone_surrogate(row):  # never hashed or written: it isn't UTF-8
+            raise StepsError(textio.NOT_TEXT.format(file=f"Line {number} of {path.name}"))
         run_id = row.get("id")
         if not (isinstance(run_id, str) and run_id.strip()) and not (
                 _whole(run_id) and not isinstance(run_id, float)):
