@@ -695,16 +695,19 @@
   function setUpGuide() { $all(".gd-tabs, .gi-tabs").forEach(setUpTabs); }
 
   /* On a phone only (a laptop's text stays as it is): "LLM-as-a-judge" in a step's words never
-     breaks at its hyphens. */
+     breaks at its hyphens. Only the plain text changes: a span already there stays. */
   function setUpPhoneBreaks() {
     if (!narrow()) return;
     $all(".steplist .d").forEach(function (d) {
-      var parts = d.textContent.split("LLM-as-a-judge");
-      if (parts.length < 2) return;
-      d.textContent = "";
-      parts.forEach(function (part, i) {
-        if (i) d.appendChild(make("span", "nb", "LLM-as-a-judge"));
-        d.appendChild(document.createTextNode(part));
+      Array.prototype.slice.call(d.childNodes).forEach(function (node) {
+        if (node.nodeType !== 3) return;
+        var parts = node.nodeValue.split("LLM-as-a-judge");
+        if (parts.length < 2) return;
+        parts.forEach(function (part, i) {
+          if (i) d.insertBefore(make("span", "nb", "LLM-as-a-judge"), node);
+          d.insertBefore(document.createTextNode(part), node);
+        });
+        d.removeChild(node);
       });
     });
   }
