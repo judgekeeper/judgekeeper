@@ -222,6 +222,33 @@ def test_held_keys_and_modifier_keys_do_nothing():
     assert got == {"none": None, "pick": 2, "sent": 0}
 
 
+def test_shift_does_what_it_does_on_the_answers_page():
+    """Shift is not a modifier that stops a key (as on the answers page): Shift+Z undoes and
+    Shift+→ goes on; Shift+2 types "@", which picks nothing."""
+    got = _run("""
+      later(300); key("@", {shiftKey: true}); var none = picked();
+      key("2"); key("ArrowRight", {shiftKey: true}); await settled();
+      later(500); key("Z", {shiftKey: true}); await settled();
+      console.log(JSON.stringify({none: none, where: ids["where"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.first_wrong_step]; })}));""")
+    assert got == {"none": None, "where": "Run 1 of 3", "sent": [["r0", 2], ["r0", None]]}
+
+
+def test_with_every_run_marked_the_page_walks_them_and_sends_only_a_change():
+    got = _run("""
+      var seen = [[ids["where"].textContent, picked(), ids["next-text"].textContent]];
+      later(300); key("Enter"); await settled();  // unchanged: nothing sent
+      seen.push([ids["where"].textContent, picked(), ids["next-text"].textContent]);
+      later(300); key("3"); key("Enter"); await settled();  // changed: sent, with was
+      seen.push([ids["where"].textContent, picked(), ids["next-text"].textContent]);
+      console.log(JSON.stringify({seen: seen,
+        sent: sent.map(function (s) { return [s.body.id, s.body.first_wrong_step, s.body.was]; })
+      }));""", data=_data(n=3, marks={0: 1, 1: 0, 2: 4}))
+    assert got["seen"] == [["Run 1 of 3", 1, "Next"], ["Run 2 of 3", 0, "Next"],
+                           ["Run 3 of 3", 4, "See your result"]]
+    assert got["sent"] == [["r1", 3, 0]]
+
+
 def test_nothing_within_250_ms_of_a_run_showing():
     got = _run("""
       later(300); key("1"); key("Enter"); await settled();

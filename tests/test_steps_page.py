@@ -65,6 +65,16 @@ def test_a_mark_writes_the_header_then_one_line_in_the_agreed_shape(tmp_path):
     assert line["seconds"] == 4.5 and line["at"].endswith("Z")
 
 
+def test_an_empty_marks_file_gets_the_header_before_the_first_mark(tmp_path):
+    folder = tmp_path / ".judgekeeper" / "steps"
+    folder.mkdir(parents=True)
+    (folder / "marks.jsonl").write_text("", encoding="utf-8")
+    session = _session(tmp_path)
+    session.update({"id": "r1", "first_wrong_step": 2, "was": None, "seconds": 1})
+    lines = _lines(tmp_path)
+    assert lines[0]["step_marks"] == 1 and lines[1]["id"] == "r1" and len(lines) == 2
+
+
 def test_a_second_mark_adds_a_line_and_no_second_header(tmp_path):
     session = _session(tmp_path)
     session.update({"id": "r1", "first_wrong_step": 2, "was": None, "seconds": 1})
@@ -515,6 +525,18 @@ def test_with_a_model_named_the_column_is_that_one(serve, tmp_path):
     page = page.decode("utf-8")
     assert "<th>Agent-as-a-judge</th>" in page
     assert '<td class="g">Step 1</td></tr>' in page
+
+
+def test_the_marking_page_holds_none_of_the_picks(serve, tmp_path):
+    path = _runs(tmp_path)
+    picks = _picks(tmp_path, [{"id": "r1", "first_wrong_step": 3, "model": "zeta-judge",
+                               "reason": "PICK-REASON-SHOULD-STAY-HIDDEN"}])
+    page = serve(path, reviewer=str(picks)).request("GET", "/")[1].decode("utf-8")
+    assert "<title>judgekeeper: mark steps</title>" in page
+    assert "zeta-judge" not in page and "PICK-REASON" not in page
+    data = json.loads(unescape(page.split('id="data">')[1].split("</script>")[0]))
+    assert set(data) == {"runs", "start", "total", "marked", "intro"}
+    assert all(set(r) == {"id", "n", "task", "steps", "mark"} for r in data["runs"])
 
 
 @pytest.mark.parametrize(("gone", "said"), [
