@@ -816,7 +816,7 @@ def test_the_guide_is_the_install_the_four_steps_and_three_cards():
         "With pip, in your project’s virtual environment", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
-    assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
+    assert AGENT_LINE in (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")  # same words
     (rail,) = _all(_main(GUIDE), "nav")  # the one side list: the steps' rail
     assert "sp-rail" in rail.classes()
     # three plain boxes under the steps, each a heading in view, then its words and its

@@ -26,61 +26,46 @@ In your project folder, in its virtual environment:
 pip install judgekeeper
 judgekeeper
 ```
-Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
+Or `uvx judgekeeper`. Python 3.11 to 3.14.
 
-Reads promptfoo, DeepEval, Inspect AI, MLflow, Label Studio exports, or your own CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, or a file with only `input` and `output` to check the answers of your agent or chatbot. A `verdict` can be pass/fail, true/false, yes/no, correct/incorrect, right/wrong or 1/0, in any case; `--label-map` reads other words. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (the uv forms are in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install)).
+Using a coding agent? Give it this page and say: "Follow this to run judgekeeper on my project."
 
-Using a coding agent? Give it this page and tell it: "Follow this to run judgekeeper on my project." It runs the steps and gives you the marking page link; you mark, then the coding agent explains the result.
+## What you can check
+
+| You have | Run | You see |
+|---|---|---|
+| Grades from an LLM-as-a-judge | `judgekeeper` | How often it agrees with your marks |
+| Answers of your agent or chatbot, no grades | `judgekeeper` | How many pass, with a range |
+| Agent runs | `judgekeeper steps runs.jsonl --reviewer picks.jsonl` | How often your agent-as-a-judge picks the same first wrong step as you |
+
+It reads promptfoo, DeepEval, Inspect AI, MLflow, Label Studio exports, or your own CSV, TSV or JSONL file. [Formats](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#what-it-reads)
 
 ## The 4 steps
 
-1. **Read:** `judgekeeper` finds your eval results and reads them. A page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result.
-   - No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the link to open instead.
-   - Already have Pass/Fail labels, for example from Label Studio? Run `judgekeeper --labels your-labels.csv` (a Label Studio export works too), or `judgekeeper --labels` if they are in your results. Then mark more if needed.
-2. **Measure:** run `judgekeeper` again to see how often it agrees with you.
-   - Two or more people marked the same answers? judgekeeper also says how much they agree with each other (kappa, or Krippendorff's alpha for three or more people), because a check cannot be expected to agree with them more than they agree with each other. With too few labels, it writes a Label Studio import file with the few answers to label next.
-3. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside. It makes no AI call: you grade the marked answers again with your own eval tool, which may use your API key.
-4. **Re-check:** after you change the model or the rule, grade your marked answers again (`judgekeeper fix` writes them to `.judgekeeper/fix/marked-answers.csv`). `judgekeeper check <new results file>` shows if it still agrees with you.
-   - Changed your agent or chatbot, not the LLM-as-a-judge? `judgekeeper results.json --before main-results.json` compares the grades in two results question by question and exits 1 when the change made it worse, or 3 when nothing could be compared ([how](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#did-your-change-make-it-worse)).
-   - Checking an agent? `judgekeeper steps runs.jsonl` opens a page where you click the first wrong step of each run, then shows how often your agent-as-a-judge picks the same one. Labels already in Label Studio? `judgekeeper steps export.json` reads its export.
+1. **Read:** `judgekeeper` finds your results and opens a page. Mark each answer Pass or Fail.
+2. **Measure:** run `judgekeeper` again to see how often the LLM-as-a-judge agrees with you.
+3. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
+4. **Re-check:** grade the marked answers again, then run `judgekeeper check new-results.json`.
 
-In your project, judgekeeper reads your results files and writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
-
-## No LLM-as-a-judge? Check the answers of your agent or chatbot
-
-For a chatbot, agent or any AI that answers questions. Save its answers in a CSV, TSV or JSONL file with `input` and `output` columns and no grades. No answers yet? `judgekeeper` prints a prompt for your coding agent (Claude Code, Cursor or Codex) to write about 40 test questions and save the answers of your agent or chatbot, which runs once for each question, so this may use your API credits.
-
-1. **Read:** run `judgekeeper` in your project folder. It finds your answers. Mark each one Pass or Fail. On the result page, add a reason to the failed ones.
-2. **Measure:** from 10 marks, see how many passed, with a range.
-3. **Fix:** judgekeeper saves the failed answers, apart from the half kept aside, in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve the prompt of your agent or chatbot.
-4. **Re-check:** run your agent or chatbot again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.
-
-[An example run](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md).
+judgekeeper makes no AI call and needs no API key. In your project it writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. [Security](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md)
 
 ## The numbers
 
-- **TPR:** of the answers you passed, how many it passed too. The result page calls it "When you say Pass, your LLM-as-a-judge also says Pass".
-- **TNR:** of the answers you failed, how many it failed too. The result page calls it "When you say Fail, your LLM-as-a-judge also says Fail".
+- **TPR:** when you say Pass, how often the LLM-as-a-judge says Pass too.
+- **TNR:** when you say Fail, how often it says Fail too.
 - **Kappa:** how much you agree beyond what matching at random would give.
 
-TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)" (when you mark every answer, the numbers have no range). The result says "good enough to use" only when a wider range (99%) starts at 80% or more for both. That way you can look after every mark. The numbers are about the answers in your results, worked out from the ones you marked. They are not a promise about new answers.
-
-How the numbers are worked out: [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-the-numbers-are-worked-out).
+Each comes with a range. They are about the answers you marked, not a promise about new ones. [How they are worked out](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-the-numbers-are-worked-out)
 
 ## Checked on public data
 
-These runs use public datasets that people already labelled. One adds made-up empty answers that should fail, and one is a simulation. Where the true number is known, they test whether judgekeeper's ranges hold it. They also show what judgekeeper says about real LLM-as-a-judge setups. Each line links its report.
-
-- [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true values in 96 of 100 random tests with 100 marks each (TPR, TNR and kappa at once; another 100 tests give a slightly different count).
-- [RAGTruth](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md): news summaries. Three LLM-as-a-judge setups, 3 runs each, and 3 more runs at a lower effort setting: needs work in all 12. Changing the model did not close the gap.
-- RAGTruth [question answers](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth-qa/report.md) and [data-to-text](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth-data2txt/report.md): "needs work" in all 4 runs.
-- [JailbreakBench graded by two other setups](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench-setups/report.md): "needs work" for both; each passed more than half of the expert-failed answers it graded (setup B could not grade 61 of 300).
-- [Empty answers](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md): one model failed 0 of 20 empty summaries that should fail.
-- [Simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md): the ranges held the true value 96.7 times in 100 on average.
+- [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true values in 96 of 100 random tests.
+- [RAGTruth](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md): three LLM-as-a-judge setups, "needs work" in all 12 runs.
+- [All reports](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/)
 
 ## More
 
-A [guide](https://www.judgekeeper.com/start.html) on the [website](https://www.judgekeeper.com) walks through the 4 steps. `judgekeeper --help` lists every command, and the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one. Made by one person; [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose) welcome, pull requests are not taken.
+[Website](https://www.judgekeeper.com) · [Guide](https://www.judgekeeper.com/start.html) · [Reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) · `judgekeeper --help`. Made by one person. [Issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose) welcome; pull requests are not taken.
 
 ## License
 
