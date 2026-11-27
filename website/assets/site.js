@@ -1,10 +1,9 @@
 /* judgekeeper.com: the copy buttons; on the home page the demo marking card, the terminal
-   for each step and the public-dataset numbers.
+   for each step and the public-dataset tabs; on the Guide its tabs.
 
-   The only motion: the green underline passes once over the five words, each terminal
-   screen is typed the first time it shows (Replay types it again), and the public-dataset
-   numbers count up once. Under reduced motion all are instant. Nothing is stored and nothing
-   is sent. */
+   The only motion: the green underline passes once over the four words, and each terminal
+   screen is typed the first time it shows (Replay types it again). Under reduced motion both
+   are instant. Nothing is stored and nothing is sent. */
 (function () {
   "use strict";
 
@@ -573,7 +572,7 @@
       b.addEventListener("click", function () { pick(b.getAttribute("data-step")); });
     });
     arrows(steps, function (b) { pick(b.getAttribute("data-step")); });
-    /* A click on one of the five words brings the whole section into view, with the same space
+    /* A click on one of the four words brings the whole section into view, with the same space
        above the heading as below the box (or the heading near the top when the section is taller
        than the window). The address still gets #steps, as the link does without JavaScript. */
     function showSection() {
@@ -620,7 +619,7 @@
       show();
     }
 
-    // The hero's one moment: the green underline passes once over the five words, then rests
+    // The hero's one moment: the green underline passes once over the four words, then rests
     // on the chosen step.
     function sweep() {
       var order = words.map(function (w) { return w.getAttribute("data-step"); });
@@ -632,8 +631,6 @@
     if (!reduce && words.length && !location.hash) sweep();
   }
 
-  /* The two public-dataset numbers count up once when they come into view (not under reduced
-     motion). The page's own text already holds the final numbers. */
   /* "On public datasets.": the list on the left picks which result the window shows; arrow
      keys move between the three. Without the script all three show, one under another. */
   function setUpDatasets() {
@@ -697,70 +694,8 @@
   }
   function setUpGuide() { $all(".gd-tabs, .gi-tabs").forEach(setUpTabs); }
 
-  function setUpCounts() {
-    var nums = $all(".rt-n");
-    if (!nums.length || reduce || !("IntersectionObserver" in window)) return;
-    if (narrow()) return;  // on a phone the numbers show as they are
-    var seen = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (!e.isIntersecting) return;
-        seen.unobserve(e.target);
-        var el = e.target, to = +el.getAttribute("data-to"), t0 = null;
-        function step(t) {
-          if (t0 === null) t0 = t;
-          var k = Math.min(1, (t - t0) / 900), ease = 1 - Math.pow(1 - k, 3);
-          el.textContent = String(Math.round(to * ease));
-          if (k < 1) requestAnimationFrame(step);
-        }
-        el.textContent = "0";
-        requestAnimationFrame(step);
-      });
-    }, { threshold: 0.6 });
-    nums.forEach(function (n) { seen.observe(n); });
-  }
-
-  /* A picture of the Guide opens over the page, as wide as the screen; Close, a click or tap
-     beside it or Escape closes it. */
-  function setUpShots() {
-    var links = $all(".gx-shot a");
-    if (!links.length || typeof HTMLDialogElement !== "function") return;
-    var view = make("dialog", "shot-view");
-    var close = make("button", "shot-close", "Close"), pane = make("div", "shot-pane");
-    close.type = "button";
-    view.setAttribute("aria-label", "Picture, full size");
-    pane.tabIndex = 0;
-    view.appendChild(close);
-    view.appendChild(pane);
-    document.body.appendChild(view);
-    function shut() { if (view.open) view.close(); }
-    close.addEventListener("click", shut);
-    view.addEventListener("click", function (e) { if (e.target === view || e.target === pane) shut(); });
-    view.addEventListener("close", function () {
-      if (view.open) return;  /* opened again before this event came */
-      document.documentElement.classList.remove("has-view");
-      pane.textContent = "";
-    });
-    links.forEach(function (a) {
-      a.addEventListener("click", function (e) {
-        e.preventDefault();
-        /* a new element each time: an image that lost its src can stay blank when reused */
-        var shown = a.querySelector("img"), img = make("img", "", undefined);
-        img.src = a.getAttribute("href");
-        img.alt = shown ? shown.alt : "";
-        pane.textContent = "";
-        pane.appendChild(img);
-        view.classList.toggle("close-low", a.hasAttribute("data-close-low"));
-        document.documentElement.classList.add("has-view");
-        view.showModal();
-        pane.scrollLeft = 0;
-        pane.scrollTop = 0;
-        close.focus();
-      });
-    });
-  }
-
   /* On a phone only (a laptop's text stays as it is): "LLM-as-a-judge" in a step's words never
-     breaks at its hyphens, and a path in a sentence may break after each "/". */
+     breaks at its hyphens. */
   function setUpPhoneBreaks() {
     if (!narrow()) return;
     $all(".steplist .d").forEach(function (d) {
@@ -772,22 +707,12 @@
         d.appendChild(document.createTextNode(part));
       });
     });
-    $all("code.path").forEach(function (code) {
-      var parts = code.textContent.split("/");
-      code.textContent = "";
-      parts.forEach(function (part, i) {
-        if (i) code.appendChild(document.createElement("wbr"));
-        code.appendChild(document.createTextNode((i < parts.length - 1) ? part + "/" : part));
-      });
-    });
   }
 
   setUpCopy();
   setUpPhoneBreaks();
-  setUpShots();
   setUpDemo();
   setUpTour();
-  setUpCounts();
   setUpDatasets();
   setUpGuide();
 })();
