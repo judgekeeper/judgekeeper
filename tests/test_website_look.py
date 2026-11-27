@@ -1732,7 +1732,7 @@ def test_on_a_phone_a_step_keeps_its_unbroken_words():
     body = JS[JS.index("  function setUpPhoneBreaks() {"):]
     body = body[:body.index("\n  }\n") + 4]
     steps = []
-    for d in re.findall(r'<span class="d">(.*?)</span></span></button>', HOME.read_text("utf-8")):
+    for d in re.findall(r'<span class="d">(.*?)</span></span></button>', HOME.read_text(encoding="utf-8")):
         nodes = []
         for nb, text in re.findall(r'<span class="nb">([^<]*)</span>|([^<]+)', d):
             nodes.append(["nb", nb] if nb else ["#", html.unescape(text)])
