@@ -1418,9 +1418,10 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         return talk.stop(EXIT_QUESTION, f"{own_map.rename_step(columns, rel)}, then run "
                                         f"`{talk.command()}` again.")
     if agent_runs and not (saved or signs or unlooked):  # an agent's runs, for `steps`
-        runs = Path(os.path.relpath(agent_runs[0], Path.cwd())).as_posix()
+        runs = str(agent_runs[0].resolve())
         return talk.stop(EXIT_QUESTION, AGENT_RUNS_NEXT.format(
-            runs=runs, command=textio.program(f"steps {textio.path_arg(runs)}")))
+            runs=textio.shown_from_here(runs),
+            command=textio.program(f"steps {start.path_word(runs)}")))
     if not (saved or signs or unlooked):  # no eval tool set up here: maybe no answers yet
         _questions_prompt(talk)
         _way_above(talk, root)
