@@ -18,6 +18,8 @@
 - When the output is piped or read by a program, the "judgekeeper VERSION" line comes first, before any error.
 - `--help` says that `--port 0` means any free port.
 - On the answers result page, "Change a mark" says it opens the list of your answers.
+- An answer or run whose id holds a hidden character (such as a zero-width space) is now marked as itself: the marking pages name each one by a key, never by its id. A tab opened before this update loads again instead of saving.
+- A run id that is not text or a whole number (such as 1.5 or true) is now named as such, not as missing.
 
 ## 1.4.0 (2026-11-23)
 
