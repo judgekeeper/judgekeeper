@@ -5,3 +5,4 @@
 {"id": "3", "first_wrong_step": null, "steps_hash": "2c72bc07b5a502f990d6d1cfcb5b0cf33811d55ca89bd90b08d071fbb770e8c2", "at": "2026-11-26T10:00:33Z", "seconds": 1.5, "by": "page"}
 {"id": "run-1", "first_wrong_step": 4, "steps_hash": "27eae6bceef50d5eb70b9f6a5184f1ed437a5444041a7c5e13c029535e1f282c", "at": "2026-11-26T10:00:40Z", "seconds": 6.0, "by": "page"}
 {"id": "run-2", "first_wrong_step": 0, "steps_hash": "544c5cf7bc5d73c37877b7465b2f59f92d3fcf73b32fa2038ae054e39c8e8ff0", "at": "2026-11-26T10:00:52Z", "seconds": 3.0, "by": "page", "link": "printed"}
+{"id": "run-1", "first_wrong_step": 4, "steps_hash": "27eae6bceef50d5eb70b9f6a5184f1ed437a5444041a7c5e13c029535e1f282c", "at": "2026-11-26T10:01:05Z", "seconds": 2.5, "by": "page", "link": "browser-env"}

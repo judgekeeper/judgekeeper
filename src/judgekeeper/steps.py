@@ -39,7 +39,8 @@ TASKS_FILE, CONFIG_FILE, RESULT_FILE = "label-these.json", "label-config.xml", "
 RUNS_FILE, MARKS_FILE = "runs.jsonl", "marks.jsonl"
 STEP_FIELD = "first_wrong_step"
 MARK_FIELDS = frozenset({"id", STEP_FIELD, "steps_hash", "at", "seconds", "by"})
-LINK_FIELD, LINK_PRINTED = "link", "printed"  # the page's link was printed, with no terminal
+LINK_FIELD = "link"  # how the page's link reached the person, as on the answers page
+LINKS = ("printed", "browser-env")
 DEFAULT_REVIEWER = "reviewer"
 SHOWN = f".judgekeeper/{FOLDER}"
 
@@ -341,10 +342,10 @@ def steps_hash(run_steps: list[dict]) -> str:
 
 def _mark_of(row) -> tuple[str, int | None, str] | None:
     """(id, first wrong step or None for taken back, steps_hash) of one mark line, or None
-    when the line is not a mark: exactly MARK_FIELDS, and `link` only as "printed"."""
+    when the line is not a mark: exactly MARK_FIELDS, and `link` only as one of LINKS."""
     if not isinstance(row, dict) or set(row) - {LINK_FIELD} != MARK_FIELDS:
         return None
-    if LINK_FIELD in row and row[LINK_FIELD] != LINK_PRINTED:
+    if LINK_FIELD in row and row[LINK_FIELD] not in LINKS:
         return None
     run_id, step, seconds = row["id"], row[STEP_FIELD], row["seconds"]
     if not (isinstance(run_id, str) and run_id.strip()) or not isinstance(row["at"], str):

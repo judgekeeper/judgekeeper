@@ -110,16 +110,18 @@ def test_the_fixture_hashes_are_the_canonical_hash_of_the_steps_read():
                                        "by"}
         assert row["steps_hash"] == canonical_hash(by_id[row["id"]].steps)
         assert steps.steps_hash(by_id[row["id"]].steps) == row["steps_hash"]
-    assert any(json.loads(line).get("link") == "printed" for line in lines[1:])
+    links = {json.loads(line).get("link") for line in lines[1:]}
+    assert {"printed", "browser-env"} <= links
 
 
-def test_link_printed_is_the_one_extra_field_a_mark_may_carry(here):
-    runs_path = write_runs(here, 3)
+def test_link_printed_or_browser_env_is_the_one_extra_field_a_mark_may_carry(here):
+    runs_path = write_runs(here, 4)
     hashes = hashes_of(runs_path)
     write_marks(here, [mark("r0", 2, hashes, link="printed"), mark("r1", 1, hashes, link="x"),
-                       mark("r2", 1, hashes, note="SECRET-TEXT")])
+                       mark("r2", 1, hashes, note="SECRET-TEXT"),
+                       mark("r3", 3, hashes, link="browser-env")])
     export = steps.read_marks(here / MARKS, steps.read_runs(runs_path))
-    assert [t.label for t in export.tasks] == [2, None, None]
+    assert [t.label for t in export.tasks] == [2, None, None, 3]
     assert export.stats["broken"] == [3, 4]
 
 
