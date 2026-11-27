@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import random
 from html import escape
 from pathlib import Path
@@ -72,10 +71,6 @@ def shuffled(ids: list[str], seed: str) -> list[str]:
     order = list(ids)
     random.Random(seed).shuffle(order)
     return order
-
-
-def _number(value) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _same(a, b) -> bool:
@@ -165,7 +160,7 @@ class StepsSession:
             raise ValueError(f"first_wrong_step must be a whole number from 0 to "
                              f"{len(run.steps)}, or null")
         seconds = body.get("seconds")
-        if not _number(seconds) or not math.isfinite(seconds) or seconds < 0:
+        if not steps._seconds(seconds) or seconds < 0:  # as the marks reader takes it
             raise ValueError("seconds must be a number from 0")
         if "was" in body and not _same(body["was"], self._marks.get(run.id)):
             raise StaleMark(STALE)

@@ -150,7 +150,7 @@ def test_null_and_0_to_the_step_count_are_taken(tmp_path, value):
     assert _lines(tmp_path)[-1]["first_wrong_step"] == value
 
 
-@pytest.mark.parametrize("seconds", [-1, "3", None, float("inf"), True])
+@pytest.mark.parametrize("seconds", [-1, "3", None, float("inf"), True, 10 ** 400])
 def test_seconds_must_be_a_number_from_0(tmp_path, seconds):
     with pytest.raises(ValueError):
         _session(tmp_path).update({"id": "r1", "first_wrong_step": 1, "was": None,
@@ -350,6 +350,24 @@ def test_the_server_needs_the_token_and_the_pages_origin(serve):
     resp, _ = client.request("POST", "/label", {"id": "r1", "first_wrong_step": 1,
                                                "was": None, "seconds": 1}, origin=False)
     assert resp.status == 403
+
+
+def test_the_server_refuses_seconds_too_big_for_a_number_with_400(serve):
+    client = serve()
+    raw = '{"id": "r1", "first_wrong_step": 1, "was": null, "seconds": 1' + "0" * 400 + "}"
+    headers = {"Host": f"127.0.0.1:{client.server.port}", "Content-Type": "application/json",
+               "Origin": f"http://127.0.0.1:{client.server.port}"}
+
+    def send():
+        conn = http.client.HTTPConnection("127.0.0.1", client.server.port, timeout=5)
+        try:
+            conn.request("POST", f"/label?token={client.server.token}", body=raw.encode(),
+                         headers=headers)
+            return conn.getresponse().status
+        finally:
+            conn.close()
+
+    assert retried(send) == 400
 
 
 def test_an_unknown_run_is_404(serve):
