@@ -400,17 +400,18 @@ def read_marks(path: Path, runs: list[Run]) -> Export:
     line for a run wins, a taken-back one (null) is no mark. Left out and counted in `stats`:
     a mark for a run whose steps changed since (`changed`), for a run not in `runs`
     (`not_in_runs`), past the run's last step (`unusable`); a line that is not a mark is
-    skipped and its number kept (`broken`), never its text. `made`: of the marks that count,
+    skipped and its number kept (`broken`), never its text, also a line that is not UTF-8 or
+    holds a NUL (textio.own_lines). `made`: of the marks that count,
     how many took under a second and how many came through each link (marks.made's keys, for
     start_label.quick_lines and link_lines)."""
     newest: dict[str, tuple[int | None, str, float, str | None]] = {}
     broken: list[int] = []
     first = True
-    for number, line in enumerate(textio.jsonl_lines(textio.read_utf8(path, StepsError)), 1):
-        if not line.strip():
+    for number, line in enumerate(textio.read_own_lines(path, StepsError), 1):
+        if line is not None and not line.strip():
             continue
         try:
-            row = textio.loads(line)
+            row = None if line is None else textio.loads(line)  # None: not UTF-8, or a NUL
         except ValueError:
             row = None
         header, first = first and isinstance(row, dict) and "step_marks" in row, False
@@ -748,9 +749,11 @@ def numbers_from_marks(runs: str | Path, marks: str | Path, reviewer: str | Path
     return lines, json.loads((folder / RESULT_FILE).read_text(encoding="utf-8"))
 
 
-def _picks(guesses: dict, reviewer: str | None, model: str | None) -> tuple[dict, dict]:
-    """(reviewer -> run id -> number, reviewer -> fingerprint fields given): the guesses
-    file's when one is given, else `guesses`; only `model`'s when one is named."""
+def _picks(guesses: dict, reviewer: str | None, model: str | None
+           ) -> tuple[dict, dict, frozenset]:
+    """(reviewer -> run id -> number, reviewer -> fingerprint fields given, every reviewer's
+    name in them): the guesses file's when one is given, else `guesses`; only `model`'s
+    when one is named (the names are all of them, also then)."""
     given: dict = {}
     if reviewer is not None:
         if textio.not_a_file(Path(reviewer)) is not None or not Path(reviewer).exists():
@@ -760,8 +763,9 @@ def _picks(guesses: dict, reviewer: str | None, model: str | None) -> tuple[dict
         if model not in guesses:
             names = ", ".join(sorted(guesses)) or "none"
             raise StepsError(f"No agent-as-a-judge named {model!r} in the picks (found: {names}).")
-        guesses = {model: guesses[model]}
-    return guesses, given
+        names = frozenset(guesses)
+        return {model: guesses[model]}, given, names
+    return guesses, given, frozenset(guesses)
 
 
 def _numbers(file: Path, shown: str, reviewer: str | None, model: str | None) -> int:
@@ -819,13 +823,15 @@ def _marks_read(stats: dict, runs_name: str, say, news_in: Path | None = None) -
         say(_lines_of(stats["broken"], f"{SHOWN}/{MARKS_FILE}"))
 
 
-def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: str | None,
+def _report(export: Export, guesses: dict, given: dict, names: frozenset, shown: str,
+            reviewer: str | None,
             say, runs_name: str | None = None, folder: Path | None = None,
             terminal: bool = False, again: tuple[str, ...] = ()) -> int:
     """The numbers of `export` (a Label Studio export's, or the page's marks when
     `runs_name`, the runs file's name, is given), each line handed to `say`; result.json
     saved in `folder` (else the steps folder of the project at `shown`), with the numbers it
-    held before (`before`, said as what changed since the last check). `terminal`: said in
+    held before (`before`, said as what changed since the last check; `names`: every
+    agent-as-a-judge in the picks, also one --model leaves out). `terminal`: said in
     the terminal, not on the result page. `again`: the page flags its commands repeat
     (start.page_flags). The exit code."""
     marks = runs_name is not None
@@ -886,6 +892,7 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
         say("")
         say("Next: " + NEXT_GUESSES.format(command=_command(shown, None, *again)))
         return EXIT_NEEDS_YOU
+    marks_changed = False
     for entry in reviewers:
         say("")
         for line in _reviewer_lines(entry["name"], entry, marks):
@@ -898,10 +905,12 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
             n = left["not_in_export"]
             say(f"  Left out: {n} pick is for a run that is not in {name}." if n == 1
                 else f"  Left out: {n} picks are for runs that are not in {name}.")
-        if before is not None and before["marks_hash"] == people["marks_hash"]:
-            for line in _since_lines(entry, before["reviewers"], marks):
+        then = _then(entry, before, names, reviewers)
+        if then is not None and then["marks_hash"] == people["marks_hash"]:
+            for line in _since_lines(entry, then, marks):
                 say(line)
-    if before is not None and before["marks_hash"] != people["marks_hash"]:
+        marks_changed |= then is not None and then["marks_hash"] != people["marks_hash"]
+    if marks_changed:
         say(MARKS_CHANGED.format(what="Your marks" if marks else "The labels"))
     say("")
     say(f"Saved in {SHOWN}/{RESULT_FILE}.")
@@ -978,24 +987,60 @@ def _valid_before(before) -> dict | None:
     return before if ok else None
 
 
+def _entries(before: dict | None) -> dict:
+    """Name -> the earlier numbers `before` keeps of that agent-as-a-judge, each with the
+    marks_hash and made_at of its check (an entry without them has the before's)."""
+    if _valid_before(before) is None:
+        return {}
+    out = {}
+    for r in before["reviewers"]:
+        entry = {**r, "marks_hash": r.get("marks_hash", before["marks_hash"]),
+                 "made_at": r.get("made_at", before.get("made_at"))}
+        if isinstance(entry["marks_hash"], str):
+            out[entry.get("name")] = entry
+    return out
+
+
 def _before(old: dict | None, marks_hash: str, reviewers: list) -> dict | None:
-    """result.json's `before`: the numbers saved last time, unless they are the same as now on
-    the same marks (looked at again, as the result page does on every view): then the
-    `before` they had. With no numbers last time, or none now, the last numbers go on."""
+    """result.json's `before`: each agent-as-a-judge's numbers from the last check that had
+    it, with that check's marks_hash and made_at. The last check's numbers go in, by name,
+    over the ones kept, unless they are the same as now on the same marks (looked at again,
+    as the result page does on every view): then the ones that name had stay. A name left
+    out of a check (another --model) keeps its numbers."""
     if old is None:
         return None
     kept = _valid_before(old.get("before"))
     people = old.get("people") if isinstance(old.get("people"), dict) else {}
-    last = _valid_before({"made_at": old.get("made_at"), "marks_hash": people.get("marks_hash"),
-                          "reviewers": _kept_numbers(old.get("reviewers") or [])
-                          if isinstance(old.get("reviewers"), list) else None})
-    if last is None or not last["reviewers"]:
+    last_hash = people.get("marks_hash")
+    last = _kept_numbers(old["reviewers"]) if isinstance(old.get("reviewers"), list) else []
+    if not isinstance(last_hash, str) or not last:
         return kept
-    if not reviewers:
-        return last
-    if last["marks_hash"] == marks_hash and _kept_numbers(reviewers) == last["reviewers"]:
+    now = dict(zip((r["name"] for r in reviewers), _kept_numbers(reviewers), strict=True))
+    merged, took = _entries(kept), False
+    for entry in last:
+        if last_hash == marks_hash and now.get(entry["name"]) == entry:
+            continue
+        merged[entry["name"]] = {**entry, "marks_hash": last_hash, "made_at": old.get("made_at")}
+        took = True
+    if not took:
         return kept
-    return last
+    return {"made_at": old.get("made_at"), "marks_hash": last_hash,
+            "reviewers": list(merged.values())}
+
+
+def _then(entry: dict, before: dict | None, names: frozenset, reviewers: list) -> dict | None:
+    """The earlier numbers `entry` is compared with: its own name's. Else, when the picks
+    hold a name no more (a rename), the newest of those, as long as one agent-as-a-judge
+    now has no numbers of its own; else none."""
+    entries = _entries(before)
+    if entry["name"] in entries:
+        return entries[entry["name"]]
+    gone = [e for name, e in entries.items() if name not in names]
+    if not gone or sum(r["name"] not in entries for r in reviewers) != 1:
+        return None
+    newest = max(str(e.get("made_at") or "") for e in gone)
+    gone = [e for e in gone if str(e.get("made_at") or "") == newest]
+    return gone[0] if len(gone) == 1 else None
 
 
 def _rate(w) -> str | None:
@@ -1010,15 +1055,10 @@ def _kappa(run: dict) -> str | None:
         else None
 
 
-def _since_lines(entry: dict, earlier: list[dict], marks: bool) -> list[str]:
+def _since_lines(entry: dict, then: dict, marks: bool) -> list[str]:
     """What changed since the last check for one agent-as-a-judge, on the same marks: its
-    numbers then and now, each `old -> new`; the same name's, else the one before when there
-    was one. A number too few both times is left out; none left: no lines."""
-    then = next((r for r in earlier if r.get("name") == entry["name"]), None)
-    if then is None and len(earlier) == 1:
-        then = earlier[0]
-    if then is None:
-        return []
+    numbers `then` (_then) and now, each `old -> new`. A number too few both times is left
+    out; none left: no lines."""
     people = "you say" if marks else "the people marking say"
     rows = [(f"Runs {people} went wrong, caught", _rate(then["run_level"].get("tpr")),
              _rate(entry["run_level"]["tpr"])),

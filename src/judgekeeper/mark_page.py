@@ -965,6 +965,8 @@ __TOP__
       return r.json().then(function (body) { return {ok: r.ok, status: r.status, body: body}; });
     }).then(function (res) {
       clearTimeout(waited);
+      if (res.status === 409 && res.body.reload) { window.location.reload(); return; }  // the
+      // page started again for the steps: this tab loads the page that is open now
       if (res.status === 409 && res.body.stale) {  // marked in another tab since this page loaded
         queued = []; say(WORDS.otherTab); refresh(WORDS.otherTab, false); return; }
       if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }

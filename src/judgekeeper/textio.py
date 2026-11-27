@@ -808,6 +808,35 @@ def jsonl_lines(text: str) -> list[str]:
     return [line.removesuffix("\r") for line in text.split("\n")]
 
 
+def own_lines(data: bytes) -> list[str | None]:
+    """The lines of a JSONL file judgekeeper wrote in its own folder, split as jsonl_lines
+    splits them and each decoded on its own: None for a line that is not UTF-8 or holds a NUL,
+    so one damaged line is one line left out, not the whole file. A byte order mark at the
+    start is dropped."""
+    lines: list[str | None] = []
+    for raw in data.removeprefix(BOM.encode("utf-8")).split(b"\n"):
+        raw = raw.removesuffix(b"\r")
+        try:
+            lines.append(None if b"\x00" in raw else raw.decode("utf-8"))
+        except UnicodeDecodeError:
+            lines.append(None)
+    return lines
+
+
+def read_own_lines(path: str | Path, error: type[Exception]) -> list[str | None]:
+    """own_lines of the file at `path`. Raises `error` for a path that is not a regular file,
+    and with not_utf8_message when no line that holds anything is UTF-8 text (UTF-16, say):
+    then the file as a whole is not, and saying so is true."""
+    try:
+        data = read_regular(path)
+    except NotAFile as e:
+        raise error(not_a_file_message(path, e.kind)) from None
+    lines = own_lines(data)
+    if any(x is None for x in lines) and all(x is None for x in lines if x is None or x.strip()):
+        raise error(not_utf8_message(path))
+    return lines
+
+
 def line_ending(text: str) -> str:
     """The line ending `text` uses: "\r\n" (Windows) when it has one, else "\n"."""
     return "\r\n" if "\r\n" in text else "\n"

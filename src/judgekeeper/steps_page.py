@@ -117,16 +117,16 @@ class StepsSession:
         newest: dict[str, tuple[int | None, str]] = {}
         made, first = False, True
         try:
-            text = self.out.read_text(encoding="utf-8")
+            lines = textio.read_own_lines(self.out, ValueError)
         except (FileNotFoundError, NotADirectoryError):
-            text = ""
-        except (OSError, UnicodeDecodeError):
+            lines = []
+        except (OSError, ValueError):
             return  # memory stays as it is; the next write says what is wrong
-        for line in textio.jsonl_lines(text):
-            if not line.strip():
+        for line in lines:
+            if line is not None and not line.strip():
                 continue
             try:
-                row = textio.loads(line)
+                row = None if line is None else textio.loads(line)
             except ValueError:
                 row = None
             header, first = first and isinstance(row, dict) and "step_marks" in row, False
@@ -149,6 +149,11 @@ class StepsSession:
     def marked(self) -> dict[str, int]:
         """Run id -> the first wrong step the person gave (0: all fine)."""
         return dict(self._marks)
+
+    def takes(self, body: dict) -> bool:
+        """Whether `body` is a click on this page, not a change from a tab of the answers
+        page (a tab left open after the page started again for the steps)."""
+        return steps.STEP_FIELD in body
 
     def update(self, body: dict) -> None:
         """One click: {"id", "first_wrong_step": 0 to the run's step count, or null (Undo),
@@ -467,6 +472,7 @@ __TOP__
       return r.json().then(function (b) { return {ok: r.ok, status: r.status, body: b}; });
     }).then(function (res) {
       clearTimeout(waited);
+      if (res.status === 409 && res.body.reload) { window.location.reload(); return; }
       if (res.status === 409 && res.body.stale) { refresh(WORDS.otherTab); return; }
       busy = false;
       if (!res.ok) { say("Not saved: " + res.body.error); return; }
@@ -629,7 +635,7 @@ def _picks(session: StepsSession) -> tuple[str | None, dict] | None:
     several); None without a file."""
     if session.reviewer is None:
         return None
-    guesses, _ = steps._picks({}, str(session.reviewer), session.model)
+    guesses = steps._picks({}, str(session.reviewer), session.model)[0]
     if not guesses:
         return JUDGE, {}
     name = min(guesses)
