@@ -366,13 +366,14 @@ def _parser() -> argparse.ArgumentParser:
                          "predictions in the export")
     st.add_argument("--model", metavar="NAME",
                     help="the agent-as-a-judge to look at, when the export holds several")
-    _page_args(st)  # a runs file opens the steps marking page
+    _page_args(st, new=False)  # a runs file opens the steps marking page
     p.commands["steps"] = st
     return p
 
 
-def _page_args(p: argparse.ArgumentParser) -> None:
-    """The marking page's options, the same for `judgekeeper` and `mark`."""
+def _page_args(p: argparse.ArgumentParser, new: bool = True) -> None:
+    """The marking page's options, the same for `judgekeeper` and `mark`; `steps` takes them
+    too, with --new left out of its help (`new` False: it is refused there)."""
     p.add_argument("--port", type=_port, default=8765,
                    help="port on 127.0.0.1 for the page (default 8765)")
     p.add_argument("--no-browser", action="store_true",
@@ -380,7 +381,8 @@ def _page_args(p: argparse.ArgumentParser) -> None:
     what = p.add_mutually_exclusive_group()
     what.add_argument("--new", action="store_true",
                       help="start over: your marks move to .judgekeeper/previous-<date>/ "
-                           "(asked first when you have marks; nothing is deleted)")
+                           "(asked first when you have marks; nothing is deleted)"
+                      if new else argparse.SUPPRESS)
     what.add_argument("--wait", action="store_true",
                       help="serve the page in this terminal until Ctrl-C, instead of in the "
                            "background")

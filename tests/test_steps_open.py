@@ -221,3 +221,13 @@ def test_plain_stop_on_a_steps_page_says_the_steps_command(here, capsys, pages):
     assert code == 0 and "Closed the marking page." in out
     assert ("Next: run `judgekeeper steps runs.jsonl` when you want to continue."
             in " ".join(out.split()))
+
+
+def test_steps_help_lists_the_page_flags_but_not_new(capsys):
+    """steps refuses --new, so its help leaves it out; the other page flags are listed."""
+    assert main(["steps", "--help"]) == 0
+    out = capsys.readouterr().out
+    assert "--new" not in out
+    for flag in ("--port", "--no-browser", "--wait", "--stop"):
+        assert flag in out, flag
+    assert "[--wait | --stop]" in " ".join(out.split())
