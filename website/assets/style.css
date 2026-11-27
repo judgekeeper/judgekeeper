@@ -948,6 +948,6 @@ html.has-view, html.has-view body { overflow: hidden; }
 .ck-pills span { padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--term-bg); font-size: 12.5px; color: var(--fg); }
 .ex-t span { font-family: inherit; }
 .ex-card { padding: 12px 12px; gap: 8px; }  /* room on both sides of the words */
-.ex-t span { white-space: nowrap; font-size: 11px; }
+@media (min-width: 901px) { .ex-t span { white-space: nowrap; font-size: 11px; } }  /* desktop: one line each; phones keep their own sizes */
 @media (max-width: 1250px) { .ex-card .ex-ico { display: none; } }  /* mid widths: the words keep their room */
 .ck2-l h1 { padding-left: .167em; text-indent: -.167em; }  /* the i of "in" under the stem of the T of "Try" */
