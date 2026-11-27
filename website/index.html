@@ -331,14 +331,14 @@ and run `judgekeeper check` again.</template>
       <div class="ds-stack">
       <div class="ds-panel" role="tabpanel" id="ds-a" aria-labelledby="ds-tab-a">
         <div class="ds-body">
-          <div class="ds-nums three"><div><b class="ds-big g">96%</b><span>of the runs that went wrong, it caught</span></div><div><b class="ds-big r">30%</b><span>of the fine runs, it wrongly flagged</span></div><div><b class="ds-big r">57%</b><span>of the time, it picked the same first wrong step as people</span></div></div>
+          <div class="ds-nums three"><div><b class="ds-big g" data-share="175 of 182">96%</b><span>of the runs that went wrong, it caught</span></div><div><b class="ds-big r" data-share="20 of 67">30%</b><span>of the fine runs, it wrongly flagged</span></div><div><b class="ds-big r" data-share="100 of 175">57%</b><span>of the time, it picked the same first wrong step as people</span></div></div>
           <p>An <span class="nb">agent-as-a-judge</span> can tell that a run went wrong, but often not where.</p>
         </div>
         <div class="term-foot"><span class="tf-dot ok" aria-hidden="true"></span><span class="tf-text">249 agent runs, labelled by people</span><a class="tf-link" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/agent-steps/report.md">see its report</a></div>
       </div>
       <div class="ds-panel" role="tabpanel" id="ds-b" aria-labelledby="ds-tab-b">
         <div class="ds-body">
-          <div class="ds-nums"><div><b class="ds-big"><span class="was">0.88 &rarr;</span> <span class="g">0.97</span></b><span>agreement with two people (kappa, where 1 is perfect)</span></div></div>
+          <div class="ds-nums"><div><b class="ds-big"><span class="was" data-kappa="Setup A">0.88 &rarr;</span> <span class="g" data-kappa="Setup B">0.97</span></b><span>agreement with two people (kappa, where 1 is perfect)</span></div></div>
           <p>A change to the <span class="nb">LLM-as-a-judge</span> made it agree with people more, and Re-check showed it.</p>
         </div>
         <div class="term-foot"><span class="tf-dot ok" aria-hidden="true"></span><span class="tf-text">447 answers, labelled by two people</span><a class="tf-link" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/label-studio/report.md">see its report</a></div>
@@ -346,7 +346,7 @@ and run `judgekeeper check` again.</template>
       <div class="ds-panel" role="tabpanel" id="ds-c" aria-labelledby="ds-tab-c">
         <div class="ds-body">
           <div class="ds-nums"><div><b class="ds-big g">96 in 100</b><span>times, the real value was inside judgekeeper's range</span></div></div>
-          <p>When judgekeeper says &ldquo;between 85% and 93%&rdquo;, the real number is usually inside it.</p>
+          <p data-quote="docs/examples/jailbreakbench/report.md">When judgekeeper says &ldquo;between 85% and 93%&rdquo;, the real number is usually inside it.</p>
         </div>
         <div class="term-foot"><span class="tf-dot ok" aria-hidden="true"></span><span class="tf-text">Over 1,000 checks per setup, on 3 datasets</span><a class="tf-link" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/real-data-check/report.md">see its report</a></div>
       </div>
