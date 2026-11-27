@@ -1322,11 +1322,12 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     left, term = [el for el in _all(section, "div") if el.parent.parent is section]
     assert "ck2-l" in left.classes() and {"term", "ck2-term"} <= term.classes()
     (h1,) = _all(left, "h1")
-    assert _flat(h1) == "Try the Read step in your browser."
+    assert _flat(h1) == "Try judgekeeper in your browser."
     assert [_flat(s) for s in _all(h1, "span", "nb")] == ["in your browser."]
+    assert [_flat(s) for s in _all(h1, "span", "hl")] == ["browser."]  # green, as on Home
     titles = re.findall(r'<title>([^<]*)</title>|content="([^"]*\| judgekeeper)"',
                         CHECK.read_text(encoding="utf-8"))
-    assert {a or b for a, b in titles} == {"Try the Read step in your browser | judgekeeper"}
+    assert {a or b for a, b in titles} == {"Try judgekeeper in your browser | judgekeeper"}
     # the drop box: an upload icon and what to drop; after a file, the file and Clear
     drop = _by_id(CHECK, "fc-drop")
     assert drop.tag == "button" and drop.attrs.get("type") == "button"
@@ -1334,9 +1335,12 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     (loaded,) = _all(drop, "span", "fc-loaded")
     assert "hidden" not in empty.attrs and "hidden" in loaded.attrs
     assert [_flat(el) for el in empty.iter() if el.tag in ("b", "span") and el.classes() & {
-        "ck2-or", "fc-kinds"} or el.tag == "b"] == [
-        "Drop your results file here", "or click to choose one",
-        "promptfoo · DeepEval · CSV · TSV · JSONL"]
+        "ck2-or"} or el.tag == "b"] == ["Drop your file here", "or click to choose one"]
+    (kinds,) = _all(empty, "span", "fc-kinds")
+    assert "ck-pills" in kinds.classes()  # each kind in a pill, as on the Guide
+    assert [_flat(el) for el in kinds.children if isinstance(el, Element)] == [
+        "promptfoo", "DeepEval", "CSV", "TSV", "JSONL"]
+    assert _by_id(CHECK, "fc-verb").text() == "click"  # a phone says "tap" (freecheck.js)
     assert _flat(_all(loaded, "span", "fc-kinds")[0]) == "Drop another file to check it instead"
     (name,) = _all(loaded, "b")
     assert name.attrs.get("id") == "fc-name"
@@ -1362,16 +1366,19 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     # the examples, under a divider; no command row (the status bar links to the Guide)
     (divider,) = _all(left, "p", "ex-or")
     assert _flat(divider) == "or try an example"
+    cards = _all(left, "button", "ex-card")
+    assert [_flat(_all(c, "b")[0]) for c in cards] == ["Eval results", "Answers only", "Agent runs"]
+    assert cards[0].attrs.get("data-example-file") == "shop-answers.csv"  # the other two: s2
     assert not _all(main, "div", "ck-run") and "uvx" not in _flat(main)
     # the terminal: the file's name in its bar once read, the waiting screen, the result
-    assert _flat(_by_id(CHECK, "ck-title")) == "your results file"
+    assert _flat(_by_id(CHECK, "ck-title")) == "your file"
     wait = _by_id(CHECK, "ck-wait")
     (ghost,) = _all(wait, "span", "ck-ghost")
     assert ghost.attrs.get("aria-hidden") == "true"
     waiting = wait.text()[:wait.text().index(ghost.text())]
     assert " ".join(waiting.split()) == (
-        "$ judgekeeper Step 1 of 4: Read Waiting for your results file. Drop it in the box, or "
-        "try an example. ▋")
+        "$ judgekeeper Step 1 of 4: Read Waiting for your file. Drop it in the box, or try an "
+        "example. ▋")
     result = _by_id(CHECK, "fc-result")
     assert result.attrs.get("aria-live") == "polite" and not result.children
     # the status bar: the file stays here, and the next step is the Guide's install
@@ -1533,37 +1540,13 @@ def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
 
 # The pictures and what fix can test --------------------------------------------------------
 
-def test_guide_page_pictures_after_first_paragraph():
-    for step, picture in (("step-find", "label.webp"), ("step-measure", "result.webp")):
-        side = _all(_by_id(GUIDE, step), "div", "sp-side")[0]
-        (img,) = _all(side, "img")
-        assert img.attrs["src"] == f"assets/shots/{picture}"
-        assert (WEBSITE / "assets" / "shots" / picture).is_file()
-        assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1704")
-        assert len(img.attrs["alt"]) > 80 and "screenshot" not in img.attrs["alt"].lower()
-    assert "max-width" not in _rule(".gx-shot")  # the pictures fill their step's window
-    assert "width: 100%" in _rule(".gx-shot img")  # the figure draws the border
-    # Home stays terminal: no picture there
-    assert not _all(_main(HOME), "img") and not _all(_main(HOME), "figure")
-
-
-def test_on_a_phone_the_guides_pictures_open_full_size():
-    """Each picture is a plain link to its file, and a small "Tap to enlarge" under it shows
-    on phones only."""
-    for step, picture, page in (("step-find", "label.webp", "marking"),
-                                ("step-measure", "result.webp", "result")):
-        side = _all(_by_id(GUIDE, step), "div", "sp-side")[0]
-        (figure,) = _all(side, "figure", "gx-shot")
-        (link,) = _all(figure, "a")
-        assert {k: v for k, v in link.attrs.items() if k != "data-close-low"} == {
-            "href": f"assets/shots/{picture}",
-            "aria-label": f"Enlarge the picture of the {page} page"}, step
-        assert [el.tag for el in link.children if isinstance(el, Element)] == ["img"]
-        after = [el for el in side.children if isinstance(el, Element)]
-        tap = after[after.index(figure.parent) + 1]
-        assert (tap.tag, tap.classes(), _flat(tap)) == ("p", {"gx-tap"}, "Tap to enlarge")
-    assert "display: none" in _rule(".gx .gx-tap")
-    assert "display: block" in _rule(".gx .gx-tap", _narrow(600))
+def test_home_and_the_guide_show_no_pictures():
+    """Home shows its demo and terminals, and the Guide its commands: no screenshot on either,
+    and no link to one (the browser check has none either)."""
+    for page in (HOME, GUIDE, CHECK):
+        assert not _all(_main(page), "img") and not _all(_main(page), "figure"), page.name
+        assert not [a for a in _all(_main(page), "a") if "assets/shots/" in a.attrs.get("href", "")]
+    assert "gx-tap" not in CSS
 
 
 def test_testing_a_new_rule_is_said_for_every_eval_tool():
@@ -1576,18 +1559,19 @@ def test_testing_a_new_rule_is_said_for_every_eval_tool():
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
     short = ("Human judgment decides what's right. See how often each automated check agrees "
-             "with it, from an LLM-as-a-judge grading one answer to a reviewer checking each "
-             "step of an agent, and see if agreement goes up or down after each change.")
+             "with it, from an LLM-as-a-judge grading one answer to an agent-as-a-judge checking "
+             "each step of an agent, and see if agreement goes up or down after each change.")
     assert meta == [short + (" Read. Measure. Fix. Re-check. Open source; it reads "
                              "the results your eval tool saved."), short, short]
     for json_ld in (el for el in _els(HOME) if el.attrs.get("type") == "application/ld+json"):
         assert short in json_ld.text() and "Read. Measure." not in json_ld.text()
     assert "test it on marks kept aside." in _flat(_by_id(HOME, "tab-fix"))
     assert "promptfoo" not in _flat(_by_id(HOME, "tab-fix"))
-    step = _flat(_by_id(GUIDE, "step-fix"))
-    assert ".judgekeeper/fix/marked-answers.csv" in step
+    (step,) = [_flat(li) for li in _all(_by_id(GUIDE, "results"), "li")
+               if _flat(li).startswith("Fix.")]
     assert "judgekeeper fix new-results.json" in step
-    assert "judgekeeper tests the new rule on the marks kept aside" in step
+    assert "Grade the marked answers again with the new rule" in step
+    assert "judgekeeper tests it on marks kept aside" in step
     assert "Testing works with" not in step
     llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
     assert "tests a better rule" not in llms  # the Guide line links the steps instead
@@ -1646,7 +1630,7 @@ def _join(text: str) -> str:
 
 def test_the_demos_last_button_is_one_label():
     """At every width: each tab's last button ("Check your own LLM-as-a-judge", "Check your
-    agent's reviewer") is one piece of text, never two flex items with no space between them."""
+    agent-as-a-judge") is one piece of text, never two flex items with no space between them."""
     buttons = [el for el in _els(HOME) if "jk-go" in el.classes()]
     labels = []
     for go in buttons:
@@ -1654,7 +1638,7 @@ def test_the_demos_last_button_is_one_label():
         assert label.tag == "span"
         assert not [c for c in go.children if isinstance(c, str) and c.strip()]
         labels.append(_flat(label))
-    assert labels == ["Check your own LLM-as-a-judge", "Check your agent's reviewer"]
+    assert labels == ["Check your own LLM-as-a-judge", "Check your agent-as-a-judge"]
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="needs node to run site.js")
@@ -1704,15 +1688,15 @@ def test_on_a_phone_the_demo_reads_without_cutting_words():
 
 
 def test_on_a_phone_the_text_is_14px_or_more():
-    """The labels, the pill, window titles, the terminal and its status bar, code, the
-    handy commands and the browser check's result are 14px; the footer, "Tap to enlarge" and the
-    lines under the drop box 15px. The four words never go under 14px, and wrap below 360px."""
+    """The labels, the pill, window titles, the terminal and its status bar, and the browser
+    check's result and example cards are 14px; the footer and the lines under the drop box
+    15px. The four words never go under 14px, and wrap below 360px."""
     phone = _narrow(600)
     for selector in (".jk-label, .jk-state, .jk-end-top .jk-again",
-                     ".term-bar, .rt-bar, .term-foot, .steplist .n", ".gx-code, .gm-pre",
-                     ".ck-out", ".rt-src"):
+                     ".term-bar, .rt-bar, .term-foot, .steplist .n", ".term-out", ".ck-out",
+                     ".ex-t span"):
         assert "font-size: 14px" in _last(selector, phone), selector
-    for selector in (".foot .wrap", ".gx .gx-tap", ".ex-or, .fc-kinds, .ck2-term .term-bar"):
+    for selector in (".foot .wrap", ".ex-or, .fc-kinds, .ck2-term .term-bar"):
         assert "font-size: 15px" in _last(selector, phone), selector
     assert "max(14px, min(17px, calc((100vw - 40px) / 19)))" in _last(".five", _narrow(359))
     assert "white-space: normal" in _last(".b-main, .b-side", _narrow(359))
@@ -1726,29 +1710,27 @@ def test_on_a_phone_the_text_is_14px_or_more():
 
 
 def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
-    """On a phone the Guide has a 20px gutter and a step's commands take the whole width; "$" stays on a command's first line; Copy shows only its tick (its word stays
-    for a screen reader); a path breaks after its "/". At 300px and below the boxes are
-    narrower and a command breaks only at a space or after a "/"."""
+    """On a phone the Guide has a 20px gutter and every command box takes the whole width of
+    its column; "$" stays on a command's first line; Copy shows only its tick (its word stays
+    for a screen reader). At 300px and below the boxes are narrower and a command breaks only
+    at a space or after a "/"."""
     assert "max(20px" in _rule("body:has(> main.gx) .wrap")
-    assert "width: 100%" in _rule(".sp-cmds .cmd") and "min-width: 0" in _rule(".sp-cmds .cmd")
+    for selector in (".gi-panel .cmd", ".gd-panel .cmd", ".gd-handy-grid .cmd"):
+        rule = _rule(selector)
+        assert "width: 100%" in rule and "min-width: 0" in rule, selector
     phone = _narrow(600)
     assert "align-items: flex-start" in _last(".cmd code", phone)
     copied = _last(".cmd .copy.done .copied", phone)
     assert "position: absolute" in copied and "clip: rect(0 0 0 0)" in copied
-    assert "overflow-wrap: anywhere" in _last(".gx-text code.path", phone)
-    paths = [c for c in _all(parse(GUIDE), "code") if "path" in c.classes()]
-    assert [c.text() for c in paths] == [".judgekeeper/fix/mistakes.md",
-                                         ".judgekeeper/fix/marked-answers.csv",
-                                         ".judgekeeper/fix/marked-answers.csv",
-                                         ".judgekeeper/records/"]
-    assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
+    assert not [c for c in _all(parse(GUIDE), "code") if "path" in c.classes()]
+    assert "overflow-wrap: normal" in _last(".cmd code", _narrow(300))
 
 
 def test_a_picture_opens_over_the_page_at_every_width():
-    """A click or tap on a Guide picture opens it over the page, on a laptop as on a phone: as
-    wide as the screen, so nothing is off its edge, starting at the very top, with a red Close
-    button 44px tall floating over its corner; the page behind does not scroll. Without the
-    script the link opens the file."""
+    """A click or tap on a picture opens it over the page (no page shows one now), on a laptop
+    as on a phone: as wide as the screen, so nothing is off its edge, starting at the very top,
+    with a red Close button 44px tall floating over its corner; the page behind does not
+    scroll. Without the script the link opens the file."""
     shots = JS[JS.index("function setUpShots("):]
     shots = shots[:shots.index("\n  }\n")]
     for part in ("e.preventDefault()", "view.showModal()",
@@ -1778,8 +1760,6 @@ def test_a_picture_opens_over_the_page_at_every_width():
     # the marking page's counter is in that corner: Close sits under its header from 601px
     assert 'toggle("close-low", a.hasAttribute("data-close-low"))' in shots
     assert "@media (min-width: 601px) { .shot-view.close-low .shot-close { top: calc(5vw + 8px); } }" in CSS
-    lows = [a.attrs["href"] for a in _all(_main(GUIDE), "a") if "data-close-low" in a.attrs]
-    assert lows == ["assets/shots/label.webp"]
     assert not [s for s, d in _rules() if "shot-close" in s and "focus" in s]
     assert "outline: 2px solid var(--fg)" in _rule(":focus-visible")
     assert "overflow: hidden" in _rule("html.has-view, html.has-view body")
@@ -1799,7 +1779,7 @@ def test_on_a_touch_screen_links_are_44px_tall():
 def test_on_a_phone_the_browser_check_shows_the_whole_result():
     """Clear sits under the drop box, the result is part of the page (no scroll inside it),
     "$ judgekeeper" is one line, an example's result comes into view, a phone says "tap",
-    a file's name breaks between words, and "·" never ends a line."""
+    a file's name breaks between words, and the file kinds wrap only between their pills."""
     phone = _phone()
     assert "position: static" in _last(".fc-clear", phone)
     assert "transform: none" in _last(".fc-loaded", phone)
@@ -1810,8 +1790,9 @@ def test_on_a_phone_the_browser_check_shows_the_whole_result():
     assert "media('(hover: none)')) verb.textContent = 'tap'" in FREECHECK
     assert "overflow-wrap: anywhere" in _last(".fc-loaded .fc-main b")
     assert "word-break" not in _last(".fc-loaded .fc-main b")
+    # the kinds are pills that wrap between pills, never inside one
     (kinds,) = [el for el in _els(CHECK) if "fc-kinds" in el.classes() and "JSONL" in el.text()]
-    assert kinds.text() == "promptfoo\xa0· DeepEval\xa0· CSV\xa0· TSV\xa0· JSONL"
+    assert "·" not in kinds.text() and "flex-wrap: wrap" in _rule(".ck-pills")
 
 
 def test_on_a_phone_privacy_lists_its_parts_in_rows():
