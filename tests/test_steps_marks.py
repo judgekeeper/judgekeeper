@@ -250,11 +250,11 @@ def test_numbers_from_marks_with_no_reviewer_say_how_to_add_one(here):
     runs = marked_project(here)
     lines, saved = steps.numbers_from_marks(runs, here / MARKS, None)
     assert saved["reviewers"] == [] and saved["source"]["reviewer_file"] is None
-    assert "There are no agent-as-a-judge guesses to compare your marks with yet." in lines
+    assert "There are no agent-as-a-judge picks to compare your marks with yet." in lines
     assert lines[-1] == ("Next: give your agent-as-a-judge's first wrong step for each run as a JSONL "
                          'file (one line per run: {"id": ..., "first_wrong_step": ..., '
                          '"model": ...}) and run `judgekeeper steps runs.jsonl --reviewer '
-                         'GUESSES.jsonl`.')
+                         'PICKS.jsonl`.')
 
 
 def test_no_marks_yet_says_click_on_the_page(here):
@@ -281,7 +281,8 @@ def test_one_run_reads_it(here):
 
 
 def test_too_few_marks_say_mark_more_on_the_page(here):
-    runs = marked_project(here, n=10)
+    runs = marked_project(here, n=12)
+    write_marks(here, [mark(f"r{i}", 0, hashes_of(runs)) for i in range(10)])  # 2 not marked
     lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
     assert lines[-1] == ("Next: mark more runs on the page: "
                          "`judgekeeper steps runs.jsonl --reviewer g.jsonl`.")
@@ -323,7 +324,7 @@ def test_guesses_for_runs_not_in_the_runs_file_name_the_runs_file(here):
     with (here / "g.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps({"id": "x1", "first_wrong_step": 1, "model": "reviewer-a"}) + "\n")
     lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
-    assert "  Left out: 1 guess is for a run that is not in runs.jsonl." in lines
+    assert "  Left out: 1 pick is for a run that is not in runs.jsonl." in lines
 
 
 # The command ---------------------------------------------------------------------------------

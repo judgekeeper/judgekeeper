@@ -61,12 +61,23 @@ NEXT_NO_LABELS = ("label the runs in Label Studio (the first wrong step, 0 if al
 NEXT_MORE = "label more runs in Label Studio, export again and run `{command}`."
 NEXT_GUESSES = ("give your agent-as-a-judge's first wrong step for each run as a JSONL file "
                 "(one line per run: {{\"id\": ..., \"first_wrong_step\": ..., \"model\": "
-                "...}}) and run `{command} --reviewer GUESSES.jsonl`.")
-NEXT_AGAIN = ("change your agent-as-a-judge, save its new guesses as a JSONL file and run "
-              "`{command} --reviewer NEW-GUESSES.jsonl`.")
+                "...}}) and run `{command} --reviewer PICKS.jsonl`.")
+NEXT_AGAIN = ("change your agent-as-a-judge, save its new picks as a JSONL file and run "
+              "`{command} --reviewer NEW-PICKS.jsonl`.")
 NEXT_MARK = ("click the first wrong step of each run on the page (or \"All steps are fine\"): "
              "`{command}`.")
 NEXT_MARK_MORE = "mark more runs on the page: `{command}`."
+NEXT_ADD_RUNS = ("every run is marked, so add runs to {runs}: at least {kinds} (each number "
+                 "needs {need} runs of its kind). Then mark them on the page: `{command}`.")
+NEXT_FIX_PICKS = ("some runs have no pick from your agent-as-a-judge, or a pick that is not a "
+                  "step of the run: fix them in {picks} and run `{command}`.")
+
+# What changed since the last check (result.json's `before`)
+SINCE = "Since the last check{then}, on the same {marks}:"
+SINCE_CHANCE = "  A change smaller than the ranges above could be chance."
+MARKS_CHANGED = ("{what} changed since the last check, so these numbers are not compared with "
+                 "it.")
+LINK_SAID = "link-said.json"  # the link notes the terminal said (start_label.link_news)
 
 NOT_EXPORT = ("{name} is not a Label Studio export of the runs judgekeeper steps writes: give "
               "it your runs file (JSONL) or that project's export (JSON).")
@@ -381,8 +392,10 @@ def read_marks(path: Path, runs: list[Run]) -> Export:
     line for a run wins, a taken-back one (null) is no mark. Left out and counted in `stats`:
     a mark for a run whose steps changed since (`changed`), for a run not in `runs`
     (`not_in_runs`), past the run's last step (`unusable`); a line that is not a mark is
-    skipped and its number kept (`broken`), never its text."""
-    newest: dict[str, tuple[int | None, str]] = {}
+    skipped and its number kept (`broken`), never its text. `made`: of the marks that count,
+    how many took under a second and how many came through each link (marks.made's keys, for
+    start_label.quick_lines and link_lines)."""
+    newest: dict[str, tuple[int | None, str, float, str | None]] = {}
     broken: list[int] = []
     first = True
     for number, line in enumerate(textio.jsonl_lines(textio.read_utf8(path, StepsError)), 1):
@@ -399,11 +412,12 @@ def read_marks(path: Path, runs: list[Run]) -> Export:
         if mark is None:
             broken.append(number)
             continue
-        newest[mark[0]] = mark[1:]
+        newest[mark[0]] = (*mark[1:], row["seconds"], row.get(LINK_FIELD))
     tasks = {r.id: Task(r.id, len(r.steps)) for r in runs}
     hashes = {r.id: r.steps_hash for r in runs}
     changed = not_in_runs = 0
-    for run_id, (step, kept) in newest.items():
+    made = {"marks": 0, "under_second": 0, "printed": 0, "browser_env": 0}
+    for run_id, (step, kept, seconds, link) in newest.items():
         if step is None:
             continue
         if run_id not in tasks:
@@ -414,10 +428,15 @@ def read_marks(path: Path, runs: list[Run]) -> Export:
             task = tasks[run_id]
             task.label = usable(step, task.n_steps)
             task.state = "unusable" if task.label is None else "label"
+            if task.label is not None:
+                made["marks"] += 1
+                made["under_second"] += seconds < 1
+                made["printed"] += link == "printed"
+                made["browser_env"] += link == "browser-env"
     states = [t.state for t in tasks.values()]
     stats = {"tasks": len(tasks), "labelled": states.count("label"), "disagreed": 0,
              "no_label": states.count("no_label"), "unusable": states.count("unusable"),
-             "changed": changed, "not_in_runs": not_in_runs, "broken": broken}
+             "changed": changed, "not_in_runs": not_in_runs, "broken": broken, "made": made}
     return Export(path.name, list(tasks.values()), {}, {}, {}, stats=stats)
 
 
@@ -674,7 +693,7 @@ def _screen(file: Path, given: Path, reviewer: str | None = None,
     if marks.is_file():  # marked on the page already: the numbers, with their own Next line
         export = read_marks(marks, runs)
         return _report(export, *picks, str(given), reviewer, _say, runs_name=file.name,
-                       folder=folder)
+                       folder=folder, terminal=True)
     export = program("steps EXPORT.json")
     _say("Next: " + NEXT_LABEL.format(config=f"{SHOWN}/{CONFIG_FILE}",
                                        tasks=f"{SHOWN}/{TASKS_FILE}", export=export))
@@ -690,7 +709,7 @@ def say_numbers_from_marks(file: Path, shown: str, reviewer: str | None = None,
         return None
     picks = _picks({}, reviewer, model)
     return _report(read_marks(marks, read_runs(file)), *picks, shown, reviewer, _say,
-                   runs_name=file.name, folder=marks.parent)
+                   runs_name=file.name, folder=marks.parent, terminal=True)
 
 
 def numbers_from_marks(runs: str | Path, marks: str | Path, reviewer: str | Path | None,
@@ -727,7 +746,7 @@ def _picks(guesses: dict, reviewer: str | None, model: str | None) -> tuple[dict
     if model is not None:
         if model not in guesses:
             names = ", ".join(sorted(guesses)) or "none"
-            raise StepsError(f"No agent-as-a-judge named {model!r} in the guesses (found: {names}).")
+            raise StepsError(f"No agent-as-a-judge named {model!r} in the picks (found: {names}).")
         guesses = {model: guesses[model]}
     return guesses, given
 
@@ -750,8 +769,15 @@ def _lines_of(numbers: list[int], name: str) -> str:
     return f"Lines {words} of {name} are not marks judgekeeper can read; they are left out."
 
 
-def _marks_read(stats: dict, runs_name: str, say) -> None:
-    """The lines that say what was read from the page's marks, and what was left out."""
+def _marks_read(stats: dict, runs_name: str, say, news_in: Path | None = None) -> None:
+    """The lines that say what was read from the page's marks, and what was left out. The
+    lines on marks a program may have made are the answers page's (start_label.quick_lines and
+    link_lines); the link lines always (the result page), or, for the terminal (`news_in`, the
+    steps folder), only when a count changed since they were last said there."""
+    from types import SimpleNamespace
+
+    from judgekeeper import start_label
+
     n, marked = stats["tasks"], stats["labelled"]
     if n == 1:
         said = "you marked it" if marked else "you have not marked it"
@@ -759,6 +785,13 @@ def _marks_read(stats: dict, runs_name: str, say) -> None:
         said = f"you marked {marked} of them"
     say(f"Read {plural(n, 'run')} from {runs_name} and your marks from {SHOWN}/{MARKS_FILE}: "
         f"{said}.")
+    made = stats.get("made")
+    for line in start_label.quick_lines(made):
+        say(line)
+    if news_in is None or start_label.link_news(
+            SimpleNamespace(link_said=news_in / LINK_SAID), made):
+        for line in start_label.link_lines(made):
+            say(line)
     if (k := stats["changed"]) == 1:
         say("1 mark is for a run whose steps changed after you marked it; it is left out (mark "
             "that run again).")
@@ -774,10 +807,13 @@ def _marks_read(stats: dict, runs_name: str, say) -> None:
 
 
 def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: str | None,
-            say, runs_name: str | None = None, folder: Path | None = None) -> int:
+            say, runs_name: str | None = None, folder: Path | None = None,
+            terminal: bool = False) -> int:
     """The numbers of `export` (a Label Studio export's, or the page's marks when
     `runs_name`, the runs file's name, is given), each line handed to `say`; result.json
-    saved in `folder` (else the steps folder of the project at `shown`). The exit code."""
+    saved in `folder` (else the steps folder of the project at `shown`), with the numbers it
+    held before (`before`, said as what changed since the last check). `terminal`: said in
+    the terminal, not on the result page. The exit code."""
     marks = runs_name is not None
     name = runs_name if marks else export.name
     command = _command(shown, reviewer)
@@ -786,7 +822,10 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
               "disagreed": stats["disagreed"], "no_label": stats["no_label"],
               "unusable": stats["unusable"], "who": dict(sorted(export.who.items()))}
     if marks:
-        people.update(changed=stats["changed"], not_in_runs=stats["not_in_runs"])
+        made = stats.get("made") or {}
+        people.update(changed=stats["changed"], not_in_runs=stats["not_in_runs"],
+                      **{k: made.get(k, 0) for k in ("under_second", "printed", "browser_env")})
+    people["marks_hash"] = labels_hash(export.tasks, marks)
     reviewers = []
     for reviewer_name, found in guesses.items():
         numbers = compare(export.tasks, found)
@@ -794,8 +833,9 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
                           given.get(reviewer_name, {}))
         reviewers.append({"name": reviewer_name, "model": fp.model, "fingerprint": fp.to_dict(),
                           "unknown_fields": unknown_fields(fp.to_dict()), **numbers})
+    out = _workspace(Path(shown)).dir / FOLDER if folder is None else folder
     if marks:
-        _marks_read(stats, name, say)
+        _marks_read(stats, name, say, news_in=out if terminal else None)
     else:
         if stats["tasks"] == 1:
             labelled = ("the people marking labelled it" if stats["labelled"]
@@ -812,8 +852,8 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
     source = ({"marks": f"{SHOWN}/{MARKS_FILE}", "runs": runs_name,
                "reviewer_file": Path(reviewer).name if reviewer else None} if marks
               else _given(Path(export.name), reviewer))
-    _write_result(_workspace(Path(shown)).dir / FOLDER if folder is None else folder, people,
-                  reviewers, source)
+    before = _before(_read_result(out), people["marks_hash"], reviewers)
+    _write_result(out, people, reviewers, source, before)
     if not stats["labelled"]:
         say("")
         say("You have not marked a run yet." if marks
@@ -824,9 +864,9 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
     if not reviewers:
         say("")
         if marks:
-            say("There are no agent-as-a-judge guesses to compare your marks with yet.")
+            say("There are no agent-as-a-judge picks to compare your marks with yet.")
         else:
-            say(f"{name} has no agent-as-a-judge guesses"
+            say(f"{name} has no agent-as-a-judge picks"
                 + (": Label Studio exports hold only the ids of predictions unless you ask "
                    "for the full ones." if export.ids_only else "."))
         say("")
@@ -838,21 +878,27 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
             say(line)
         left = entry["left_out"]
         if left["no_guess"] or left["unusable"]:
-            say(f"  Left out: {left['no_guess']} with no guess from this agent-as-a-judge, "
-                f"{left['unusable']} with a guess that is not a step of the run.")
+            say(f"  Left out: {left['no_guess']} with no pick from this agent-as-a-judge, "
+                f"{left['unusable']} with a pick that is not a step of the run.")
         if left["not_in_export"]:
             n = left["not_in_export"]
-            say(f"  Left out: {n} guess is for a run that is not in {name}." if n == 1
-                else f"  Left out: {n} guesses are for runs that are not in {name}.")
+            say(f"  Left out: {n} pick is for a run that is not in {name}." if n == 1
+                else f"  Left out: {n} picks are for runs that are not in {name}.")
+        if before is not None and before["marks_hash"] == people["marks_hash"]:
+            for line in _since_lines(entry, before["reviewers"], marks):
+                say(line)
+    if before is not None and before["marks_hash"] != people["marks_hash"]:
+        say(MARKS_CHANGED.format(what="Your marks" if marks else "The labels"))
     say("")
     say(f"Saved in {SHOWN}/{RESULT_FILE}.")
     say("")
-    more = NEXT_MARK_MORE if marks else NEXT_MORE
+    more = _more(reviewers, stats, command, runs_name, reviewer) if marks else NEXT_MORE.format(
+        command=command)
     if not any(has_number(r) for r in reviewers):
-        say("Next: " + more.format(command=command))
+        say("Next: " + more)
         return EXIT_NEEDS_YOU
     if any(r["run_level"]["too_few"] or r["step_level"]["too_few"] for r in reviewers):
-        say("Next: " + more.format(command=command))
+        say("Next: " + more)
     else:
         say("Next: " + NEXT_AGAIN.format(command=_command(shown, None)))
     return EXIT_OK
@@ -862,8 +908,130 @@ def _given(file: Path, reviewer: str | None) -> dict:
     return {"export": file.name, "reviewer_file": Path(reviewer).name if reviewer else None}
 
 
-def _write_result(folder: Path, people: dict, reviewers: list, source: dict) -> None:
+def _more(reviewers: list, stats: dict, command: str, runs_name: str,
+          reviewer: str | None) -> str:
+    """The Next line (after "Next: ") when a number is still too few for the page's marks:
+    mark more runs; once every run is marked, fix the picks when some were left out, else add
+    runs of the kinds that are short (how many: the same rule as "15 are needed")."""
+    if stats["labelled"] < stats["tasks"]:
+        return NEXT_MARK_MORE.format(command=command)
+    if reviewer is not None and any(r["left_out"]["no_guess"] or r["left_out"]["unusable"]
+                                    for r in reviewers):
+        return NEXT_FIX_PICKS.format(picks=path_word(reviewer), command=command)
+    need = targets.ROUGH
+    wrong = max(max(need - r["run_level"]["n_wrong"], need - r["step_level"]["n"])
+                for r in reviewers)
+    fine = max(need - r["run_level"]["n_fine"] for r in reviewers)
+    kinds = [f"{wrong} more that went wrong"] if wrong > 0 else []
+    kinds += [f"{fine} more that were fine"] if fine > 0 else []
+    return NEXT_ADD_RUNS.format(runs=runs_name, kinds=" and ".join(kinds), need=need,
+                                command=command)
+
+
+# What changed since the last check ----------------------------------------------------------
+
+def labels_hash(tasks: list[Task], marks: bool) -> str:
+    """The hash of the marks (or a Label Studio export's labels) the numbers are worked out
+    on: each labelled run's id and first wrong step, and where they came from."""
+    labels = sorted([t.id, t.label] for t in tasks if t.state == "label")
+    text = json.dumps({"from": "page" if marks else "label-studio", "labels": labels},
+                      sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _read_result(folder: Path) -> dict | None:
+    """The result.json saved before in `folder`; None when there is none or it can't be read."""
+    try:
+        data = textio.loads((folder / RESULT_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    return data if isinstance(data, dict) and data.get("kind") == "agent-steps" else None
+
+
+def _kept_numbers(reviewers: list) -> list[dict]:
+    """The numbers `before` keeps of each agent-as-a-judge, as result.json holds them."""
+    kept = [{"name": r.get("name"), "model": r.get("model"),
+             "runs_compared": r.get("runs_compared"), "run_level": r.get("run_level"),
+             "step_level": r.get("step_level")} for r in reviewers if isinstance(r, dict)]
+    return json.loads(json.dumps(scrub_value(kept), ensure_ascii=False))
+
+
+def _valid_before(before) -> dict | None:
+    ok = (isinstance(before, dict) and isinstance(before.get("marks_hash"), str)
+          and isinstance(before.get("reviewers"), list)
+          and all(isinstance(r, dict) and isinstance(r.get("run_level"), dict)
+                  and isinstance(r.get("step_level"), dict) for r in before["reviewers"]))
+    return before if ok else None
+
+
+def _before(old: dict | None, marks_hash: str, reviewers: list) -> dict | None:
+    """result.json's `before`: the numbers saved last time, unless they are the same as now on
+    the same marks (looked at again, as the result page does on every view): then the
+    `before` they had. With no numbers last time, or none now, the last numbers go on."""
+    if old is None:
+        return None
+    kept = _valid_before(old.get("before"))
+    people = old.get("people") if isinstance(old.get("people"), dict) else {}
+    last = _valid_before({"made_at": old.get("made_at"), "marks_hash": people.get("marks_hash"),
+                          "reviewers": _kept_numbers(old.get("reviewers") or [])
+                          if isinstance(old.get("reviewers"), list) else None})
+    if last is None or not last["reviewers"]:
+        return kept
+    if not reviewers:
+        return last
+    if last["marks_hash"] == marks_hash and _kept_numbers(reviewers) == last["reviewers"]:
+        return kept
+    return last
+
+
+def _rate(w) -> str | None:
+    if not (isinstance(w, dict) and all(isinstance(w.get(k), (int, float)) for k in "pkn")):
+        return None
+    return f"{textio.percent(w['p'])} ({w['k']} of {w['n']})"
+
+
+def _kappa(run: dict) -> str | None:
+    kappa = run.get("kappa")
+    return _num(kappa) if isinstance(kappa, (int, float)) and not isinstance(kappa, bool) \
+        else None
+
+
+def _since_lines(entry: dict, earlier: list[dict], marks: bool) -> list[str]:
+    """What changed since the last check for one agent-as-a-judge, on the same marks: its
+    numbers then and now, each `old -> new`; the same name's, else the one before when there
+    was one. A number too few both times is left out; none left: no lines."""
+    then = next((r for r in earlier if r.get("name") == entry["name"]), None)
+    if then is None and len(earlier) == 1:
+        then = earlier[0]
+    if then is None:
+        return []
+    people = "you say" if marks else "the people marking say"
+    rows = [(f"Runs {people} went wrong, caught", _rate(then["run_level"].get("tpr")),
+             _rate(entry["run_level"]["tpr"])),
+            (f"Runs {people} were fine, left alone", _rate(then["run_level"].get("tnr")),
+             _rate(entry["run_level"]["tnr"])),
+            ("Kappa", _kappa(then["run_level"]), _kappa(entry["run_level"])),
+            ("The same first wrong step", _rate(then["step_level"].get("same")),
+             _rate(entry["step_level"]["same"]))]
+    rows = [(what, old or "too few", new or "too few") for what, old, new in rows
+            if old is not None or new is not None]
+    if not rows:
+        return []
+    name = then.get("name")
+    named = "" if name == entry["name"] else (
+        " (then with no model name)" if name == DEFAULT_REVIEWER or not isinstance(name, str)
+        else f' (then "{name}")')
+    lines = [SINCE.format(then=named, marks="marks" if marks else "labels")]
+    lines += [f"  {what}: {old} -> {new}." for what, old, new in rows]
+    if any(old != new for _, old, new in rows):
+        lines.append(SINCE_CHANCE)
+    return lines
+
+
+def _write_result(folder: Path, people: dict, reviewers: list, source: dict,
+                  before: dict | None = None) -> None:
     data = {"kind": "agent-steps", "judgekeeper": __version__, "made_at": utc_now(),
-            "source": source, "people": people, "reviewers": reviewers}
+            "source": source, "people": people, "reviewers": reviewers,
+            **({"before": before} if before is not None else {})}
     write_replacing(folder / RESULT_FILE,
                     json.dumps(scrub_value(data), indent=2, ensure_ascii=False) + "\n")
