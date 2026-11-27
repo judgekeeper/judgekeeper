@@ -10,9 +10,14 @@
 - `judgekeeper steps` takes the page flags `--port`, `--no-browser`, `--wait` and `--stop`. In CI no page opens. `--new` is for answers only: to take back a step mark, use Undo on the page.
 - Label Studio still works, as the way to bring in labels people already have: `judgekeeper steps runs.jsonl` still writes the import file and labelling setup, and `judgekeeper steps export.json` reads the export as before.
 - A plain `judgekeeper` in a folder with agent runs and no eval results now says: "Next: mark where each agent run in runs.jsonl first went wrong: `judgekeeper steps runs.jsonl`."
-- What judgekeeper prints for `steps` says "agent-as-a-judge" (the AI that checks an agent's steps) where it said "reviewer". The `--reviewer` flag and the keys in `result.json` are unchanged.
+- What judgekeeper prints for `steps` says "agent-as-a-judge" (the AI that checks an agent's steps) where it said "reviewer". The `--reviewer` flag and the keys `result.json` already had keep their names.
 - What judgekeeper prints, its pages and `--help` now say "your agent or chatbot" where they said "your AI", and "the people marking" where they said "your people". Flags and file fields are unchanged.
 - `judgekeeper --help` and the README now say: "Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to an agent-as-a-judge checking each step of an agent, and see if agreement goes up or down after each change."
+- What `judgekeeper steps` prints says "picks" where it said "guesses", as in `--reviewer PICKS.jsonl` and `NEW-PICKS.jsonl`.
+- Next lines, the lines after `--stop` and the pages' "To come back" commands repeat the `--port` and `--no-browser` you used, the same way everywhere.
+- When the output is piped or read by a program, the "judgekeeper VERSION" line comes first, before any error.
+- `--help` says that `--port 0` means any free port.
+- On the answers result page, "Change a mark" says it opens the list of your answers.
 
 ## 1.4.0 (2026-11-23)
 
