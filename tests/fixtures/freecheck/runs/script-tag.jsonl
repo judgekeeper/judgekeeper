@@ -1,0 +1,1 @@
+{"id": "r1", "steps": [{"role": "user", "content": "<script>alert('hi')</script> and <img src=x onerror=alert(1)>"}, {"role": "<b>assistant</b>", "content": "Text‮ with a hidden​ character\nand a second line."}]}
