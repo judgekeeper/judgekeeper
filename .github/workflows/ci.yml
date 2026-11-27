@@ -51,6 +51,7 @@ jobs:
         if: needs.changes.outputs.code != 'false' || matrix.python-version == '3.12'
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
       # Node.js 22.18 or later runs the TypeScript record() snippet in docs/examples/records/jk_record.ts as it is.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         if: needs.changes.outputs.code != 'false' || matrix.python-version == '3.12'
@@ -92,6 +93,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install
         run: |
           python -m pip install --upgrade pip
@@ -112,6 +114,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install
         run: |
           python -m pip install --upgrade pip
@@ -133,6 +136,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.12"
+          cache: pip
       - name: Build both distributions
         run: |
           python -m pip install --upgrade pip build twine
