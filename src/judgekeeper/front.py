@@ -101,6 +101,7 @@ READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLf
 # No results and no eval tool: a prompt for the person's coding agent to make answers to check.
 # Each of its lines starts a line of its own, wrapped as every other line.
 QUESTIONS_NEXT = "paste the prompt above into your coding agent, then run `{command}` again."
+AGENT_RUNS_NEXT = "Agent runs found in {runs}. Mark where each first went wrong: `{command}`."
 FOLDER_ABOVE = "Results in the folder above? Run `{command}`."  # after the prompt
 THIS_FOLDER = "This folder already holds your judgekeeper session ({marks})."  # run from below
 SAVED_SETUP = "judgekeeper saved your LLM-as-a-judge's setup in {folder}/judge.json."
@@ -1058,7 +1059,8 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None:
         raise _nothing_found(talk, root, search.signs, _named_below(search), unlooked,
-                             stopped=search.stopped, renamed=search.other_columns)
+                             stopped=search.stopped, renamed=search.other_columns,
+                             agent_runs=search.agent_runs)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
@@ -1356,13 +1358,15 @@ def _program_there(folders: list[str], base: Path) -> str:
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
                    nested: list[str] | None = None, unlooked: list | None = None,
-                   stopped: str | None = None, renamed: list | None = None) -> Stop:
+                   stopped: str | None = None, renamed: list | None = None,
+                   agent_runs: list[Path] | None = None) -> Stop:
     """No results: the tools found here (with what saves their results), else what
     judgekeeper can read. The folder by its name only. Results in a project of its own below
     (`nested`) are named, never read; results-like files too big to look into (`unlooked`,
     own_format.search) are named, and so are tables of answers under other column names
     (`renamed`, find.Search.other_columns), with what to rename. `stopped`
-    (find.Search.stopped): the walk gave up before the end, so the person gives the path."""
+    (find.Search.stopped): the walk gave up before the end, so the person gives the path.
+    Agent runs (`agent_runs`, find.Search.agent_runs) alone: the command that marks them."""
     from judgekeeper import own_map
 
     if stopped:
@@ -1413,6 +1417,10 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         rel, columns = renamed[0]
         return talk.stop(EXIT_QUESTION, f"{own_map.rename_step(columns, rel)}, then run "
                                         f"`{talk.command()}` again.")
+    if agent_runs and not (saved or signs or unlooked):  # an agent's runs, for `steps`
+        runs = Path(os.path.relpath(agent_runs[0], Path.cwd())).as_posix()
+        return talk.stop(EXIT_QUESTION, AGENT_RUNS_NEXT.format(
+            runs=runs, command=textio.program(f"steps {textio.path_arg(runs)}")))
     if not (saved or signs or unlooked):  # no eval tool set up here: maybe no answers yet
         _questions_prompt(talk)
         _way_above(talk, root)

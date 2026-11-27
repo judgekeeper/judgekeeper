@@ -67,6 +67,7 @@ DEEPEVAL_COPIES = (".latest_run_full.json", ".latest_test_run.json")
 DEEPEVAL_RUN = re.compile(r"(?:test_run_)?(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(?:\.json)?")
 VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
 JSONL_SUFFIXES = (".jsonl", ".ndjson")  # one JSON object per line, under either name
+AGENT_RUN_KEYS = frozenset({"id", "steps"})  # a line of agent runs (judgekeeper steps)
 TABLE_SUFFIXES = (".csv", ".tsv", *JSONL_SUFFIXES)
 RESULTS_VARS = {"deepeval": "DEEPEVAL_RESULTS_FOLDER", "inspect": "INSPECT_LOG_DIR"}
 ENV_SIGNS = frozenset(RESULTS_VARS.values())  # a sign named after the variable that set it
@@ -157,6 +158,8 @@ class Search:
     json_left: int = 0  # JSON files past MAX_JSON, never looked into
     # (rel, columns): answers under other column names, no grade (other_answers): named only
     other_columns: list[tuple[str, list[str]]] = field(default_factory=list)
+    # JSONL files of agent runs (`id` and `steps`, AGENT_RUN_KEYS): named only, for `steps`
+    agent_runs: list[Path] = field(default_factory=list)
     # NEWEST_RUN note -> (the older run it names, the words it was made of)
     older_runs: dict[str, tuple[Path, dict[str, str]]] = field(default_factory=dict)
 
@@ -752,6 +755,8 @@ class _Walk:
                 self.search.judge_only.append(self.rel(path))
             elif judge_table_without_questions(columns):
                 self.search.no_question.append(self.rel(path))
+            elif suffix in JSONL_SUFFIXES and AGENT_RUN_KEYS <= set(columns):
+                self.search.agent_runs.append(path)
             elif other_answers(path):
                 self.search.other_columns.append((self.rel(path), columns))
         elif suffix in TABLE_SUFFIXES and _results_like(path):  # deeper than tables are read
