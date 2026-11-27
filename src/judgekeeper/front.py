@@ -3944,7 +3944,11 @@ def _stop(talk: FrontTalk, path: Path) -> int:
         saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
         talk.say(f"Closed the marking page.{saved}")
     talk.say()
-    talk.para("Next: " + NEXT_CONTINUE.format(command=_continue_command(talk, ws, closed)))
+    from judgekeeper import steps, steps_page
+
+    typed = steps_page.opened_with(closed["flags"]) if closed else None  # the steps page's
+    command = steps._command(*typed) if typed else _continue_command(talk, ws, closed)
+    talk.para("Next: " + NEXT_CONTINUE.format(command=command))
     return EXIT_OK
 
 

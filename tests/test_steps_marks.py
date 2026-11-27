@@ -376,7 +376,9 @@ def test_steps_runs_with_a_reviewer_and_no_marks_writes_the_screen_as_before(her
     (here / "g.jsonl").write_text('{"id": "run-1", "first_wrong_step": 1}\n', encoding="utf-8")
     code, out, err = run(capsys, "steps", "runs.jsonl", "--reviewer", "g.jsonl")
     assert code == 0, err
-    assert out.rstrip().splitlines()[-1].startswith("Next: in Label Studio, make a project")
+    lines = out.rstrip().splitlines()  # the page opens for marking, with how to import
+    assert lines[-2] == 'Next: mark runs on the page, then click "See the numbers so far".'
+    assert lines[-1].startswith("Label in Label Studio instead?")
     assert not (here / ".judgekeeper/steps/result.json").exists()
 
 

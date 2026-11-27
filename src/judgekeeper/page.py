@@ -48,6 +48,7 @@ from judgekeeper.label import (
 from judgekeeper.start_label import StartSession, Workspace
 
 LINK = "Open this link in your browser to mark answers:"
+STEPS_LINK = "Open this link in your browser to mark steps:"  # the steps page (steps_page.py)
 RESULT_LINK = "Open this link in your browser to see your result:"
 OPENING_BROWSER = "Opening the marking page in your browser…"
 NO_PAGE_IN_CI = ("judgekeeper opens no marking page in CI. To mark answers, run `{command}` "
@@ -112,7 +113,11 @@ def marking_session(ws: Workspace, run: str | None = None) -> StartSession:
 def page_key(ws: Workspace, flags: dict | None) -> dict:
     """What a page shows besides the marks: the commands its flags make (but the port they
     ask for, and whether a browser is opened: the open page keeps its own), and the check it
-    is for."""
+    is for. The steps page (flags with "steps") is keyed by its runs file (steps_page)."""
+    if isinstance(flags, dict) and flags.get("steps"):
+        from judgekeeper import steps_page
+
+        return steps_page.page_key(flags)
     try:
         about = hashlib.sha256(ws.start.read_bytes()).hexdigest()
     except OSError:
@@ -138,7 +143,12 @@ def page_server(ws: Workspace, port: int, flags: dict | None = None,
     `token`: the one the command made (default: a new one). `stamp`: how the page with the
     same token was stamped before (marks.LINKS), so its marks are stamped so. `back`: how
     to come back as typed where it was started (start.saved_back), for its footer. `code`: the
-    one-time code the browser may be given in place of the token (label.LabelServer.take_code)."""
+    one-time code the browser may be given in place of the token (label.LabelServer.take_code).
+    Flags with "steps" (steps_page.flags_for) make the steps marking page instead."""
+    if isinstance(flags, dict) and flags.get("steps"):
+        from judgekeeper import steps_page
+
+        return steps_page.steps_server(ws, port, flags, token=token, stamp=stamp, code=code)
     session = marking_session(ws, start.command_from(flags, kept=True))
     if stamp in marks.LINKS:
         session.link = stamp
@@ -350,7 +360,8 @@ def hands_url_to_program() -> bool:
     return type(browser).__name__ not in NO_ARGUMENT
 
 
-def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) -> str | None:
+def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False,
+         link_line: str = LINK) -> str | None:
     """Open the page in the person's browser (BROWSER: nothing is said, the caller says it).
     When the BROWSER variable names the program that opens it, stamp the page's marks first.
     At a terminal, print the link when no browser opened (or it took more than SLOW_BROWSER
@@ -359,7 +370,8 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
     without one nothing is (KEPT), so its token stays out of the output.
     None when the marks could not be stamped: then the page is not opened, or the link not
     printed. `result`: the page is opened at its result page (every answer is marked: the
-    reason boxes are what is left)."""
+    reason boxes are what is left). `link_line`: the line said above a printed link (the steps
+    page's is STEPS_LINK)."""
     at_terminal = terminal()
     url = page.result_url if result else page.url
     opens = not no_browser and not page.kept  # a tab only for a page this run started
@@ -378,7 +390,7 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
     how = None if at_terminal else PRINTED
     if how and not _stamp(page, how):
         return None
-    say(RESULT_LINK if result else LINK)
+    say(RESULT_LINK if result else link_line)
     print(url)  # the link whole: printed by hand, never by say
     textio.flush_stdout()
     return TERMINAL if at_terminal else PRINTED

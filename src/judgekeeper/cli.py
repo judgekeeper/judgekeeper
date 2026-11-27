@@ -102,8 +102,8 @@ MLflow, or a CSV, TSV or JSONL file with these columns:
   (input and output alone work too: you mark each answer Pass or Fail)"""
 FIX_HELP = ("show where your LLM-as-a-judge goes wrong, help you write a better rule and test "
             "it on marks kept aside")
-STEPS_HELP = ("for agents: label the first wrong step of each run in Label Studio, then see "
-              "how often your agent-as-a-judge finds the same one")
+STEPS_HELP = ("for agents: mark the first wrong step of each run in your browser, then see "
+              "how often your agent-as-a-judge picks the same one")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", FIX_HELP),
@@ -358,20 +358,22 @@ def _parser() -> argparse.ArgumentParser:
     st._positionals.title, st._optionals.title = "Arguments", "Options"
     st.add_argument("path", nargs="?", default=".", metavar="PATH",
                     help="your agent runs (a JSONL file, one run per line with an id and its "
-                         "steps) to make the Label Studio screen, or the Label Studio export "
-                         "(JSON) of that project to see the numbers")
+                         "steps) to mark on a page in your browser, or a Label Studio export "
+                         "(JSON) of those runs to see the numbers")
     st.add_argument("--reviewer", metavar="FILE",
                     help="your agent-as-a-judge's picks as a JSONL file, one line per run: "
                          '{"id": ..., "first_wrong_step": ..., "model": ...}; else the '
                          "predictions in the export")
     st.add_argument("--model", metavar="NAME",
-                    help="the agent-as-a-judge to look at, when the export holds several")
+                    help="the agent-as-a-judge to look at, when the picks hold several")
+    _page_args(st, new=False)  # a runs file opens the steps marking page
     p.commands["steps"] = st
     return p
 
 
-def _page_args(p: argparse.ArgumentParser) -> None:
-    """The marking page's options, the same for `judgekeeper` and `mark`."""
+def _page_args(p: argparse.ArgumentParser, new: bool = True) -> None:
+    """The marking page's options, the same for `judgekeeper` and `mark`; `steps` takes them
+    too, with --new left out of its help (`new` False: it is refused there)."""
     p.add_argument("--port", type=_port, default=8765,
                    help="port on 127.0.0.1 for the page (default 8765)")
     p.add_argument("--no-browser", action="store_true",
@@ -379,7 +381,8 @@ def _page_args(p: argparse.ArgumentParser) -> None:
     what = p.add_mutually_exclusive_group()
     what.add_argument("--new", action="store_true",
                       help="start over: your marks move to .judgekeeper/previous-<date>/ "
-                           "(asked first when you have marks; nothing is deleted)")
+                           "(asked first when you have marks; nothing is deleted)"
+                      if new else argparse.SUPPRESS)
     what.add_argument("--wait", action="store_true",
                       help="serve the page in this terminal until Ctrl-C, instead of in the "
                            "background")
@@ -444,7 +447,9 @@ def cmd_front(args) -> int:
 def cmd_steps(args) -> int:
     from judgekeeper import steps
 
-    return steps.run(args.path, reviewer=args.reviewer, model=args.model)
+    page = {"port": args.port, "no_browser": args.no_browser, "new": args.new,
+            "wait": args.wait, "stop": args.stop, "given": getattr(args, "page_given", False)}
+    return steps.run(args.path, reviewer=args.reviewer, model=args.model, page=page)
 
 
 COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, "steps": cmd_steps,
@@ -558,6 +563,8 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
         args = parser.parse_args(args_list)
     if not command:
         args.command = None
+    if command == "steps":  # an export opens no page: the page flags are refused there
+        args.page_given = _without_page_flags(args_list) != args_list
     return args
 
 
