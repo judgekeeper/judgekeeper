@@ -648,16 +648,21 @@ def say_numbers_from_marks(file: Path, shown: str, reviewer: str | None = None,
 
 
 def numbers_from_marks(runs: str | Path, marks: str | Path, reviewer: str | Path | None,
-                       model: str | None = None) -> tuple[list[str], dict]:
+                       model: str | None = None, shown: str | None = None
+                       ) -> tuple[list[str], dict]:
     """(the lines, result.json) for the runs file `runs` and the page's marks file `marks`,
-    against the reviewer's guesses in the file `reviewer` (None: no guesses yet). The lines
-    are the terminal's, blank ones included; result.json is saved as for an export."""
+    against the agent-as-a-judge's guesses in the file `reviewer` (None: no guesses yet).
+    The lines are the terminal's, blank ones included; their commands name the runs as
+    `shown` (as the person typed them; else `runs`). result.json is saved next to `marks`,
+    never through the current folder."""
     lines: list[str] = []
     reviewer = None if reviewer is None else str(reviewer)
     picks = _picks({}, reviewer, model)
+    folder = Path(marks).parent
     export = read_marks(Path(marks), read_runs(Path(runs)))
-    _report(export, *picks, str(runs), reviewer, lines.append, runs_name=Path(runs).name)
-    return lines, _saved(Path(str(runs)))
+    _report(export, *picks, str(runs) if shown is None else shown, reviewer, lines.append,
+            runs_name=Path(runs).name, folder=folder)
+    return lines, json.loads((folder / RESULT_FILE).read_text(encoding="utf-8"))
 
 
 def _picks(guesses: dict, reviewer: str | None, model: str | None) -> tuple[dict, dict]:
@@ -718,10 +723,10 @@ def _marks_read(stats: dict, runs_name: str, say) -> None:
 
 
 def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: str | None,
-            say, runs_name: str | None = None) -> int:
+            say, runs_name: str | None = None, folder: Path | None = None) -> int:
     """The numbers of `export` (a Label Studio export's, or the page's marks when
     `runs_name`, the runs file's name, is given), each line handed to `say`; result.json
-    saved. The exit code."""
+    saved in `folder` (else the steps folder of the project at `shown`). The exit code."""
     marks = runs_name is not None
     name = runs_name if marks else export.name
     command = _command(shown, reviewer)
@@ -756,7 +761,8 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
     source = ({"marks": f"{SHOWN}/{MARKS_FILE}", "runs": runs_name,
                "reviewer_file": Path(reviewer).name if reviewer else None} if marks
               else _given(Path(export.name), reviewer))
-    _write_result(shown, people, reviewers, source)
+    _write_result(_workspace(Path(shown)).dir / FOLDER if folder is None else folder, people,
+                  reviewers, source)
     if not stats["labelled"]:
         say("")
         say("You have not marked a run yet." if marks
@@ -805,14 +811,8 @@ def _given(file: Path, reviewer: str | None) -> dict:
     return {"export": file.name, "reviewer_file": Path(reviewer).name if reviewer else None}
 
 
-def _saved(given: Path) -> dict:
-    path = Workspace(project.project_of(given)).dir / FOLDER / RESULT_FILE
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _write_result(shown: str, people: dict, reviewers: list, source: dict) -> None:
-    ws = _workspace(Path(shown))
+def _write_result(folder: Path, people: dict, reviewers: list, source: dict) -> None:
     data = {"kind": "agent-steps", "judgekeeper": __version__, "made_at": utc_now(),
             "source": source, "people": people, "reviewers": reviewers}
-    write_replacing(ws.dir / FOLDER / RESULT_FILE,
+    write_replacing(folder / RESULT_FILE,
                     json.dumps(scrub_value(data), indent=2, ensure_ascii=False) + "\n")

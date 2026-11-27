@@ -171,6 +171,20 @@ def test_how_steps_are_shown_does_not_change_the_hash(here, monkeypatch):
     assert {r.id: r.steps_hash for r in shown} == kept
 
 
+def test_numbers_from_marks_save_next_to_the_marks_never_in_the_current_folder(
+        tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    project.mkdir()
+    runs = marked_project(project)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    lines, saved = steps.numbers_from_marks(runs, project / MARKS, project / "g.jsonl")
+    assert list(elsewhere.iterdir()) == []
+    assert result(project) == saved and saved["reviewers"][0]["name"] == "reviewer-a"
+    assert lines[-1].startswith("Next: change your agent-as-a-judge")
+
+
 def test_a_broken_line_is_said_by_number_never_quoted_and_skipped(here):
     runs_path = write_runs(here, 3)
     hashes = hashes_of(runs_path)
