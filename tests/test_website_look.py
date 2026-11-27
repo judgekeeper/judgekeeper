@@ -78,8 +78,12 @@ def _flat(el: Element) -> str:
 
 
 def _rule(selector: str, css: str = CSS) -> str:
-    """The declarations of the first rule for `selector` (written `selector { ... }`)."""
-    start = css.index(selector + " {")
+    """The declarations of the first rule for `selector` (written `selector { ... }`, alone or
+    in a list; `.jk-state` is not found in `.jk-row-t .jk-state {`)."""
+    found = re.search(r"(?m)(?:^|[{},])[ \t]*" + re.escape(selector) + r" \{", css)
+    if not found:
+        raise ValueError(f"no rule for {selector}")
+    start = found.end() - 2 - len(selector)
     return css[start + len(selector) + 2:css.index("}", start)]
 
 
@@ -177,7 +181,10 @@ def test_the_footer_is_the_logo_the_legal_links_and_the_copyright():
         found = [(a.attrs["href"].lstrip("/"), _flat(a)) for a in _all(links, "a")]
         assert found == [*LEGAL, (f"{GITHUB}/blob/main/LICENSE", "Apache-2.0 license")], page.name
         (copy,) = _all(links, "span", "copy")
-        assert _flat(copy) == "© 2026 Sathvik Thota · Apache-2.0 license", page.name
+        assert _flat(copy) == "© 2026 Sathvik Thota", page.name  # the license is its own link
+        tail = [c for c in links.children if isinstance(c, Element)][-2:]
+        assert [(el.tag, _flat(el)) for el in tail] == [
+            ("a", "Apache-2.0 license"), ("span", "© 2026 Sathvik Thota")], page.name
         assert not _all(footer, "p", "note") and TRADEMARK_NOTE not in _flat(footer), page.name
         assert not _all(footer, "h2") and "More" not in _flat(footer), page.name
 
@@ -324,18 +331,16 @@ COLOUR_ONLY = {"color", "background", "background-color", "border-color", "filte
                "text-decoration-color"}
 
 
-def test_the_only_motion_is_the_underline_the_typing_and_the_count_up():
-    """Hover colours may fade; nothing else moves, slides, turns or appears by itself. The line
-    under "human judgment." draws once, the green line under the four words grows, a click on a
-    word scrolls to the steps, the public-dataset numbers count up once, the demo plays one
-    round with a cursor, and the browser check's example cards lift 1px on hover (none of it
-    under reduced motion)."""
-    # two animations: the headline's line draws once, the browser check's cursor blinks
-    assert re.findall(r"@keyframes ([\w-]+)", CSS) == ["ck-blink", "hl-draw"]
+def test_the_only_motion_is_the_underline_the_typing_and_the_cursor():
+    """Hover colours may fade; nothing else moves, slides, turns or appears by itself. The green
+    line under the four words grows, a click on a word scrolls to the steps, the steps'
+    terminal types its screen, the browser check's cursor blinks, and its example cards lift
+    1px on hover (none of it under reduced motion). The demo waits for a click: it never plays
+    by itself, and no number on Home counts up."""
+    # one animation: the browser check's cursor blinks
+    assert re.findall(r"@keyframes ([\w-]+)", CSS) == ["ck-blink"]
     assert re.findall(r"animation:\s*([^;]+);", CSS.replace("animation: none !important", "")) == [
-        "ck-blink 1.1s steps(1) infinite", "hl-draw 900ms cubic-bezier(.6,.1,.2,1) 350ms forwards",
-        "none"]
-    assert "stroke-dashoffset: 0" in CSS[CSS.rindex("@media (prefers-reduced-motion: reduce)"):]
+        "ck-blink 1.1s steps(1) infinite"]
     for selector, declarations in _rules():
         for value in re.findall(r"transition:\s*([^;]+)", declarations):
             if value.startswith("none"):
@@ -344,27 +349,23 @@ def test_the_only_motion_is_the_underline_the_typing_and_the_count_up():
             if selector.endswith(".five a::after"):  # the selector may follow a comment
                 assert value == "transform 240ms ease"
                 continue
-            if selector.endswith(".demo-cursor"):
-                assert value == "transform 900ms cubic-bezier(.3,.7,.2,1), opacity 200ms ease"
-                continue
-            if selector.endswith(".demo-cursor svg"):
-                assert value == "transform 120ms ease"
-                continue
             if selector.endswith(".ex-card"):
                 assert value == "border-color 140ms ease, transform 140ms ease"
                 continue
             assert props <= COLOUR_ONLY, (selector, value)
     reduce = CSS[CSS.index("@media (prefers-reduced-motion: reduce)"):]
     assert "*, *::before, *::after { transition: none !important" in reduce[:200]
-    # the two moving parts, and both stop under reduced motion
+    # the moving parts in the script, and all of them stop under reduced motion
     assert JS.count("prefers-reduced-motion: reduce") == 1
-    assert "function type(" in JS and "function sweep(" in JS and "function autoplay(" in JS
-    assert "if (reduce || !window.IntersectionObserver) return;" in JS
+    assert "function type(" in JS and "function sweep(" in JS
+    assert "if (reduce || !animate)" in JS and "if (!reduce && words.length" in JS
+    assert "function autoplay(" not in JS  # the demo plays only when you mark
     assert 'if (!nums.length || reduce || !("IntersectionObserver" in window)) return;' in JS
+    assert not [el for page in pages() for el in parse(page).iter() if "rt-n" in el.classes()]
     assert JS.count("smooth") == 1 and 'behavior: reduce ? "auto" : "smooth"' in JS
     for gone in ("IntersectionObserver(function (e) { reveal", "animate(", "count-up",
-                 "parallax", "pointermove"):
-        assert gone not in JS, gone
+                 "parallax", "pointermove", "demo-cursor", "hl-draw"):
+        assert gone not in JS + CSS, gone
 
 
 def test_each_screen_types_once_and_replay_types_it_again():
@@ -376,13 +377,11 @@ def test_each_screen_types_once_and_replay_types_it_again():
 # Phone -------------------------------------------------------------------------------------
 
 def test_tables_and_code_scroll_inside_their_box():
-    for page in pages():
-        for table in _all(parse(page), "table"):
-            assert "tw" in table.parent.classes(), page.name
-    assert "overflow-x: auto" in _rule(".tw")
+    for page in pages():  # no page has a table or a code block now; one would need a box
+        assert not _all(parse(page), "table") and not _all(parse(page), "pre", "gx-code"), page.name
     assert "overflow: auto" in _rule(".term-out")
-    assert "overflow-x: auto" in _rule(".gx-code")
     assert "overflow-x: auto" in _rule(".cmd code")
+    assert "overflow-y: auto" in _rule(".ck2-term .ck-out")
     assert "@media (max-width: 760px)" in CSS and "@media (max-width: 860px)" in CSS
     for page in [*pages(), NOT_FOUND]:
         (meta,) = [el for el in parse(page).iter() if el.attrs.get("name") == "viewport"]
@@ -404,17 +403,20 @@ def _phone_rules() -> list[tuple[str, str]]:
 
 def test_on_a_phone_a_long_command_wraps_inside_its_box():
     """At 600px and below a command wraps (at a space, after a "/", or anywhere) instead of
-    running past the box's edge; Copy still copies it on one line. Handy commands put each
-    comment under its command, and the record() line wraps too."""
-    phone = _narrow(600)
-    for selector in (".cmd code", ".gx-code"):
-        rule = _rule(selector, phone)
-        assert "white-space: pre-wrap" in rule and "overflow-wrap: anywhere" in rule, selector
-    assert "display: block" in _rule(".gm-pre .t-dim", phone)
-    (path,) = [c for c in _all(parse(GUIDE), "code") if "path/" in c.text()]
-    assert len(_all(path, "wbr")) == 2 and path.text() == "judgekeeper path/to/results.json"
+    running past the box's edge; Copy still copies it on one line. The Guide's step commands
+    and the record() line wrap at every width, and each handy command's words sit above it."""
+    rule = _rule(".cmd code", _narrow(600))
+    assert "white-space: pre-wrap" in rule and "overflow-wrap: anywhere" in rule
+    for selector in (".gd-panel .cmd code", ".cmd.prompt code"):
+        assert "overflow-wrap: anywhere" in _rule(selector), selector
+    assert "white-space: normal" in _rule(".gd-panel .cmd code")
+    assert "white-space: pre-wrap" in _rule(".cmd.prompt code")
     (record,) = [c for c in _all(parse(GUIDE), "code") if "record(" in c.text()]
-    assert len(_all(record, "wbr")) == 1  # it breaks after "record(", not inside a word
+    assert "prompt" in record.parent.classes()  # it wraps like a prompt, not cut at the edge
+    for cell in _all(_by_id(GUIDE, "misc"), "div", "cmd"):
+        words = [c for c in cell.parent.children if isinstance(c, Element)]
+        assert [el.tag for el in words] == ["span", "div"], _flat(cell)  # the words, then it
+    assert "flex-direction: column" in _rule(".gd-handy-grid > div")
     assert "code.textContent" in JS  # what Copy copies: the text, never a break
 
 
@@ -468,40 +470,43 @@ DEMO = [["Can I return a lamp after 60 days?",
         ["Do you ship to Canada?",
          "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]
 # Each step starts with what you do, in a few plain words
-STEPS = [("find", "Read", "Read your eval results and your labels, such as a Label Studio export, or mark answers Pass or Fail in your browser."),
-         ("measure", "Measure", "See how often your check agrees with you, and how much your people agree with each other."),
-         ("fix", "Fix", "Write a better rule and test it on marks kept aside."),
-         ("check", "Re-check", "Change your check's prompt or model and see if agreement goes up or down.")]
+STEPS = [("find", "Read", "Read your eval results and your labels, or mark answers Pass or Fail in your browser."),
+         ("measure", "Measure", "See how often your agent-as-a-judge or LLM-as-a-judge agrees with you, and how much the people marking agree with each other."),
+         ("fix", "Fix", "Write a better rule for your LLM-as-a-judge, or a better prompt for your agent or chatbot, and test it on marks kept aside."),
+         ("check", "Re-check", "Change your LLM-as-a-judge, agent or chatbot, and see if it gets better or worse.")]
 
 
 def _main(page: Path) -> Element:
     return next(el for el in _els(page) if el.tag == "main")
 
 
-def test_home_is_the_hero_the_demo_the_steps_the_public_datasets_and_the_closing_row():
+def test_home_is_the_hero_with_the_demo_the_steps_the_public_datasets_and_the_closing_row():
     sections = [el for el in _main(HOME).children if isinstance(el, Element)]
-    assert [s.classes() for s in sections] == [{"hero", "home-hero"}, {"demo-sec"}, {"steps"},
-                                               {"real"}, {"close"}]
-    assert [s.attrs.get("id") for s in sections] == [None, None, "steps", "real", "ai-check"]
-def test_the_closing_row_is_eval_results_then_your_ais_answers():
-    """Two columns on thin lines, no window: "Have eval results?" with the green button to the
-    browser check, then "No LLM-as-a-judge?" with the command and a link to the Guide."""
+    assert [s.classes() for s in sections] == [{"hero", "home-hero"}, {"steps"}, {"real"},
+                                               {"close"}]
+    assert [s.attrs.get("id") for s in sections] == [None, "steps", "real", "ai-check"]
+    assert "demo-sec" not in CSS  # the demo sits in the hero, not in a section of its own
+
+
+def test_the_closing_row_is_eval_results_then_answers_with_no_llm_as_a_judge():
+    """Two columns on thin lines, no window: "Have eval results?" with the button to the
+    browser check, then "No LLM-as-a-judge?" with the button to the Guide's steps."""
     (box,) = _all(_main(HOME), "section", "close")
     assert box.attrs.get("id") == "ai-check"
     cols = _all(box, "div", "close-col")
-    assert [_flat(_all(c, "h2")[0]) for c in cols] == [
-        "Have eval results?", "No LLM-as-a-judge? Check your AI's answers."]
+    assert [_flat(_all(c, "h2")[0]) for c in cols] == ["Have eval results?", "No LLM-as-a-judge?"]
     assert [_flat(_all(c, "p")[0]) for c in cols] == [
-        "Check your LLM-as-a-judge. Your file stays on your computer.",
-        "For a chatbot, agent or any AI. Mark its answers Pass or Fail."]
-    (prompt,) = _all(box, "p", "close-prompt")
-    assert _flat(prompt) == "$ judgekeeper results.csv"
+        "Check the LLM-as-a-judge that grades your agent or chatbot. Your file stays on your "
+        "computer.", "Mark the answers of your agent or chatbot Pass or Fail."]
     links = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(box, "a")]
     assert links == [("check.html", {"b-main"}, "Try it in your browser"),
-                     ("start.html#ai-check", {"b-side"}, "See the steps")]
-    assert not _all(box, "script") and not _all(box, "div", "rt-bar")
-    for gone in (".close-win", ".close-box", ".rt-win", ".ai-win"):
+                     ("start.html#ai-check", {"b-main"}, "See the steps")]
+    assert _by_id(GUIDE, "ai-check").attrs.get("role") == "tabpanel"  # the link lands on it
+    assert not _all(box, "script") and not _all(box, "div", "rt-bar") and not _all(box, "p", "close-prompt")
+    for gone in (".close-win", ".close-box", ".rt-win", ".ai-win", ".close-prompt"):
         assert gone not in CSS, gone
+
+
 def test_the_demo_card_keeps_one_height():
     """The card is as tall as its tallest answer or its end card, measured on load, when the
     fonts arrive and on resize, so nothing below it moves while you mark."""
@@ -516,39 +521,40 @@ def test_the_demo_card_keeps_one_height():
     assert "flex: 1" in _rule(".jk-card.is-end .jk-end")
 
 
-def test_the_hero_is_the_headline_the_four_words_two_buttons_and_three_facts():
+def test_the_hero_is_the_headline_the_four_words_two_buttons_and_the_demo():
     hero = _all(_main(HOME), "section", "hero")[0]
     (h1,) = _all(hero, "h1")
-    assert _flat(h1) == "Check your AI agents with human judgment."
-    # "human judgment." in green with a line drawn under it, the page's one signature moment
+    assert _flat(h1) == "Check agents and chatbots with human judgment."
+    assert [br.classes() for br in _all(h1, "br")] == [{"h1-br"}]  # two lines on a laptop
+    # "human judgment." in green, kept on one line; no line is drawn under it
     (hl,) = _all(h1, "span", "hl")
     assert _flat(hl) == "human judgment."
-    assert "color: var(--green)" in _rule(".hl") and _all(hl, "svg", "hl-line")
+    assert "color: var(--green)" in _rule(".hl") and "white-space: nowrap" in _rule(".hl")
+    assert not _all(hl, "svg") and "hl-line" not in CSS
     (five,) = _all(hero, "nav", "five")
     words = [(a.attrs["href"], a.attrs["data-step"], _flat(a)) for a in _all(five, "a")]
     assert words == [("#steps", key, f"{label}.") for key, label, _ in STEPS]
+    assert [a.classes() for a in _all(five, "a")] == [{"is-on"}, set(), set(), set()]
     buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
                if {"b-main", "b-side"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
                        ("check.html", {"b-side"}, "Try it in your browser")]
-    sub_line = ("You mark what's right. See how often your AI agent and its LLM-as-a-judge get "
-                "it right, and if each change makes them better or worse.")
+    sub_line = ("You mark what's right. See how often your agent or chatbot, and its "
+                "agent-as-a-judge or LLM-as-a-judge, agree with you, and whether each change "
+                "makes that better or worse.")
     assert [p for p in _all(hero, "p", None)
             if not any("jk-card" in a.classes() for a in p.ancestors())] == []
     # the sub-line sits under the steps heading, not in the hero
     (steps_lede,) = _all(_main(HOME), "p", "steps-lede")
     assert _flat(steps_lede) == sub_line
-    (facts,) = _all(hero, "ul", "hero-facts")
-    assert [_flat(li) for li in _all(facts, "li")] == [
-        "Open source", "Runs on your computer", "No API key needed"]
-    # the demo waits one scroll below, on its own, with no light around it
-    (demo,) = _all(_main(HOME), "section", "demo-sec")
-    assert _flat(_all(demo, "p", "demo-try")[0]) == "Try it: click the first step the agent got wrong."
-    assert _all(demo, "section", "jk-card") and not _all(hero, "section", "jk-card")
-    assert "box-shadow" not in _rule(".demo-sec") and "gradient" not in _rule(".home-hero::before").replace("linear-gradient(rgba(255,255,255,.045)", "")
-    # the chosen step's green line, which gives way while another word is hovered or focused
+    assert not _all(hero, "ul", "hero-facts") and "hero-facts" not in CSS
+    # the demo sits at the hero's right, with no light around it
+    (right,) = _all(hero, "div", "hero-r")
+    (card,) = _all(right, "section", "jk-card")
+    assert card.attrs["id"] == "demo" and "box-shadow" not in _rule(".jk-card")
+    # the chosen step's green line; a hovered or focused word gets one too
     assert "var(--green)" in _rule(".five a::after")
-    assert ".five a.is-on::after" in CSS and ".five:hover a.is-on:not(:hover)::after" in CSS
+    assert ".five a.is-on::after" in CSS and ".five a:hover::after" in CSS
 
 
 def test_the_demo_card_is_drawn_like_the_marking_page():
@@ -582,26 +588,28 @@ def test_the_demo_card_is_drawn_like_the_marking_page():
     assert [c for c in actions.children if not isinstance(c, str)] == [go]
     assert _flat(_by_id(HOME, "d-again")) == "↻ Try again"
     for words in ('"Marked "', '"Skipped · "', '" of "', '" marked"',
-                  '"You and your LLM-as-a-judge disagreed on "',
-                  '"You and your LLM-as-a-judge agreed on all "', '"LLM-as-a-judge"',
+                  '["You and your ", {nb: "LLM-as-a-judge"}, " disagreed on ", [n], " of "',
+                  '["You and your ", {nb: "LLM-as-a-judge"}, " agreed on all ", [items.length]',
+                  '"LLM-as-a-judge"',
                   'ArrowLeft: "fail"', 'ArrowRight: "pass"'):
         assert words in JS, words
     for gone in ('"Not marked yet"', '"Skipped"', "your judge"):
         assert gone not in JS, gone
-    # the count sits in a small pill; the result line keeps to one line on a desktop
+    # the count sits in a small pill; the result line wraps in two even lines when it must
     state = _rule(".jk-state")
     for wanted in ("border-radius: 999px", "font-variant-numeric: tabular-nums",
                    "font-size: 12.5px", "color: var(--fg)"):
         assert wanted in state, wanted
     assert "align-self: flex-start" in _rule(".jk-row-q .jk-state")
     assert "margin-bottom: 22px" in _rule(".jk-end-top")
-    assert "font-size: clamp(16px, 1.6vw, 20px)" in _rule(".jk-end-head h2")
+    assert "font-size: clamp(16px, 1.4vw, 18px)" in _rule(".jk-end-head h2")
     assert "white-space: nowrap" in _rule(".jk-end-head h2 .mono")
-    assert "@media (min-width: 1000px) { .jk-end-head h2 { white-space: nowrap; } }" in CSS
+    assert "text-wrap: balance" in _rule(".jk-end-head h2", CSS[CSS.index(".jk-end-head h2 .mono"):])
+    assert ".jk-end-head h2 { white-space: nowrap; }" not in CSS
     assert "justify-content: center" in _rule(".jk-end-actions")
     # the judge's grade stays hidden while you mark, as on the real page
     assert "Your judge said" not in JS
-    sizes = {"jk-question": "font-size: 26px", "jk-answer": "font-size: 20px",
+    sizes = {"jk-question": "font-size: 24px", "jk-answer": "font-size: 20px",
              "jk-btn": "height: 50px"}
     for cls, size in sizes.items():
         assert size in _rule(f".{cls}"), cls
@@ -618,7 +626,7 @@ def test_the_steps_read_cleanly_as_plain_text():
     (tabs,) = _all(_main(HOME), "div", "steplist")
     texts = [" ".join(_raw(b).split()) for b in _all(tabs, "button")]
     assert texts == [f"{n}. {name}: {words}" for n, (_, name, words) in enumerate(STEPS, 1)]
-    assert texts[0] == "1. Read: Read your eval results and your labels, such as a Label Studio export, or mark answers Pass or Fail in your browser."
+    assert texts[0] == "1. Read: Read your eval results and your labels, or mark answers Pass or Fail in your browser."
     assert "data-nosnippet" in tabs.attrs  # Google leaves the step list out of its snippet
     assert "data-nosnippet" in _by_id(HOME, "demo").attrs  # and the marking demo
     for b in _all(tabs, "button"):
@@ -679,52 +687,73 @@ def test_the_steps_list_picks_a_screen_for_the_terminal():
 def test_the_closing_box_points_to_the_browser_check():
     close = _all(_main(HOME), "section", "close")[-1]
     assert _flat(_all(close, "h2")[0]) == "Have eval results?"
-    assert _flat(_all(close, "p")[0]) == ("Check your LLM-as-a-judge. Your file stays on your "
-                                          "computer.")
-    (button,) = _all(close, "a", "b-main")
+    assert _flat(_all(close, "p")[0]) == ("Check the LLM-as-a-judge that grades your agent or "
+                                          "chatbot. Your file stays on your computer.")
+    (button, _) = _all(close, "a", "b-main")
     assert (button.attrs["href"], _flat(button)) == ("check.html", "Try it in your browser")
 
 
 def test_the_closing_row_continues_the_public_datasets_lines():
-    """The closing row sits right under the results, so their thin lines run on."""
+    """The closing row sits right under the results: a thin line above it, and the footer's
+    line closes it."""
     assert "padding-top: 0" in _rule(".real + .close .wrap")
-    assert "border-block: 1px solid var(--line)" in _rule(".close-row")
-def test_the_public_datasets_are_two_linked_numbers_each_over_its_100_tests():
-    """"On public datasets.": no window, two columns on thin lines (one on a phone), a number
-    that counts up once (not under reduced motion) over a grid with one square per test."""
+    assert "border-top: 1px solid var(--line)" in _rule(".close-row")
+    assert "border-block" not in _rule(".close-row")
+
+
+def test_the_public_datasets_are_three_tabs_each_with_its_numbers_and_report():
+    """"On public datasets.": a list of three tabs at the left (above, on a narrow screen), and
+    a window at the right with the chosen one's numbers, a line on what they show, and a
+    status bar naming the labels with a link to the report. Nothing counts up."""
     (real,) = _all(_main(HOME), "section", "real")
+    assert real.attrs.get("id") == "real"
     assert _flat(_all(real, "h2")[0]) == "On public datasets."
-    assert not _all(real, "div", "rt-bar")
-    tiles = _all(real, "a", "rt")
-    assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
-                                                                    "Real-data check"]
-    assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
-        "random tests where judgekeeper's ranges held the true numbers",
-        "times, on average, the true number fell inside judgekeeper's range"]
-    for tile in tiles:
-        (n,) = _all(tile, "span", "rt-n")
-        (waf,) = _all(tile, "span", "waf")
-        squares = _all(waf, "i", None)
-        assert len(squares) == 100
-        assert sum("on" in i.classes() for i in squares) == int(n.attrs["data-to"])
-    assert "repeat(2, minmax(0, 1fr))" in _rule(".rt-grid")
-    narrow = CSS[CSS.index("@media (max-width: 560px) {\n  .real h2"):]
-    assert _rule(".rt-grid", narrow).strip() == "grid-template-columns: 1fr;"
-    assert "function setUpCounts()" in JS and "setUpCounts();" in JS
+    (tabs,) = _all(real, "div", "ds-list")
+    assert (tabs.attrs.get("role"), tabs.attrs.get("aria-orientation")) == ("tablist", "vertical")
+    buttons = _all(tabs, "button")
+    assert [(b.attrs["id"], b.attrs["aria-controls"], b.attrs["aria-selected"],
+             _flat(_all(b, "b")[0]), _flat(_all(b, "span")[0])) for b in buttons] == [
+        ("ds-tab-a", "ds-a", "true", "Agent runs", "AgentProcessBench"),
+        ("ds-tab-b", "ds-b", "false", "Chatbot answers", "XSTest"),
+        ("ds-tab-c", "ds-c", "false", "judgekeeper itself", "3 public datasets")]
+    assert _flat(_all(real, "span", "term-title")[0]) == "public datasets"
+    panels = _all(real, "div", "ds-panel")
+    assert [(el.attrs["id"], el.attrs["role"], el.attrs["aria-labelledby"]) for el in panels] == [
+        ("ds-a", "tabpanel", "ds-tab-a"), ("ds-b", "tabpanel", "ds-tab-b"),
+        ("ds-c", "tabpanel", "ds-tab-c")]
+    feet = [(_flat(_all(el, "span", "tf-text")[0]), _flat(_all(el, "a", "tf-link")[0]))
+            for el in panels]
+    assert feet == [("249 agent runs, labelled by people", "see its report"),
+                    ("447 answers, labelled by two people", "see its report"),
+                    ("Over 1,000 checks per setup, on 3 datasets", "see its report")]
+    # each dataset is the one its report names (the numbers: tests/test_website.py)
+    for el, name in zip(panels, ("AgentProcessBench", "XSTest", "over 1,000 checks")):
+        (link,) = _all(el, "a", "tf-link")
+        report = (ROOT / link.attrs["href"].split("/blob/main/", 1)[1]).read_text(encoding="utf-8")
+        assert name in report, name
+    assert "3 public datasets" in (ROOT / "docs/examples/real-data-check/report.md").read_text(
+        encoding="utf-8")
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in _rule(".ds-nums.three")
+    assert "grid-template-columns: 340px minmax(0, 1fr)" in _rule(".ds-grid")
+    assert _rule(".ds-grid", _narrow(860)).strip() == "grid-template-columns: 1fr;"
+    # the tabs swap panels in place: a hidden one keeps its room, so nothing below jumps
+    assert "visibility: hidden" in _rule(".ds-panel.is-off") and "grid-area: 1 / 1" in _rule(".ds-panel")
+    assert "function setUpDatasets()" in JS and "setUpDatasets();" in JS
+    assert not _all(real, "a", "rt") and not _all(real, "span", "waf")
 
 
-
-def test_the_demo_card_has_a_tab_for_one_answer_and_one_for_agent_steps():
-    """One answer is the marking demo; Agent steps works like `judgekeeper steps`: click the
-    first wrong step of each run, then see where you and the reviewer picked differently. The
-    tabs show only with JavaScript; without it the card is the marking demo alone."""
+def test_the_demo_card_has_a_tab_for_answers_and_one_for_agent_steps():
+    """Mark answers is the marking demo; Mark steps works like `judgekeeper steps`: click the
+    first wrong step of each run, then see where you and the agent-as-a-judge picked
+    differently. The tabs show only with JavaScript; without it the card is the marking demo
+    alone, and with it the card opens on Mark answers."""
     tabs = _by_id(HOME, "d-tabs")
     assert tabs.attrs.get("role") == "tablist" and "hidden" in tabs.attrs
     assert [(b.attrs["id"], b.attrs["aria-controls"], b.attrs["aria-selected"], _flat(b))
             for b in _all(tabs, "button")] == [
-        ("d-tab-steps", "d-pane-steps", "false", "Agent steps"),
-        ("d-tab-answer", "d-pane-answer", "true", "One answer")]
-    assert 'show("steps");' in JS  # agents first: with JavaScript the card opens on Agent steps
+        ("d-tab-answer", "d-pane-answer", "true", "Mark answers"),
+        ("d-tab-steps", "d-pane-steps", "false", "Mark steps")]
+    assert 'show("answer");  // the card opens on Mark answers' in JS
     assert "hidden" not in _by_id(HOME, "d-pane-answer").attrs
     steps = _by_id(HOME, "d-pane-steps")
     assert steps.attrs.get("role") == "tabpanel" and "hidden" in steps.attrs
@@ -733,20 +762,26 @@ def test_the_demo_card_has_a_tab_for_one_answer_and_one_for_agent_steps():
     assert [_flat(_by_id(HOME, i)) for i in ("s-fine", "s-undo", "s-again")] == [
         "All steps are fine 0", "Undo Z", "↻ Try again"]
     (go,) = _all(_by_id(HOME, "s-end"), "a", "jk-go")
-    assert (go.attrs["href"], _flat(go)) == ("start.html#agent-steps", "Check your agent's reviewer")
-    assert 'id="agent-steps"' in (WEBSITE / "start.html").read_text(encoding="utf-8")
-    # each run: the task, its steps, and the step the reviewer picked (0: none wrong)
+    assert (go.attrs["href"], _flat(go)) == ("start.html#agent-steps", "Check your agent-as-a-judge")
+    assert _by_id(GUIDE, "agent-steps").attrs.get("role") == "tabpanel"
+    assert _by_id(HOME, "s-list").attrs.get("aria-label") == (
+        "Your first wrong steps and the agent-as-a-judge's")
+    # each run: the task, its steps, and the step the agent-as-a-judge picked (0: none wrong)
     runs = json.loads(_by_id(HOME, "demo-runs").text())
-    assert len(runs) == 3
-    for task, run_steps, reviewer in runs:
-        assert task and 3 <= len(run_steps) <= 4 and 0 <= reviewer <= len(run_steps)
-    for words in ('"You and the reviewer disagreed on "', '"You and the reviewer agreed on all "',
-                  '"Run "', '"Reviewer"', '"None"', '$("d-tabs").hidden = false'):
+    assert len(runs) == 4
+    for task, run_steps, picked in runs:
+        assert task and 3 <= len(run_steps) <= 4 and 0 <= picked <= len(run_steps)
+    assert 0 in [picked for *_, picked in runs]  # one run where all steps are fine
+    for words in ('["You and your ", {nb: "agent-as-a-judge"}, " disagreed on ", [n], " of "',
+                  '["You and your ", {nb: "agent-as-a-judge"}, " agreed on all ", [runs.length]',
+                  '"Agent run"', '"Agent-as-a-judge"', '"None"', '$("d-tabs").hidden = false'):
         assert words in JS, words
+    assert "reviewer" not in JS.lower()
     lock = JS[JS.index("function lockHeight("):]
     assert "tallestRun()" in lock[:lock.index("\n    }\n")]  # one height for both tabs
     assert "display: none" in _rule(".jk-send") and "display: none" in _rule(".jk-pane.is-done .jk-sl")
     assert "var(--green)" in _rule(".jk-tab::after") and "transition" not in _rule(".jk-tab::after")
+
 
 def test_the_demo_shows_the_check_right_after_each_mark():
     """The point of the demo lands on the first click: once you mark an answer (or pick a
@@ -757,10 +792,10 @@ def test_the_demo_shows_the_check_right_after_each_mark():
     assert _by_id(HOME, "d-verdict").attrs.get("aria-live") == "polite"
     assert _flat(_by_id(HOME, "d-next")) == "Next answer →"
     assert "jk-acts" in _by_id(HOME, "d-acts").classes()
-    assert _flat(_by_id(HOME, "s-next")) == "Next run →"
+    assert _flat(_by_id(HOME, "s-next")) == "Next →"
     assert _by_id(HOME, "s-match").attrs.get("aria-live") == "polite"
     for words in ('"Agrees with you"', '"Disagrees with you"', '"See your result ',
-                  '"LLM-as-a-judge: "', '"Reviewer: "', '"You"', '"Both"'):
+                  '"LLM-as-a-judge: "', '"Agent-as-a-judge: "', '"You"', '"Both"'):
         assert words in JS, words
     # while the check's answer shows, the mark buttons give way to it, and Skip waits
     assert "display: none" in _rule(".jk-said")
@@ -798,17 +833,16 @@ def test_the_demo_card_is_a_window_called_marking_page():
 
 
 def test_the_homes_windows_share_the_guides_slate_and_the_chosen_step_is_green():
-    """The marking card, the example project, the public datasets and your project: each in
-    the Guide's slate panel. The chosen step's number is green in a ring with a soft glow,
-    like the Guide's rail."""
-    for selector in (".jk-card", ".steps-grid .term", ".rt-win", ".close-win"):
+    """The marking card, the example project and the public datasets: each in the Guide's
+    slate panel. The chosen step's number is green in a plain ring."""
+    for selector in (".jk-card", ".steps-grid .term", ".ds-win", ".gd", ".gwin", ".ck2-term"):
         assert "background: var(--slate-panel)" in _rule(selector), selector
-    for selector in (".jk-card", ".rt-win"):
+    for selector in (".jk-card", ".gd", ".gwin"):
         assert "border: 1px solid var(--slate)" in _rule(selector), selector
     chosen = _rule(".steplist button[aria-selected=true] .n")
-    for part in ("color: var(--green)", "border-color: var(--green)",
-                 "box-shadow: 0 0 0 4px var(--green-glow)"):
+    for part in ("color: var(--green)", "border-color: var(--green)"):
         assert part in chosen, part
+    assert "box-shadow" not in chosen  # a plain ring, no glow
     assert "border-radius: 50%" in _rule(".steplist .n")
     assert "border-left-color: var(--green)" in _rule(".steplist button[aria-selected=true]")
     assert not [sel for sel, d in _rules() if sel.startswith(".steplist") and "transition" in d]
