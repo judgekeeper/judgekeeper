@@ -493,8 +493,8 @@ def test_the_closing_row_is_eval_results_then_answers_with_no_llm_as_a_judge():
     cols = _all(box, "div", "close-col")
     assert [_flat(_all(c, "h2")[0]) for c in cols] == ["Have eval results?", "No LLM-as-a-judge?"]
     assert [_flat(_all(c, "p")[0]) for c in cols] == [
-        "Check the LLM-as-a-judge that grades your agent or chatbot. Your file stays on your "
-        "computer.", "Mark the answers of your agent or chatbot Pass or Fail."]
+        ("Check the LLM-as-a-judge that grades your agent or chatbot. Your file stays on your "
+         "computer."), "Mark the answers of your agent or chatbot Pass or Fail."]
     links = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(box, "a")]
     assert links == [("check.html", {"b-main"}, "Try it in your browser"),
                      ("start.html#ai-check", {"b-main"}, "See the steps")]
