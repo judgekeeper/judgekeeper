@@ -740,7 +740,7 @@ NEXT = 'Next: mark runs on the page, then click "See the numbers so far".'
 LABEL_STUDIO = ("Label in Label Studio instead? Import .judgekeeper/steps/label-these.json with "
                 "label-config.xml, then run judgekeeper steps on its export.")
 NEW_ANSWERS_ONLY = "--new works for answers only. To take back a step mark, use Undo on the page."
-NO_PAGE_ON_EXPORT = ("`{command}` opens no page, so it takes no --port or --no-browser.")
+NO_PAGE_ON_EXPORT = "`{command}` opens no page, so it takes no --port, --no-browser or --wait."
 # As the answers page says them (front.py)
 STAYS = "The page stays open while this runs. To stop it: Ctrl-C."
 COULD_NOT_START = ("The marking page could not start in the background (what went wrong is in "

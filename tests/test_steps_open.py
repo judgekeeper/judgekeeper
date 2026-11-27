@@ -135,8 +135,18 @@ def test_page_flags_on_an_export_open_no_page(here, capsys, pages):
     export.write_text("[]", encoding="utf-8")
     code, out, err = _run(capsys, "steps", "export.json", "--no-browser")
     assert code == 2 and not started
-    assert ("`judgekeeper steps EXPORT.json` opens no page, so it takes no --port or "
-            "--no-browser." in err)
+    assert ("`judgekeeper steps EXPORT.json` opens no page, so it takes no --port, "
+            "--no-browser or --wait." in err)
+    assert "Next: run `judgekeeper steps export.json`." in out + err
+
+
+def test_wait_on_an_export_is_refused_too(here, capsys, pages):
+    started, _ = pages
+    (here / "export.json").write_text("[]", encoding="utf-8")
+    code, out, err = _run(capsys, "steps", "export.json", "--wait")
+    assert code == 2 and not started
+    assert ("`judgekeeper steps EXPORT.json` opens no page, so it takes no --port, "
+            "--no-browser or --wait." in err)
     assert "Next: run `judgekeeper steps export.json`." in out + err
 
 

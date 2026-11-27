@@ -626,7 +626,7 @@ def run(path: str | None = None, reviewer: str | None = None, model: str | None 
 
         raise StepsError(NEW_ANSWERS_ONLY, "run `{command}`.", drop="--new")
     if _is_export(file):
-        if page.get("given"):
+        if page.get("given") or page.get("wait"):  # flags for a page it never opens
             from judgekeeper.steps_page import NO_PAGE_ON_EXPORT
 
             raise StepsError(NO_PAGE_ON_EXPORT.format(command=program("steps EXPORT.json")),
