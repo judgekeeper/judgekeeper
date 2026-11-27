@@ -14,8 +14,8 @@ judgekeeper has read from your file:
 
 results.csv has LLM-as-a-judge grades, so judgekeeper checks
 your LLM-as-a-judge against your marks.
-To check your AI's answers instead, use a copy of the file
-without the verdict column.
+To check the answers of your agent or chatbot instead, use a
+copy of the file without the verdict column.
 
 Your LLM-as-a-judge passed 30 answers and failed 10.
 Checked: your LLM-as-a-judge gave every answer a clear Pass or

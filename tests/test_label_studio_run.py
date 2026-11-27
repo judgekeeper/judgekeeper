@@ -170,7 +170,7 @@ def test_a_csv_export_is_never_read_as_a_judge(here, capsys):
     assert code == 3, out
     text = flat(out)
     assert "Eval tool:" not in text or "Label Studio" in text
-    assert "holds your people's labels, but it holds no predictions" in text
+    assert "holds labels from the people marking, but it holds no predictions" in text
     assert "has grades" not in text
 
 
@@ -330,8 +330,8 @@ def test_check_says_the_check_moved_when_it_agrees_less(here, capsys):
     export(here / "new.json", people, wrong[:30] + check[30:], version="judge-v2")
     code, out = run(capsys, "check", "new.json")
     assert code == 1, out
-    assert ("Your check moved: on the 60 answers your people labelled, it agrees with them "
-            "less than before.") in flat(out)
+    assert ("Your check moved: on the 60 answers labelled by the people marking, it agrees "
+            "with them less than before.") in flat(out)
 
 
 def test_check_says_the_check_did_not_get_worse(here, capsys):
@@ -339,8 +339,8 @@ def test_check_says_the_check_did_not_get_worse(here, capsys):
     export(here / "new.json", people, check, version="judge-v2")
     code, out = run(capsys, "check", "new.json")
     assert code == 0, out
-    assert ("Your check did not get worse on the 60 answers your people labelled. If your scores "
-            "changed, look at your app's answers first.") in flat(out)
+    assert ("Your check did not get worse on the 60 answers labelled by the people marking. If "
+            "your scores changed, look at your app's answers first.") in flat(out)
 
 
 def _g(n: int, old: int, new: int) -> dict:
@@ -379,12 +379,12 @@ def test_the_moved_line_says_so_when_agreement_rose():
     from judgekeeper import check
 
     assert check.moved_line(_g(30, 5, 28), None) == (
-        "Your LLM-as-a-judge now agrees with your people more than before, on the 60 answers "
-        "they labelled.")
+        "Your LLM-as-a-judge now agrees with the people marking more than before, on the 60 "
+        "answers they labelled.")
     grader_words.use(CODE)
     try:
         assert grader_words.swap(check.moved_line(_g(30, 5, 28), None)).startswith(
-            "Your check now agrees with your people more than before")
+            "Your check now agrees with the people marking more than before")
     finally:
         grader_words.use(LLM)
 
@@ -397,7 +397,7 @@ def test_the_moved_line_says_check_for_a_check_that_is_not_an_llm():
         said = grader_words.swap(check.moved_line(_g(20, 20, 2), None))
     finally:
         grader_words.use(LLM)
-    assert said.startswith("Your check moved: on the 40 answers your people labelled")
+    assert said.startswith("Your check moved: on the 40 answers labelled by the people marking")
 
 
 # Two LLM-as-a-judge setups on the same labelled answers --------------------------------------
@@ -430,8 +430,8 @@ def test_two_llm_judges_on_labels_from_label_studio_say_your_llm_as_a_judge_move
     text = flat(out)
     assert code == 1, out
     assert "Your LLM-as-a-judge's model changed: claude-sonnet-5-5" in text
-    assert ("Your LLM-as-a-judge moved: on the 60 answers your people labelled, it agrees "
-            "with them less than before.") in text
+    assert ("Your LLM-as-a-judge moved: on the 60 answers labelled by the people marking, it "
+            "agrees with them less than before.") in text
     assert "Your check moved" not in text
 
 
@@ -498,8 +498,8 @@ def test_a_rise_with_a_range_above_zero_says_agrees_more_though_not_a_big_one():
     assert g["failed"]["now_right"] == 21 and g["failed"]["now_wrong"] == 0
     assert g["failed"]["verdict"] == "no_drop"  # the group verdicts are as before
     assert check.moved_line(g, None) == (
-        "Your LLM-as-a-judge now agrees with your people more than before, on the 447 answers "
-        "they labelled.")
+        "Your LLM-as-a-judge now agrees with the people marking more than before, on the 447 "
+        "answers they labelled.")
 
 
 def test_a_change_with_a_range_that_includes_zero_says_did_not_get_worse():

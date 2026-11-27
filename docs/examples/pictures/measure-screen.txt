@@ -4,8 +4,9 @@ Step 2 of 4: Measure
 
 .judgekeeper/records/ has LLM-as-a-judge grades, so judgekeeper
 checks your LLM-as-a-judge against your marks.
-To check your AI's answers instead, save them in a CSV file with
-input and output columns and no verdict column.
+To check the answers of your agent or chatbot instead, save them
+in a CSV file with input and output columns and no
+verdict column.
 
 Result: your LLM-as-a-judge needs work.
 You and your LLM-as-a-judge disagreed on 13 of 40 answers.

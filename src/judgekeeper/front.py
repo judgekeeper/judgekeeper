@@ -119,7 +119,7 @@ QUESTIONS_PROMPT = (
     "Then run the AI on each question and save the questions and answers in results.csv, with "
     "two columns: input (the question) and output (the answer). Do not grade the answers. "
     "Then run {program}.")
-QUESTIONS_KEY = "Running your AI may use your API key."
+QUESTIONS_KEY = "Running your agent or chatbot may use your API key."
 # The options that find the judge, as start.find_judge takes them
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
 ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
@@ -155,18 +155,18 @@ DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
 DEFAULT_GRADER_NOTE = "came from promptfoo's default grader"  # readers.promptfoo's warning
 STEP = "Step {n} of 4: {name}"
 # Which path judgekeeper takes and why, and how to switch: once a run (path_lines)
-PATH_NO_GRADES = ("{file} has no LLM-as-a-judge grades, so judgekeeper checks your AI's "
-                  "answers: you mark each one Pass or Fail.")
+PATH_NO_GRADES = ("{file} has no LLM-as-a-judge grades, so judgekeeper checks the answers of "
+                  "your agent or chatbot: you mark each one Pass or Fail.")
 PATH_TO_GRADES = ("Have an LLM-as-a-judge? Save its Pass or Fail in a verdict column, or run it "
                   "with promptfoo, DeepEval, Inspect AI or MLflow.")
 PATH_GRADES = ("{file} has LLM-as-a-judge grades, so judgekeeper checks your LLM-as-a-judge "
                "against your marks.")
 PATH_GRADES_CHECK = ("{file} has grades from your check, so judgekeeper checks it against "
                      "your marks.")  # a check that is not an LLM-as-a-judge (start.grader_of)
-PATH_TABLE_TO_ANSWERS = ("To check your AI's answers instead, use a copy of the file without "
-                         "the {column} column.")
-PATH_TOOL_TO_ANSWERS = ("To check your AI's answers instead, save them in a CSV file with input "
-                        "and output columns and no verdict column.")
+PATH_TABLE_TO_ANSWERS = ("To check the answers of your agent or chatbot instead, use a copy of "
+                         "the file without the {column} column.")
+PATH_TOOL_TO_ANSWERS = ("To check the answers of your agent or chatbot instead, save them in a "
+                        "CSV file with input and output columns and no verdict column.")
 INDENT = " " * 17  # under the value of "LLM-as-a-judge:  "
 EVERY_ANSWER = "your LLM-as-a-judge gave every answer a clear Pass or Fail."
 FREE_CHECK = "Checked: "  # every free-check line starts with it

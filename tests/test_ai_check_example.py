@@ -162,7 +162,9 @@ def _clear_line() -> str:
 
 
 def test_every_run_says_which_path_it_took():
-    line = front.PATH_NO_GRADES.format(file="results.csv") + " " + front.PATH_TO_GRADES
+    """The path line as judgekeeper 1.2.0 printed it, the version that made the example."""
+    line = ("results.csv has no LLM-as-a-judge grades, so judgekeeper checks your AI's answers: "
+            "you mark each one Pass or Fail. " + front.PATH_TO_GRADES)
     for name in ("terminal-1.txt", "terminal-2.txt"):
         assert _flat(_text(EXAMPLE / name)).count(line) == 2, name
 

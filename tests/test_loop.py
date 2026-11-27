@@ -231,7 +231,7 @@ def test_enough_marks_print_the_result(here, capsys, pages):
         estimate, between = report_page.estimate(r[key], r[f"{key}_interval"],
                                                  report_page.why_for(r, key))
         return estimate if between == "–" else f"{estimate} (between {between})"
-    assert lines[2:26] == [
+    assert lines[2:27] == [
         "Step 2 of 4: Measure", "",
         *PATH,
         f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}",

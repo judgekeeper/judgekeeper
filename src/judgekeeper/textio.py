@@ -1446,8 +1446,8 @@ def held_lines(text: str) -> list[str]:
 WIDTH = 64  # what judgekeeper says wraps here; a command in backticks is never split
 _spaced: dict[str, None] = {}  # the paths with spaces from_here named: never split either
 SPACED_KEPT = 256
-WHOLE = ("Inspect AI", "left out")  # never split either: a name, and the words a line that
-# leaves a file out is found by
+WHOLE = ("Inspect AI", "left out", "verdict column")  # never split either: a name, the words a
+# line that leaves a file out is found by, and a column's real name
 
 
 def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:

@@ -2288,7 +2288,7 @@ def _no_prediction(talk: Talk, result: find.Result, records: RecordList) -> Stop
     (export them in full, or give the results of the check with --labels)."""
     what = ("its predictions are saved as ids only, which Label Studio does unless you ask"
             if getattr(records, "prediction_ids", 0) else "it holds no predictions")
-    has = ("your people's labels" if any(r.annotator_kind == HUMAN for r in records)
+    has = ("labels from the people marking" if any(r.annotator_kind == HUMAN for r in records)
            else "no labels")
     text = f"{result.rel} holds {has}, but {what}, so there is no check in it to measure."
     given = textio.path_arg(result.rel)

@@ -40,3 +40,5 @@ Keep `OUT` outside the repository. `grade.py` writes the raw replies, a records 
 judgekeeper (`results-setup-a.jsonl`, with the text) and the committed CSV. It reads the key from
 the environment only. It spends money: it asks the API once per conversation.
 
+
+The outputs here were made with judgekeeper 1.3.0. Newer versions word some lines differently.
