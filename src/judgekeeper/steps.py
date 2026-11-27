@@ -673,7 +673,12 @@ def numbers_from_marks(runs: str | Path, marks: str | Path, reviewer: str | Path
     The lines are the terminal's, blank ones included; their commands name the runs as
     `shown` (as the person typed them; else `runs`). result.json is saved next to `marks`,
     never through the current folder."""
+    from judgekeeper.check import no_such
+
     lines: list[str] = []
+    for given in (runs, marks):
+        if not Path(given).is_file():
+            raise StepsError(no_such(str(given)))
     reviewer = None if reviewer is None else str(reviewer)
     picks = _picks({}, reviewer, model)
     folder = Path(marks).parent

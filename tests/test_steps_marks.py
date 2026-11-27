@@ -444,3 +444,11 @@ def test_a_lone_surrogate_in_a_run_is_said_by_line(here, capsys):
     assert "SECRET-TEXT" not in str(e.value)
     code, out, err = run(capsys, "steps", "runs.jsonl")
     assert code == 2 and "Line 2 of runs.jsonl" in err and "SECRET-TEXT" not in out + err
+
+
+def test_numbers_from_marks_with_a_missing_file_is_a_steps_error(here):
+    runs = marked_project(here)
+    with pytest.raises(steps.StepsError, match="marks.jsonl"):
+        steps.numbers_from_marks(runs, here / "none" / "marks.jsonl", None)
+    with pytest.raises(steps.StepsError, match="gone.jsonl"):
+        steps.numbers_from_marks(here / "gone.jsonl", here / MARKS, None)
