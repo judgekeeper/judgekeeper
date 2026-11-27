@@ -18,7 +18,7 @@ def test_a_first_run_that_finds_only_agent_runs_names_steps(here, capsys):  # no
     nexts = [x for x in said.splitlines() if x.startswith("Next:")]
     assert len(nexts) == 1
     assert " ".join(said.split("Next:", 1)[1].split()) == (
-        "Agent runs found in runs.jsonl. Mark where each first went wrong: "
+        "mark where each agent run in runs.jsonl first went wrong: "
         "`judgekeeper steps runs.jsonl`.")
     assert "Paste this into your coding agent" not in said
 
@@ -29,7 +29,7 @@ def test_a_first_run_finds_agent_runs_one_folder_down(here, capsys):  # noqa: F8
     code, out, err = run(capsys, "--no-browser", "--port", "0")
     said = " ".join((out + err).split())
     assert code == 3
-    assert ("Agent runs found in logs/agent runs.jsonl. Mark where each first went wrong: "
+    assert ("Next: mark where each agent run in logs/agent runs.jsonl first went wrong: "
             f"`judgekeeper steps {textio.path_arg('logs/agent runs.jsonl')}`.") in said
 
 
@@ -37,4 +37,4 @@ def test_results_next_to_agent_runs_are_read_as_before(here, capsys):  # noqa: F
     shutil.copy(FIXTURES / "runs.jsonl", here / "runs.jsonl")
     (here / "results.csv").write_text("input,output\nq1,a1\nq2,a2\n", encoding="utf-8")
     _, out, err = run(capsys, "--no-browser", "--port", "0")
-    assert "Agent runs found" not in out + err
+    assert "agent run in" not in out + err

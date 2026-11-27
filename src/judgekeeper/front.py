@@ -101,7 +101,7 @@ READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLf
 # No results and no eval tool: a prompt for the person's coding agent to make answers to check.
 # Each of its lines starts a line of its own, wrapped as every other line.
 QUESTIONS_NEXT = "paste the prompt above into your coding agent, then run `{command}` again."
-AGENT_RUNS_NEXT = "Agent runs found in {runs}. Mark where each first went wrong: `{command}`."
+AGENT_RUNS_NEXT = "mark where each agent run in {runs} first went wrong: `{command}`."
 FOLDER_ABOVE = "Results in the folder above? Run `{command}`."  # after the prompt
 THIS_FOLDER = "This folder already holds your judgekeeper session ({marks})."  # run from below
 SAVED_SETUP = "judgekeeper saved your LLM-as-a-judge's setup in {folder}/judge.json."
