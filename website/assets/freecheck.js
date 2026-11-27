@@ -1752,7 +1752,7 @@
     return 'judgekeeper steps ' + name;
   }
 
-  var ANSWERS_SAID = "This file has no LLM-as-a-judge grades, so judgekeeper checks your AI's answers: you mark each one Pass or Fail.";
+  var ANSWERS_SAID = "This file has no LLM-as-a-judge grades, so judgekeeper checks the answers of your agent or chatbot: you mark each one Pass or Fail.";
   var ANSWERS_NEXT = 'to mark each answer Pass or Fail, run judgekeeper in your project folder.';
   var RUNS_SAID = "This file has agent runs, so judgekeeper checks each run's steps: you click the first wrong step, or All steps are fine.";
   var ROLE_SHOWN = 20;
