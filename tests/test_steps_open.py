@@ -103,7 +103,8 @@ def test_stop_closes_the_steps_page(here, capsys, pages):
     code, out, _ = _run(capsys, "steps", "--stop")
     assert code == 0, out
     assert "Closed the marking page." in out
-    assert "Next: run `judgekeeper steps runs.jsonl` when you want to continue." in out
+    assert ("Next: run `judgekeeper steps runs.jsonl --no-browser` when you want to "
+            "continue.") in out  # as the page was opened (start.page_flags)
     assert not label.is_open(folder)
 
 
@@ -262,7 +263,7 @@ def test_plain_stop_on_a_steps_page_says_the_steps_command(here, capsys, pages):
     _run(capsys, "steps", "runs.jsonl", "--no-browser")
     code, out, _ = _run(capsys, "--stop")
     assert code == 0 and "Closed the marking page." in out
-    assert ("Next: run `judgekeeper steps runs.jsonl` when you want to continue."
+    assert ("Next: run `judgekeeper steps runs.jsonl --no-browser` when you want to continue."
             in " ".join(out.split()))
 
 
