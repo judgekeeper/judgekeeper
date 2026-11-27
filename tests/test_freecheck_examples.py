@@ -1,4 +1,5 @@
-"""The browser check's three example files (website/assets/examples/) and the page around them.
+"""The browser check's example files (website/assets/examples/), its three example cards and
+the page around them.
 
 Each example ships as a small script that sets window.JK_EXAMPLES[<file name>], added to the
 page on the first click, so the page's policy keeps connect-src 'none'. Each example reads the
@@ -25,7 +26,11 @@ pytestmark = pytest.mark.skipif(NODE is None, reason="needs node to run the page
 
 EXAMPLES = WEBSITE / "assets" / "examples"
 NAMES = ["shop-answers.csv", "promptfoo-results.json", "two-llm-as-a-judge-metrics.json"]
-CARDS = [("Shop answers", "CSV"), ("Repeated runs", "promptfoo"), ("Two metrics", "promptfoo")]
+# The three cards under the drop box: each one's title and line. The first opens
+# shop-answers.csv; the other two are wired by the check-page work (their files are chosen
+# there), so this file names no file for them yet.
+CARDS = [("Eval results", "LLM-as-a-judge grades"), ("Answers only", "no LLM-as-a-judge"),
+         ("Agent runs", "for an agent-as-a-judge")]
 MADE_UP = "made-up example · "
 
 
@@ -68,12 +73,17 @@ def _page_state(*steps: str) -> list[dict]:
 
 
 def test_the_page_offers_the_three_examples_as_cards_that_drag():
-    cards = [el for el in parse(WEBSITE / "check.html").iter() if "data-example-file" in el.attrs]
-    assert [c.attrs["data-example-file"] for c in cards] == NAMES
+    cards = [el for el in parse(WEBSITE / "check.html").iter() if "ex-card" in el.classes()]
+    assert len(cards) == len(CARDS)
     for card, (name, kind) in zip(cards, CARDS, strict=True):
-        assert card.tag == "button" and card.attrs.get("draggable") == "true"
+        assert card.tag == "button" and card.attrs.get("type") == "button"
         assert [" ".join(e.text().split()) for e in card.iter() if e.tag in ("b", "span")
                 and not e.classes() and e.parent.classes() == {"ex-t"}] == [name, kind]
+    # the first card is the eval results example, and it drags; the other two: see CARDS
+    first, *others = cards
+    assert first.attrs.get("data-example-file") == "shop-answers.csv"
+    assert first.attrs.get("draggable") == "true"
+    assert [c.attrs.get("data-preview-kind") for c in others] == ["answers", "steps"]
     assert sorted(p.name for p in EXAMPLES.iterdir()) == sorted(f"{n}.js" for n in NAMES)
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
     assert "'assets/examples/' + file + '.js'" in script  # a script from the site, never fetched
@@ -124,15 +134,16 @@ def test_each_example_shows_what_it_is_there_for(files):
 
 @pytest.mark.parametrize("how", ["click", "drag"])
 def test_an_example_clicked_or_dragged_in_is_checked_and_clear_brings_the_page_back(how):
-    before, loaded, cleared = _page_state("clear", f"{how}:promptfoo-results.json", "clear")
-    shown = MADE_UP + "promptfoo-results.json"
+    before, loaded, cleared = _page_state("clear", f"{how}:shop-answers.csv", "clear")
+    shown = MADE_UP + "shop-answers.csv"
     assert loaded["title"] == loaded["name"] == shown
     assert f"File:            {shown}" in loaded["output"]
-    assert "6 answers, each run 3 times" in loaded["output"]
+    assert "Answers:         60 answers" in loaded["output"]
+    assert loaded["scripts"] == ["assets/examples/shop-answers.csv.js"]
     assert loaded["box"] == "file" and loaded["has_file"] and loaded["clear"]
     assert not loaded["examples"] and not loaded["waiting"]
     for state in (cleared, before):
-        assert state["title"] == "your results file" and state["box"] == "empty"
+        assert state["title"] == "your file" and state["box"] == "empty"
         assert state["examples"] and state["waiting"] and not state["clear"]
         assert not state["output"] and not state["has_file"]
     assert cleared["focus"] == "fc-drop"  # Clear puts the focus back on the drop box
