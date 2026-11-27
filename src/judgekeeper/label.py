@@ -38,7 +38,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 from judgekeeper.anchors import LABELS
 from judgekeeper.marks import LINKS, PRINTED
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue
-from judgekeeper.redact import visible_value
+from judgekeeper.redact import item_key, visible_value
 from judgekeeper.table import (
     TEMPLATE_COLUMNS,
     TableError,
@@ -81,6 +81,16 @@ RESULT_WAIT = 60
 
 class LabelError(Exception):
     """The items or the output file cannot be used: a usage error."""
+
+
+def page_data(session, data: dict) -> dict:
+    """`data` (a session's state or summary) as a page gets it: each run's id as its key. The
+    page's text is cleaned of hidden characters (shown), so it never holds an id; the POST it
+    sends names the run by the key."""
+    out = dict(data)
+    if isinstance(out.get("runs"), list):  # the steps page
+        out["runs"] = [{**x, "id": item_key(x["id"])} for x in out["runs"]]
+    return out
 
 
 class PageBusy(LabelError):
@@ -619,7 +629,8 @@ class LabelServer:
         nonce = secrets.token_urlsafe(16)
         return (self.template.replace("__NONCE__", nonce)
                 .replace("__TOKEN__", self.token)
-                .replace("__DATA__", _json_for_html(self.session.state()))), nonce
+                .replace("__DATA__", _json_for_html(page_data(self.session,
+                                                              self.session.state())))), nonce
 
 
 def _handler(server: LabelServer):
@@ -831,7 +842,7 @@ def _handler(server: LabelServer):
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
             elif url.path == "/state":
-                self._json(200, server.session.state())
+                self._json(200, page_data(server.session, server.session.state()))
             elif url.path == "/result" and server.result is not None:
                 try:
                     page = server.result(server.session, f"/?token={server.token}")
@@ -896,9 +907,12 @@ def _handler(server: LabelServer):
             except RecursionError:  # nested deeper than Python's JSON reader goes
                 self._json(400, {"error": "expected a JSON object"})
                 return
-            if body["id"] not in server.session.by_id:
+            keys = getattr(server.session, "by_key", None)  # the page sends a key, not the id
+            item_id = body["id"] if keys is None else keys.get(body["id"])
+            if item_id not in server.session.by_id:
                 self._json(404, {"error": "no item with that id"})
                 return
+            body = {**body, "id": item_id}
             try:
                 server.session.update(body)
             except StaleMark as e:  # marked in another tab since this page loaded
@@ -925,7 +939,7 @@ def _handler(server: LabelServer):
             pop_up = getattr(server.session, "pop_up", None)
             if pop_up is not None and pop_up(summary["status"]):
                 summary["popup"] = True
-            reply = {"summary": summary}
+            reply = {"summary": page_data(server.session, summary)}
             if "note" in body and hasattr(server.session, "workspace"):  # the result page's
                 # own buttons as they are now, for the other answers' boxes
                 from judgekeeper import reasons
