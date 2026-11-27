@@ -155,8 +155,7 @@ def test_the_answers_only_example_reads_as_the_tool_reads_it(files, monkeypatch)
         "Answers:         40 answers",
         "LLM-as-a-judge:  none in your file",
         "",
-        ("This file has no LLM-as-a-judge grades, so judgekeeper checks the answers of your "
-         "agent or chatbot: you mark each one Pass or Fail."),
+        front.PATH_NO_GRADES.format(file="This file"),  # the tool's own words
         "",
         "First answer in your file:",
         "  Question:      Can I return a lamp after 60 days?",

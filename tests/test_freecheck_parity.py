@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import find, judge_check, start, steps
+from judgekeeper import find, front, judge_check, start, steps
 from tests import test_reader_grader_details as grader_details
 from tests.conftest import FIXTURES
 from tests.start_projects import table_project
@@ -258,8 +258,7 @@ def test_answers_with_no_grades_print_the_approved_lines(tmp_path):
         "Answers:         40 answers",
         "LLM-as-a-judge:  none in your file",
         "",
-        ("This file has no LLM-as-a-judge grades, so judgekeeper checks the answers of your "
-         "agent or chatbot: you mark each one Pass or Fail."),
+        front.PATH_NO_GRADES.format(file="This file"),  # the tool's own words
         "",
         "First answer in your file:",
         "  Question:      Can I return a lamp after 60 days?",
