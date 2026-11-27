@@ -461,8 +461,22 @@ __TOP__
   }
   function richEl(cls, text) { var e = el("span", cls); rich(e, text); return e; }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
+
+  // Opened by a tab of the other kind of page whose mark was refused (the page started again
+  // for another command): the status says so until a mark is saved. The address loses
+  // `moved`, so a reload never says it again.
+  var moved = false;
+  try {
+    var query = new URLSearchParams(window.location.search || "");
+    moved = query.get("moved") === "1";
+    if (moved && window.history && window.history.replaceState) {
+      query.delete("moved");
+      window.history.replaceState(null, "", (window.location.pathname || "/") + "?" + query);
+    }
+  } catch (e) { moved = false; }
   // A line that a mark was not saved is brought into view, also on a phone.
   function say(text, calm) {
+    if (!text && moved) { text = WORDS.moved; calm = false; }
     setText("status", text);
     $("status").classList.toggle("calm", !!calm);
     if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
@@ -965,11 +979,12 @@ __TOP__
       return r.json().then(function (body) { return {ok: r.ok, status: r.status, body: body}; });
     }).then(function (res) {
       clearTimeout(waited);
-      if (res.status === 409 && res.body.reload) { window.location.reload(); return; }  // the
-      // page started again for the steps: this tab loads the page that is open now
+      if (res.status === 409 && res.body.reload) {  // the page is the steps page now
+        window.location.href = url("/") + "&moved=1"; return; }
       if (res.status === 409 && res.body.stale) {  // marked in another tab since this page loaded
         queued = []; say(WORDS.otherTab); refresh(WORDS.otherTab, false); return; }
       if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
+      moved = false;
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       var stale = res.body.summary.before != null && res.body.summary.before !== version;
@@ -1208,6 +1223,7 @@ __TOP__
 
   var left = items.some(function (it) { return !it.label && !it.skipped; });
   if (left) { open(pos); } else { finish(true); }
+  if (moved) { say(""); hear(WORDS.moved); }  // under the welcome box until it closes
   if (left && data.intro === true) {  // nothing left to mark: no box over "You have marked all"
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     box.focus();
@@ -1250,6 +1266,7 @@ NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it 
              "the command at the bottom of this page. Your marks are kept.")
 # A mark or an undo the server refused: the answer was marked in another tab since this page
 # loaded. The page takes its list again.
+MOVED = "Your last mark was not saved: this link now opens the page for answers."
 OTHER_TAB = ("Not marked: this answer was already marked in another tab. "
              "The list is up to date again.")
 # An Undo made while a mark was saving, dropped because the list was taken again
@@ -1271,7 +1288,7 @@ def _words() -> str:
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
              "seeReady": SEE_READY, "noAnswer": NO_ANSWER, "notMarked": NOT_MARKED,
-             "notUndone": NOT_UNDONE, "otherTab": OTHER_TAB,
+             "notUndone": NOT_UNDONE, "otherTab": OTHER_TAB, "moved": MOVED,
              "change": CHANGE_MARK, "opening": OPENING, "firstCounts": FIRST_COUNTS,
              # the end card with only skipped answers left; the page puts in their number
              "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
