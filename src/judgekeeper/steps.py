@@ -343,6 +343,17 @@ def steps_hash(raw_steps: list) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _seconds(value) -> bool:
+    """Whether `value` is a time in seconds: a number a float holds, never inf or NaN (a
+    whole number too big for one is not)."""
+    if not _whole(value):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except OverflowError:
+        return False
+
+
 def _mark_of(row) -> tuple[str, int | None, str] | None:
     """(id, first wrong step or None for taken back, steps_hash) of one mark line, or None
     when the line is not a mark: exactly MARK_FIELDS, and `link` only as one of LINKS."""
@@ -356,7 +367,7 @@ def _mark_of(row) -> tuple[str, int | None, str] | None:
     if step is not None and not (isinstance(step, int) and not isinstance(step, bool)
                                  and step >= 0):
         return None
-    if not _whole(seconds) or not math.isfinite(seconds) or row["by"] != "page":
+    if not _seconds(seconds) or row["by"] != "page":
         return None
     if not isinstance(row["steps_hash"], str):
         return None

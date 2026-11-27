@@ -423,3 +423,12 @@ def test_kappa_none_on_marks_says_you():
     assert ("  Kappa: none (you or your agent-as-a-judge gave the same answer for every "
             "run).") in lines
     assert "(the people marking or" in " ".join(steps._reviewer_lines("reviewer", numbers))
+
+
+def test_a_huge_whole_number_of_seconds_is_a_broken_line(here):
+    runs_path = write_runs(here, 2)
+    hashes = hashes_of(runs_path)
+    huge = json.dumps(mark("r0", 1, hashes)).replace('"seconds": 4.5', '"seconds": ' + "9" * 400)
+    write_marks(here, [mark("r1", 2, hashes), huge])
+    export = steps.read_marks(here / MARKS, steps.read_runs(runs_path))
+    assert export.stats["broken"] == [3] and [t.label for t in export.tasks] == [None, 2]
