@@ -13,6 +13,7 @@ The tests run no JavaScript; they read the HTML and CSS.
 
 from __future__ import annotations
 
+import html
 import importlib.util
 import json
 import re
@@ -1722,6 +1723,60 @@ def test_on_a_phone_the_text_is_14px_or_more():
     assert "if (!narrow()) return;" in breaks
     assert '$all(".steplist .d")' in breaks and 'make("span", "nb", "LLM-as-a-judge")' in breaks
     assert '$all("code.path")' not in breaks and 'createElement("wbr")' not in breaks
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to run site.js")
+def test_on_a_phone_a_step_keeps_its_unbroken_words():
+    """site.js's phone breaks, run in node on each step's words as Home has them: a span the
+    page already has (the Measure step's "agent-as-a-judge") stays, the words stay the same, and
+    an "LLM-as-a-judge" not yet in a span gets one."""
+    body = JS[JS.index("  function setUpPhoneBreaks() {"):]
+    body = body[:body.index("\n  }\n") + 4]
+    steps = []
+    for d in re.findall(r'<span class="d">(.*?)</span></span></button>', HOME.read_text("utf-8")):
+        nodes = []
+        for nb, text in re.findall(r'<span class="nb">([^<]*)</span>|([^<]+)', d):
+            nodes.append(["nb", nb] if nb else ["#", html.unescape(text)])
+        steps.append(nodes)
+    assert len(steps) == 4 and ["nb", "agent-as-a-judge"] in steps[1]
+    steps.append([["#", "Check your LLM-as-a-judge and its LLM-as-a-judge rule."]])
+    stub = r"""
+function T(v) { return {nodeType: 3, nodeValue: v}; }
+function El(cls) {
+  var el = {nodeType: 1, className: cls, childNodes: [],
+    appendChild: function (n) { el.childNodes.push(n); return n; },
+    insertBefore: function (n, ref) { el.childNodes.splice(el.childNodes.indexOf(ref), 0, n); },
+    removeChild: function (n) { el.childNodes.splice(el.childNodes.indexOf(n), 1); }};
+  Object.defineProperty(el, "textContent", {
+    get: function () { return el.childNodes.map(function (n) {
+      return n.nodeType === 3 ? n.nodeValue : n.textContent; }).join(""); },
+    set: function (v) { el.childNodes = v ? [T(v)] : []; }});
+  return el;
+}
+function make(tag, cls, text) { var el = El(cls); if (text !== undefined) el.textContent = text;
+  return el; }
+var document = {createTextNode: T};
+function narrow() { return true; }
+var ds = STEPS.map(function (nodes) {
+  var d = El("d");
+  nodes.forEach(function (n) { d.appendChild(n[0] === "nb" ? make("span", "nb", n[1]) : T(n[1])); });
+  return d;
+});
+function $all() { return ds; }
+"""
+    scenario = r"""
+setUpPhoneBreaks();
+process.stdout.write(JSON.stringify(ds.map(function (d) {
+  return d.childNodes.map(function (n) {
+    return n.nodeType === 3 ? ["#", n.nodeValue] : [n.className, n.textContent]; }); })));
+"""
+    code = ("(function () { var STEPS = " + json.dumps(steps) + ";" + stub + body + "\n"
+            + scenario + "})();")
+    out = subprocess.run([shutil.which("node"), "-e", code],
+                         capture_output=True, text=True, check=True, timeout=30)
+    got = json.loads(out.stdout)
+    assert got[:4] == steps[:4]
+    assert got[4] == [["#", "Check your "], ["nb", "LLM-as-a-judge"], ["#", " and its "],
+                      ["nb", "LLM-as-a-judge"], ["#", " rule."]]
 
 
 def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
