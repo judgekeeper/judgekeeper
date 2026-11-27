@@ -357,7 +357,7 @@ def test_the_only_motion_is_the_underline_the_typing_and_the_cursor():
     assert "function type(" in JS and "function sweep(" in JS
     assert "if (reduce || !animate)" in JS and "if (!reduce && words.length" in JS
     assert "function autoplay(" not in JS  # the demo plays only when you mark
-    assert 'if (!nums.length || reduce || !("IntersectionObserver" in window)) return;' in JS
+    assert "function setUpCounts(" not in JS and ".rt-n" not in JS
     assert not [el for page in pages() for el in parse(page).iter() if "rt-n" in el.classes()]
     assert JS.count("smooth") == 1 and 'behavior: reduce ? "auto" : "smooth"' in JS
     for gone in ("IntersectionObserver(function (e) { reveal", "animate(", "count-up",
@@ -1560,6 +1560,10 @@ def test_home_and_the_guide_show_no_pictures():
         assert not _all(_main(page), "img") and not _all(_main(page), "figure"), page.name
         assert not [a for a in _all(_main(page), "a") if "assets/shots/" in a.attrs.get("href", "")]
     assert "gx-tap" not in CSS
+    # and no picture viewer is left behind for them
+    for gone in ("setUpShots", "shot-view", "shot-close", "has-view", "gx-shot"):
+        assert gone not in JS and gone not in CSS, gone
+    assert "--green-glow" not in CSS
 
 
 def test_testing_a_new_rule_is_said_for_every_eval_tool():
@@ -1696,8 +1700,6 @@ def test_on_a_phone_the_demo_reads_without_cutting_words():
     assert 'its.setAttribute("data-label", "LLM-as-a-judge")' in JS
     assert '". you you" ". judge judge"' in _last(".jk-end-list li", _narrow(359))
     assert "display: none" in _last(".jk-btn .key, .jk-sub .key", _media("(hover: none)"))
-    counts = JS[JS.index("function setUpCounts("):]
-    assert "if (narrow()) return;" in counts[:counts.index("new IntersectionObserver")]
 
 
 def test_on_a_phone_the_text_is_14px_or_more():
@@ -1719,7 +1721,7 @@ def test_on_a_phone_the_text_is_14px_or_more():
     breaks = breaks[:breaks.index("\n  }\n")]
     assert "if (!narrow()) return;" in breaks
     assert '$all(".steplist .d")' in breaks and 'make("span", "nb", "LLM-as-a-judge")' in breaks
-    assert '$all("code.path")' in breaks and 'createElement("wbr")' in breaks
+    assert '$all("code.path")' not in breaks and 'createElement("wbr")' not in breaks
 
 
 def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
@@ -1739,46 +1741,6 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     assert "overflow-wrap: normal" in _last(".cmd code", _narrow(300))
     # each tab's two buttons: side by side, and on a phone the second goes under the first
     assert "flex-wrap" not in _rule(".gd-foot") and "flex-wrap: wrap" in _rule(".gd-foot", phone)
-
-
-def test_a_picture_opens_over_the_page_at_every_width():
-    """A click or tap on a picture opens it over the page (no page shows one now), on a laptop
-    as on a phone: as wide as the screen, so nothing is off its edge, starting at the very top,
-    with a red Close button 44px tall floating over its corner; the page behind does not
-    scroll. Without the script the link opens the file."""
-    shots = JS[JS.index("function setUpShots("):]
-    shots = shots[:shots.index("\n  }\n")]
-    for part in ("e.preventDefault()", "view.showModal()",
-                 'make("button", "shot-close", "Close")', "e.target === view",
-                 'classList.add("has-view")', 'classList.remove("has-view")'):
-        assert part in shots, part
-    assert "narrow()" not in shots
-    # each open makes a new picture element: a reused one can stay blank on the second open
-    opened = shots[shots.index("links.forEach("):]
-    assert 'make("img", "", undefined)' in opened and "pane.appendChild(img)" in opened
-    assert "removeAttribute" not in shots
-    picture = _rule(".shot-pane img")
-    assert "width: 100%" in picture and "max-width: 100%" in picture and "height: auto" in picture
-    assert "max(1100px" not in CSS
-    assert "overflow: auto" in _rule(".shot-pane")
-    assert "min-height: 44px" in _rule(".shot-close")
-    # Close is red and white as the Fail button, a little brighter on hover, keeps the site's
-    # focus ring for a keyboard, and floats 16px from the picture's top and right edges, with
-    # no bar above the picture
-    close = _rule(".shot-close")
-    assert "background: var(--red-fill)" in close and "color: #fff" in close
-    assert "background: var(--red-fill)" in _rule(".jk-fail")
-    assert _rule(".shot-close:hover") == _rule(".jk-fail:hover")
-    for part in ("position: absolute", "top: 16px", "right: 16px"):
-        assert part in close, part
-    assert "shot-bar" not in CSS and "shot-bar" not in JS
-    # the marking page's counter is in that corner: Close sits under its header from 601px
-    assert 'toggle("close-low", a.hasAttribute("data-close-low"))' in shots
-    assert "@media (min-width: 601px) { .shot-view.close-low .shot-close { top: calc(5vw + 8px); } }" in CSS
-    assert not [s for s, d in _rules() if "shot-close" in s and "focus" in s]
-    assert "outline: 2px solid var(--fg)" in _rule(":focus-visible")
-    assert "overflow: hidden" in _rule("html.has-view, html.has-view body")
-    assert not [s for s, d in _rules() if "shot-" in s and s in _narrow(600)]
 
 
 def test_on_a_touch_screen_links_are_44px_tall():
