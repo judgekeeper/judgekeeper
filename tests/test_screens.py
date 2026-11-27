@@ -57,8 +57,9 @@ def _mark(root, n_pass: int, n_fail: int) -> None:
 PATH = [  # which path, and how to switch (front.path_lines)
     "results.json has LLM-as-a-judge grades, so judgekeeper checks",
     "your LLM-as-a-judge against your marks.",
-    "To check your AI's answers instead, save them in a CSV file with",
-    "input and output columns and no verdict column.",
+    "To check the answers of your agent or chatbot instead, save them",
+    "in a CSV file with input and output columns and no",
+    "verdict column.",
     "",
 ]
 FIRST = [
@@ -302,7 +303,7 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         "and output (the answer). Do not grade the answers. Then run",
         "judgekeeper.",
         "",
-        "Running your AI may use your API key.",
+        "Running your agent or chatbot may use your API key.",
         "",
         "Next: paste the prompt above into your coding agent, then run",
         "`judgekeeper` again.",
@@ -323,11 +324,12 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:29] == [
+    assert lines[:30] == [
         "The keeper of human judgment for AI.",
         "Human judgment decides what's right. See how often each automated check agrees",
-        "with it, from an LLM-as-a-judge grading one answer to a reviewer checking each",
-        "step of an agent, and see if agreement goes up or down after each change.",
+        "with it, from an LLM-as-a-judge grading one answer to an agent-as-a-judge",
+        "checking each step of an agent, and see if agreement goes up or down after each",
+        "change.",
         "",
         "Read. Measure. Fix. Re-check.",
         "",
@@ -354,12 +356,12 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[29:35] == [
+    assert lines[30:36] == [
         "  fix     show where your LLM-as-a-judge goes wrong, help you write a better",
         "          rule and test it on marks kept aside",
         "  check   see if your check still agrees with your marks after a change",
         "  steps   for agents: label the first wrong step of each run in Label Studio,",
-        "          then see how often your reviewer finds the same one",
+        "          then see how often your agent-as-a-judge finds the same one",
         "",
     ]
     assert "Options:" in lines

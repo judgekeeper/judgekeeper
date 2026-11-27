@@ -122,12 +122,12 @@ ONE_RUN = "One run, so a small change may be a coincidence."
 # Did the check move? Said when its setup changed. Written for an LLM-as-a-judge: for another
 # check grader_words.swap says "check" (links.said, _print).
 MOVED = {
-    "worse": ("Your LLM-as-a-judge moved: on the {n} answers your people labelled, it agrees "
-              "with them less than before."),
-    "no_drop": ("Your LLM-as-a-judge did not get worse on the {n} answers your people "
-                "labelled. If your scores changed, look at your app's answers first."),
-    "better": ("Your LLM-as-a-judge now agrees with your people more than before, on the {n} "
-               "answers they labelled."),
+    "worse": ("Your LLM-as-a-judge moved: on the {n} answers labelled by the people marking, it "
+              "agrees with them less than before."),
+    "no_drop": ("Your LLM-as-a-judge did not get worse on the {n} answers labelled by the "
+                "people marking. If your scores changed, look at your app's answers first."),
+    "better": ("Your LLM-as-a-judge now agrees with the people marking more than before, on the "
+               "{n} answers they labelled."),
     "not_sure": ("Too early to tell whether your LLM-as-a-judge moved. These {n} labels can't "
                  "rule out a drop of up to {d} points."),
 }

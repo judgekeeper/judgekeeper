@@ -58,10 +58,10 @@ def test_people_who_never_agree_still_get_their_numbers(here, capsys):
     split_panel(here / "people.json")
     code, out = run(capsys, *PAGE, "--labels", "people.json")
     text = flat(out)
-    assert "Your people agree with each other: Krippendorff's alpha " in text
+    assert "The people marking agree with each other: Krippendorff's alpha " in text
     assert "on 40 answers labelled by more than one person." in text
-    assert "A check can't be expected to agree with your people more than they agree with " \
-           "each other." in text
+    assert "A check can't be expected to agree with the people marking more than they agree " \
+           "with each other." in text
     assert "Answers labelled by each person: user 7 (40), user 8 (40), user 9 (40)." in text
     for who in (7, 8, 9):
         assert f"Your check against user {who}, on 40 answers: kappa " in text
@@ -75,7 +75,7 @@ def test_the_stop_and_its_words_are_the_ones_it_had(here, capsys):
     text = flat(out)
     assert "No labels in people.json." in text
     assert "People disagreed on 40 answers; they are left out of this number." in text
-    assert text.index("Your people agree") < text.index("No labels in people.json.")
+    assert text.index("The people marking agree") < text.index("No labels in people.json.")
 
 
 def test_the_numbers_are_saved_in_result_json_without_any_mark(here, capsys):
@@ -97,7 +97,7 @@ def test_a_second_run_says_the_same(here, capsys):
     run(capsys, *PAGE, "--labels", "people.json")
     code, again = run(capsys, *PAGE, "--labels", "people.json")
     assert code == 3
-    assert "Your people agree with each other: Krippendorff's alpha " in flat(again)
+    assert "The people marking agree with each other: Krippendorff's alpha " in flat(again)
     assert "No labels in people.json." in flat(again)
 
 
@@ -105,7 +105,7 @@ def test_two_people_who_always_differ_get_kappa(here, capsys):
     graded(here)
     split_panel(here / "people.json", people=(7, 8))
     _, out = run(capsys, *PAGE, "--labels", "people.json")
-    assert "Your people agree with each other: kappa " in flat(out)
+    assert "The people marking agree with each other: kappa " in flat(out)
 
 
 def test_when_the_export_is_the_results_too(here, capsys):
@@ -113,7 +113,7 @@ def test_when_the_export_is_the_results_too(here, capsys):
     split_panel(here / "export.json", with_predictions=True)
     code, out = run(capsys, *PAGE)
     text = flat(out)
-    assert "Your people agree with each other: Krippendorff's alpha " in text
+    assert "The people marking agree with each other: Krippendorff's alpha " in text
     assert "People disagreed on 40 answers" in text
     assert code == 0  # no marks yet: the marking page, as it was
 
@@ -125,5 +125,5 @@ def test_people_who_agree_on_some_have_marks_and_the_same_numbers_as_before(here
     write(here / "people.json", tasks)
     code, out = run(capsys, *PAGE, "--labels", "people.json")
     assert "Added 20 marks from people.json" in out
-    assert "Your people agree with each other: kappa " in flat(out)
+    assert "The people marking agree with each other: kappa " in flat(out)
     assert code in (0, 3)

@@ -24,7 +24,7 @@ PROMPT = [
      "two columns: input (the question) and output (the answer). Do not grade the answers. Then "
      "run {program}."),
 ]
-KEY = "Running your AI may use your API key."
+KEY = "Running your agent or chatbot may use your API key."
 FIRST = "No answers yet?"
 READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, "
          "TSV or JSONL file with input and output columns, and a verdict column if an "

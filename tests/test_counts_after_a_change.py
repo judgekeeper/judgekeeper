@@ -58,7 +58,7 @@ def test_mark_says_new_answers_are_waiting(project):  # noqa: F811
 def test_the_prompt_says_with_my_reasons_only_with_reasons(project):  # noqa: F811
     said = project.first(fails={0, 1, 2, 3}, n=12)
     assert "I marked Fail, with my reasons." not in said
-    assert "It lists answers my AI gave that I marked Fail.\n" in no_grades.fix_prompt(
+    assert "It lists answers my agent or chatbot gave that I marked Fail.\n" in no_grades.fix_prompt(
         start_label.Workspace(project.here)) + "\n"
     ws = start_label.Workspace(project.here)
     page = start_label.StartSession(ws)
@@ -66,4 +66,4 @@ def test_the_prompt_says_with_my_reasons_only_with_reasons(project):  # noqa: F8
              and i["id"] not in no_grades.kept_aside(ws)]
     page.update({"id": shown[0]["id"], "reasons": ["wrong_fact"]})
     said = project.run()
-    assert "It lists answers my AI gave that I marked Fail, with my reasons." in said
+    assert "It lists answers my agent or chatbot gave that I marked Fail, with my reasons." in said

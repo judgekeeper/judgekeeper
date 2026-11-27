@@ -68,10 +68,10 @@ def test_two_people_get_kappa_a_range_and_the_check_against_each(here, capsys):
     code, out = run(capsys, *PAGE)
     assert code == 0, out
     text = flat(out)
-    assert "Your people agree with each other: kappa " in text
+    assert "The people marking agree with each other: kappa " in text
     assert " (between " in text and "on 60 answers labelled by more than one person." in text
-    assert ("A check can't be expected to agree with your people more than they agree with "
-            "each other.") in text
+    assert ("A check can't be expected to agree with the people marking more than they agree "
+            "with each other.") in text
     assert "Answers labelled by each person: user 7 (60), user 8 (60)." in text
     assert "Your check against user 7, on 60 answers: kappa " in text
     assert "Your check against user 8, on 60 answers: kappa " in text
@@ -106,7 +106,7 @@ def test_the_people_numbers_use_every_answer_even_those_people_disagreed_on(here
 def test_three_people_get_krippendorffs_alpha(here, capsys):
     panel(here / "export.json", people_ids=(7, 8, 9))
     _, out = run(capsys, *PAGE)
-    assert "Your people agree with each other: Krippendorff's alpha " in flat(out)
+    assert "The people marking agree with each other: Krippendorff's alpha " in flat(out)
     assert result_of(Workspace(here))["people"]["measure"] == "alpha"
 
 
@@ -119,8 +119,8 @@ def test_under_ten_answers_with_two_people_says_so_and_gives_no_number(here, cap
     _, out = run(capsys, *PAGE)
     text = flat(out)
     assert ("Fewer than 10 answers were labelled by more than one person, so judgekeeper "
-            "can't say how much your people agree.") in text
-    assert "Your people agree with each other" not in text
+            "can't say how much the people marking agree.") in text
+    assert "The people marking agree with each other" not in text
     block = result_of(Workspace(here))["people"]
     assert block["enough"] is False and block["value"] is None and block["shared"] == 9
 
@@ -128,7 +128,7 @@ def test_under_ten_answers_with_two_people_says_so_and_gives_no_number(here, cap
 def test_one_person_has_no_people_numbers(here, capsys):
     panel(here / "export.json", people_ids=(7,))
     _, out = run(capsys, *PAGE)
-    assert "Your people agree" not in out and "labelled by each person" not in out
+    assert "The people marking agree" not in out and "labelled by each person" not in out
     assert "people" not in result_of(Workspace(here))
 
 
@@ -136,7 +136,7 @@ def test_a_second_run_says_the_same_again(here, capsys):
     panel(here / "export.json")
     _, first = run(capsys, *PAGE)
     _, second = run(capsys, *PAGE)
-    pick = [x for x in flat(first).split(". ") if x.startswith("Your people agree")]
+    pick = [x for x in flat(first).split(". ") if x.startswith("The people marking agree")]
     assert pick and all(x in flat(second) for x in pick)
 
 
@@ -167,7 +167,7 @@ def test_the_labels_of_a_label_studio_file_beside_other_results(here, capsys):
     write(here / "labels.json", tasks)
     code, out = run(capsys, *PAGE, "--labels", "labels.json")
     assert code == 0, out
-    assert "Your people agree with each other: kappa " in flat(out)
+    assert "The people marking agree with each other: kappa " in flat(out)
     assert "on 30 answers labelled by more than one person." in flat(out)
     assert "Your check against user 7, on 30 answers" in flat(out)
 

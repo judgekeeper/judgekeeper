@@ -130,3 +130,5 @@ Runs, by file name, in `grades/`:
 Questions were picked with a fixed seed (20261119) from each dataset's pinned revision, which are in the run scripts. Math uses all 1,319 test questions, truthfulness all 817, multiple choice 1,000 of the 14,042 test questions.
 
 The datasets are public: GSM8K (Cobbe et al. 2021, MIT), TruthfulQA (Lin et al. 2021, Apache-2.0) and MMLU (Hendrycks et al. 2021, MIT).
+
+The outputs here were made with judgekeeper 1.3.0. Newer versions word some lines differently.

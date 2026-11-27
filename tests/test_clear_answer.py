@@ -16,16 +16,16 @@ from tests.test_answers_without_grades import _live, _report, _seen, _session, w
 from tests.test_fixed_and_broke import _mark, _write, here, project  # noqa: F401 (fixtures)
 from tests.test_front import flat, run
 
-NO_GRADES_LINE = ("results.csv has no LLM-as-a-judge grades, so judgekeeper checks your AI's "
-                  "answers: you mark each one Pass or Fail.")
+NO_GRADES_LINE = ("results.csv has no LLM-as-a-judge grades, so judgekeeper checks the answers "
+                  "of your agent or chatbot: you mark each one Pass or Fail.")
 NO_GRADES_SWITCH = ("Have an LLM-as-a-judge? Save its Pass or Fail in a verdict column, or run "
                     "it with promptfoo, DeepEval, Inspect AI or MLflow.")
 GRADES_LINE = ("{file} has LLM-as-a-judge grades, so judgekeeper checks your LLM-as-a-judge "
                "against your marks.")
-TABLE_SWITCH = ("To check your AI's answers instead, use a copy of the file without the verdict "
-                "column.")
-TOOL_SWITCH = ("To check your AI's answers instead, save them in a CSV file with input and "
-               "output columns and no verdict column.")
+TABLE_SWITCH = ("To check the answers of your agent or chatbot instead, use a copy of the file "
+                "without the verdict column.")
+TOOL_SWITCH = ("To check the answers of your agent or chatbot instead, save them in a CSV file "
+               "with input and output columns and no verdict column.")
 OLD_MORE = "Mark more questions for a clearer answer."
 NEED = ("A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
         "with none breaking. If your change fixes about 2 in 3 of them, that needs about "
@@ -33,8 +33,8 @@ NEED = ("A clear answer needs at least {need} kept-aside questions to go from Fa
 ADD = NEED + " Add about {extra} more questions."
 HARDER = ("A clear answer needs at least 7 kept-aside questions to go from Fail to Pass, with "
           "none breaking. If your change fixes about 2 in 3 of them, that needs about 11 "
-          "kept-aside questions that failed before your change; you had 0. Add harder questions, ones your AI may get wrong, and "
-          "mark their answers.")
+          "kept-aside questions that failed before your change; you had 0. Add harder questions, ones your agent or chatbot may get "
+          "wrong, and mark their answers.")
 ENOUGH = ("A clear answer needs at least {need} of the {kept} kept-aside questions that failed "
           "before your change to pass, with none breaking.")
 

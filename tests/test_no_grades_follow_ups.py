@@ -22,9 +22,9 @@ SHOWN_PATH = (".judgekeeper\\fix\\failed-answers.md" if is_windows()  # as the t
 FOUND_NEW = ("Found {n} since your last results. Mark them to see what changed. {same} answers "
              "are the same as before and keep their marks.")
 QUESTION_NEXT = "Next: paste the prompt above into your coding agent, then run `judgekeeper` again."
-FIX_NEXT = ("Next: paste the prompt above into your coding agent. After it changes your AI's "
-            "prompt, save your AI's new answers in results.csv or a new file next to it and run "
-            "`judgekeeper` again.")  # the file named, as the result page names it
+FIX_NEXT = ("Next: paste the prompt above into your coding agent. After it changes the prompt "
+            "of your agent or chatbot, save its new answers in results.csv or a new file next to "
+            "it and run `judgekeeper` again.")  # the file named, as the result page names it
 ONLY_FAILED = "Reasons are only for answers you failed."
 
 

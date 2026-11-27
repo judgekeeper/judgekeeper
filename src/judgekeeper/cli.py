@@ -77,9 +77,9 @@ PAGE_FLAGS = ("--port", "--no-browser")
 
 MESSAGE = ("The keeper of human judgment for AI.\n"
            "Human judgment decides what's right. See how often each automated check "
-           "agrees with it, from an LLM-as-a-judge grading one answer to a reviewer "
-           "checking each step of an agent, and see if agreement goes up or down after "
-           "each change.")
+           "agrees with it, from an LLM-as-a-judge grading one answer to an "
+           "agent-as-a-judge checking each step of an agent, and see if agreement goes up or "
+           "down after each change.")
 STEPS = """\
 Read. Measure. Fix. Re-check.
 
@@ -103,7 +103,7 @@ MLflow, or a CSV, TSV or JSONL file with these columns:
 FIX_HELP = ("show where your LLM-as-a-judge goes wrong, help you write a better rule and test "
             "it on marks kept aside")
 STEPS_HELP = ("for agents: label the first wrong step of each run in Label Studio, then see "
-              "how often your reviewer finds the same one")
+              "how often your agent-as-a-judge finds the same one")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", FIX_HELP),
@@ -361,11 +361,11 @@ def _parser() -> argparse.ArgumentParser:
                          "steps) to make the Label Studio screen, or the Label Studio export "
                          "(JSON) of that project to see the numbers")
     st.add_argument("--reviewer", metavar="FILE",
-                    help="your reviewer's guesses as a JSONL file, one line per run: "
+                    help="your agent-as-a-judge's picks as a JSONL file, one line per run: "
                          '{"id": ..., "first_wrong_step": ..., "model": ...}; else the '
                          "predictions in the export")
     st.add_argument("--model", metavar="NAME",
-                    help="the reviewer to look at, when the export holds several")
+                    help="the agent-as-a-judge to look at, when the export holds several")
     p.commands["steps"] = st
     return p
 
