@@ -16,6 +16,7 @@ import pytest
 from judgekeeper import label as label_mod
 from judgekeeper import textio
 from judgekeeper.label import LabelError, LabelServer, LabelSession
+from judgekeeper.redact import item_key
 from tests.page_http import retried
 from tests.start_projects import unwrapped
 
@@ -89,14 +90,27 @@ class Client:
 
         return retried(send)
 
+    def ids(self, value):
+        """`value` from the page's server with each answer's key ("id", "from") as its id."""
+        keys = self.server.session.by_key
+        if isinstance(value, list):
+            return [self.ids(v) for v in value]
+        if isinstance(value, dict):
+            return {k: keys.get(v, v) if k in ("id", "from") and isinstance(v, str)
+                    else self.ids(v) for k, v in value.items()}
+        return value
+
     def state(self):
         resp, payload = self.request("GET", "/state")
         assert resp.status == 200
-        return json.loads(payload)
+        return self.ids(json.loads(payload))
 
     def label(self, **body):
+        """A change as the page sends it: an answer's id goes as its key (redact.item_key)."""
+        if body.get("id") in self.server.session.by_id:
+            body = {**body, "id": item_key(body["id"])}
         resp, payload = self.request("POST", "/label", body)
-        return resp.status, json.loads(payload)
+        return resp.status, self.ids(json.loads(payload))
 
 
 @pytest.fixture
@@ -195,8 +209,8 @@ def test_the_pages_own_origin_may_post(tmp_path, serve, headers):
     out = tmp_path / "labels.csv"
     client = serve(_items(tmp_path), out)
     headers = {k: v.format(port=client.server.port) for k, v in headers.items()}
-    resp, _ = client.request("POST", "/label", {"id": "it0", "label": "pass"}, origin=False,
-                             headers=headers)
+    resp, _ = client.request("POST", "/label", {"id": item_key("it0"), "label": "pass"},
+                             origin=False, headers=headers)
     assert resp.status == 200
     assert _read(out)[0]["human_label"] == "pass"
 

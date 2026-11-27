@@ -27,7 +27,7 @@ import random
 from html import escape
 from pathlib import Path
 
-from judgekeeper import __version__, look, marks, start, steps, textio
+from judgekeeper import __version__, look, marks, redact, start, steps, textio
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.label import StaleMark, make_server
 from judgekeeper.mark_page import NO_ANSWER, SEE_FIRST, SEE_READY
@@ -82,7 +82,8 @@ def _same(a, b) -> bool:
 
 class StepsSession:
     """The runs of one runs file and the person's step marks, for label.LabelServer: `by_id`,
-    `update`, `state`, `summary`, and `out` (the marks file)."""
+    `by_key` (the page's key of each run -> its id), `update`, `state`, `summary`, and `out`
+    (the marks file)."""
 
     def __init__(self, ws: Workspace, runs_path: str | Path, reviewer: str | Path | None = None,
                  model: str | None = None, shown: str | None = None):
@@ -91,6 +92,7 @@ class StepsSession:
         self.runs_hash = file_hash(self.runs_path)
         self.runs = steps.read_runs(self.runs_path)
         self.by_id = {r.id: r for r in self.runs}
+        self.by_key = {redact.item_key(r.id): r.id for r in self.runs}  # what the page sends
         self.hashes = {r.id: r.steps_hash for r in self.runs}
         self.order = shuffled([r.id for r in self.runs], self.runs_hash)
         self.out = ws.dir / steps.FOLDER / MARKS_FILE

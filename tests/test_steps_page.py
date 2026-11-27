@@ -15,7 +15,7 @@ from html import unescape
 
 import pytest
 
-from judgekeeper import steps, steps_page
+from judgekeeper import redact, steps, steps_page
 from judgekeeper.start_label import Workspace
 from tests.page_http import retried
 
@@ -310,7 +310,8 @@ class Client:
         return retried(send)
 
     def mark(self, **body):
-        resp, payload = self.request("POST", "/label", body)
+        """Mark the run with this id, as the page does: by the run's key."""
+        resp, payload = self.request("POST", "/label", {**body, "id": redact.item_key(body["id"])})
         return resp.status, json.loads(payload)
 
 
@@ -365,7 +366,8 @@ def test_the_server_needs_the_token_and_the_pages_origin(serve):
 
 def test_the_server_refuses_seconds_too_big_for_a_number_with_400(serve):
     client = serve()
-    raw = '{"id": "r1", "first_wrong_step": 1, "was": null, "seconds": 1' + "0" * 400 + "}"
+    key = redact.item_key("r1")
+    raw = f'{{"id": "{key}", "first_wrong_step": 1, "was": null, "seconds": 1' + "0" * 400 + "}"
     headers = {"Host": f"127.0.0.1:{client.server.port}", "Content-Type": "application/json",
                "Origin": f"http://127.0.0.1:{client.server.port}"}
 

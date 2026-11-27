@@ -26,7 +26,7 @@ import random
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import __version__, metrics, project, targets, textio, weighted
+from judgekeeper import __version__, metrics, project, redact, targets, textio, weighted
 from judgekeeper.fingerprint import JudgeFingerprint, unknown_fields, utc_now
 from judgekeeper.redact import scrub_value
 from judgekeeper.start import StartError, page_flags, path_word
@@ -179,6 +179,7 @@ def read_runs(path: Path) -> list[Run]:
     """The runs in a JSONL file. A problem is said by line number, never by quoting the line."""
     runs: list[Run] = []
     seen: set[str] = set()
+    keys: dict[str, int] = {}  # redact.item_key -> line: the page tells runs apart by it
     text = textio.read_utf8(path, StepsError)
     for number, line in enumerate(textio.jsonl_lines(text), 1):
         if not line.strip():
@@ -192,13 +193,20 @@ def read_runs(path: Path) -> list[Run]:
         if textio.lone_surrogate(row):  # never hashed or written: it isn't UTF-8
             raise StepsError(textio.NOT_TEXT.format(file=f"Line {number} of {path.name}"))
         run_id = row.get("id")
-        if not (isinstance(run_id, str) and run_id.strip()) and not (
-                _whole(run_id) and not isinstance(run_id, float)):
+        if run_id is None or isinstance(run_id, str) and not run_id.strip():
             raise StepsError(f"Line {number} of {path.name} has no id.")
+        if not isinstance(run_id, str) and not (_whole(run_id) and isinstance(run_id, int)):
+            raise StepsError(f"Line {number} of {path.name} has an id that is not text or a "
+                             "whole number.")
         run_id = str(run_id)
         if run_id in seen:
             raise StepsError(f"Line {number} of {path.name} has an id used twice.")
         seen.add(run_id)
+        key = redact.item_key(run_id)
+        if key in keys:
+            raise StepsError(f"Line {number} of {path.name} has an id judgekeeper can't tell "
+                             f"apart from the id on line {keys[key]}.")
+        keys[key] = number
         steps = row.get("steps")
         if not isinstance(steps, list) or not steps:
             raise StepsError(f"Line {number} of {path.name} has no steps (a list of "

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import bisect
 import functools
+import hashlib
 import itertools
 import os
 import re
@@ -227,6 +228,12 @@ def visible(text: str) -> str:
         return m[0] if m[0] in _STYLE and _style_kept(text, m.start()) else ""
 
     return _ODD_SPACES.sub(" ", _UNSEEN.sub(drop, text))
+
+
+def item_key(item_id: str) -> str:
+    """The name a page gets for an item instead of its id: visible() would change an id with a
+    hidden character, and the page's text never holds an id. The same id, the same key."""
+    return "k" + hashlib.sha256(item_id.encode("utf-8")).hexdigest()[:16]
 
 
 def visible_value(value):

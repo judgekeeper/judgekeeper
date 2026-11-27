@@ -11,6 +11,7 @@ import pytest
 
 from judgekeeper import start_label
 from judgekeeper.cli import main
+from judgekeeper.redact import item_key
 from tests.start_projects import promptfoo_project, split
 from tests.test_front import assert_one_next_at_the_end
 from tests.test_mark import _click
@@ -129,6 +130,8 @@ def _z_flow(here, no_browser, seen: str):
         reasons.saw_grades(ws)
     state = json.loads(_get(url.replace("/?", "/state?")))
     item = next(i for i in state["items"] if i["label"] == "pass")
+    # the page names the answer by its key: the answer that key is for
+    item_id = {item_key(q["id"]): q["id"] for q in ws.data()["queue"]}[item["id"]]
     assert _post(url, {"id": item["id"], "label": "fail", "seconds": 4}) == 200
     _get(url.replace("/?", "/result?"))
     assert _result(ws)["disagreements"] == 1
@@ -140,14 +143,14 @@ def _z_flow(here, no_browser, seen: str):
     assert _result(ws)["disagreements"] == 0  # Pass counts again
     main(["--stop"])
     m = marks.read(ws.marks)
-    assert m.last[item["id"]]["mark"] == "pass"
+    assert m.last[item_id]["mark"] == "pass"
     lines = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()[1:]]
-    steps = [x for x in lines if x.get("id") == item["id"]]
+    steps = [x for x in lines if x.get("id") == item_id]
     assert [x["mark"] for x in steps] == ["pass", "fail", "pass"]  # every step kept
     assert [bool(x.get("after_result")) for x in steps] == [False, seen == "before", True]
     usual = set(steps[0])
     assert all(set(x) - {"after_result"} <= usual for x in steps), steps
-    return m, item["id"]
+    return m, item_id
 
 
 def test_z_after_a_mark_changed_with_the_grades_seen_puts_it_back_uncounted(

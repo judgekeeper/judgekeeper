@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import background, label
+from judgekeeper.redact import item_key
 from tests.page_http import retried
 from tests.start_projects import promptfoo_project, split, unwrapped
 from tests.test_command_safety import _from
@@ -126,7 +127,8 @@ def test_mark_runs_the_page_in_the_background(project):
     assert status == 200
     lines = (folder / "marks.jsonl").read_text(encoding="utf-8").splitlines()
     last = json.loads(lines[-1])
-    assert (last["id"], last["mark"], last["by"], last["seconds"]) == (item, "pass", "page", 3)
+    assert (item_key(last["id"]), last["mark"], last["by"], last["seconds"]) == (item, "pass",
+                                                                                "page", 3)
     assert last["link"] == "printed"  # the link was printed with no terminal
 
     second = jk(project, "mark", "--port", "0", "--no-browser")

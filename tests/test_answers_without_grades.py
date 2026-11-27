@@ -12,6 +12,7 @@ import pytest
 
 from judgekeeper import find, front, no_grades, reasons, start, start_label
 from judgekeeper.metrics import wilson
+from judgekeeper.redact import item_key
 from tests.test_front import flat, run
 
 
@@ -412,6 +413,7 @@ def _report(here) -> str:
 
 
 def _row_ids(html: str) -> list[str]:
+    """The keys of the answers with a reason box (redact.item_key), in order."""
     import re
 
     return re.findall(r'<div class="why" data-id="([^"]+)"', html)
@@ -469,10 +471,10 @@ def test_the_page_lists_only_the_fails_in_reason_order(here, capsys, pages):
     page.update({"id": fails[1], "reasons": ["wrong_fact"]})
     page.update({"id": fails[4], "reasons": ["left_out"]})
     html = _live(here, page)
-    assert _row_ids(html) == [fails[1], fails[3], fails[4], fails[0], fails[2]]
+    assert _row_ids(html) == [item_key(fails[k]) for k in (1, 3, 4, 0, 2)]
     assert html.count('class="add-reason sbtn"') == 5
     r = json.loads(start_label.Workspace(here).result_json.read_text(encoding="utf-8"))
-    assert r["fails"] == _row_ids(html)
+    assert [item_key(i) for i in r["fails"]] == _row_ids(html)
 
 
 def test_the_page_offers_only_the_reasons_about_the_answer(here, capsys, pages):
@@ -480,7 +482,7 @@ def test_the_page_offers_only_the_reasons_about_the_answer(here, capsys, pages):
     fail = shown_fails(here, page)[0]  # one kept aside takes no reason
     page.update({"id": fail, "note": "too long"})  # makes the person's own button
     html = _live(here, page)
-    other = next(i for i in _row_ids(html) if i != fail)
+    other = next(i for i in _row_ids(html) if i != item_key(fail))
     chips = _chips(html, other)
     assert chips[:6] == no_grades.offered()
     assert len(chips) == 7 and chips[6] not in reasons.REASONS  # the person's own

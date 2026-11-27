@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from judgekeeper import label, page
+from judgekeeper import label, page, redact
 from judgekeeper.cli import main
 from tests.page_http import retried
 
@@ -157,7 +157,7 @@ def test_a_mark_through_the_opened_page_lands_in_the_steps_marks(here, capsys, p
     _run(capsys, "steps", "runs.jsonl")
     url = no_browser[0]
     port, token = int(url.split(":")[2].split("/")[0]), url.split("token=")[1]
-    body = json.dumps({"id": "r1", "first_wrong_step": 2, "was": None,
+    body = json.dumps({"id": redact.item_key("r1"), "first_wrong_step": 2, "was": None,
                        "seconds": 2}).encode()
     request = Request(f"http://127.0.0.1:{port}/label?token={token}", data=body, method="POST",
                       headers={"Content-Type": "application/json",

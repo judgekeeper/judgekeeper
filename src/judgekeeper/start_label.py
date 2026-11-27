@@ -34,7 +34,7 @@ from judgekeeper import __version__, batches, judge_check, marks, reasons, targe
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import JudgeFingerprint, rule_hash, utc_now
 from judgekeeper.judgments import judgment_to_record, write_run
-from judgekeeper.label import LabelSession
+from judgekeeper.label import LabelSession, item_keys
 from judgekeeper.records import AGENT_FIELDS
 from judgekeeper.redact import scrub, scrub_fingerprint, scrub_value, visible
 from judgekeeper.runners.base import Judgment
@@ -875,6 +875,7 @@ class StartSession(LabelSession):
         # a batch whose adding stopped half way is in the pool, not the queue: added again later
         self.items = [x for x in self.items if x["id"] in self.groups]
         self.by_id = {x["id"]: x for x in self.items}
+        self.by_key = item_keys(self.by_id)  # what the page sends: never the id (redact.item_key)
 
     def _resume(self) -> None:
         """The marks on disk: the last stamped line of each answer."""
