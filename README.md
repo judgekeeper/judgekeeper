@@ -7,12 +7,6 @@
     <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests"></a>
     <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="Apache-2.0 license"></a>
   </p>
-  <p>
-    <a href="https://www.judgekeeper.com">Website</a> ·
-    <a href="https://www.judgekeeper.com/start.html">Guide</a> ·
-    <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md">Reference</a> ·
-    <a href="https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md">Changelog</a>
-  </p>
 </div>
 
 judgekeeper checks your AI agent or chatbot with human judgment. You mark what's right, and it shows how often an agent-as-a-judge or an LLM-as-a-judge (an AI model that grades another model's work) agrees with you, and where it goes wrong.
@@ -35,7 +29,7 @@ Using a coding agent? Give it this page and say: "Follow this to run judgekeeper
 | You have | Run | You see |
 |---|---|---|
 | Grades from an LLM-as-a-judge | `judgekeeper` | How often it agrees with your marks |
-| Answers of your agent or chatbot, no grades | `judgekeeper` | How many pass, with a range |
+| Your agent's or chatbot's answers, no grades | `judgekeeper` | How many pass, with a range |
 | Agent runs | `judgekeeper steps runs.jsonl --reviewer picks.jsonl` | How often your agent-as-a-judge picks the same first wrong step as you |
 
 It reads promptfoo, DeepEval, Inspect AI, MLflow, Label Studio exports, or your own CSV, TSV or JSONL file. [Formats](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#what-it-reads)
@@ -65,7 +59,7 @@ Each comes with a range. They are about the answers you marked, not a promise ab
 
 ## More
 
-[Website](https://www.judgekeeper.com) · [Guide](https://www.judgekeeper.com/start.html) · [Reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) · `judgekeeper --help`. Made by one person. [Issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose) welcome; pull requests are not taken.
+[Website](https://www.judgekeeper.com) · [Guide](https://www.judgekeeper.com/start.html) · [Reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) · [Changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) · `judgekeeper --help`. [Issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose) are welcome; pull requests are not taken.
 
 ## License
 
