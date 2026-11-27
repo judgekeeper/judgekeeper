@@ -627,7 +627,8 @@ def _picks(session: StepsSession) -> tuple[str | None, dict] | None:
     if not guesses:
         return JUDGE, {}
     name = min(guesses)
-    column = JUDGE if len(guesses) == 1 else f'{JUDGE} "{name}"'
+    alone = len(guesses) == 1 or name == steps.DEFAULT_REVIEWER  # that name is never said
+    column = JUDGE if alone else f'{JUDGE} "{name}"'
     return column, guesses[name]
 
 

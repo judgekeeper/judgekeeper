@@ -495,6 +495,17 @@ def test_with_several_names_and_no_model_the_column_names_the_one_shown(serve, t
     assert '<td class="g both">Both</td>' in page
 
 
+def test_a_picks_line_with_no_model_is_never_named_in_the_column(serve, tmp_path):
+    path = _runs(tmp_path)
+    picks = _picks(tmp_path, [{"id": "r1", "first_wrong_step": 1},
+                              {"id": "r1", "first_wrong_step": 2, "model": "zeta"}])
+    _marked(tmp_path, path, {"r1": 1})
+    page = serve(path, reviewer=str(picks)).request("GET", "/result")[1].decode("utf-8")
+    assert "<th>Agent-as-a-judge</th>" in page
+    assert '<td class="g both">Both</td>' in page  # the line with no model is the one shown
+    assert "&quot;reviewer&quot;" not in page
+
+
 def test_with_a_model_named_the_column_is_that_one(serve, tmp_path):
     path = _runs(tmp_path)
     picks = _picks(tmp_path, [{"id": "r1", "first_wrong_step": 1, "model": "zeta"},
