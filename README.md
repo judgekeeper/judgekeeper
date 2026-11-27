@@ -30,7 +30,7 @@ judgekeeper
 ```
 Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
 
-Reads promptfoo, DeepEval, Inspect AI, MLflow, Label Studio exports, or your own CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, or a file with only `input` and `output` to check your AI's answers. A `verdict` can be pass/fail, true/false, yes/no, correct/incorrect, right/wrong or 1/0, in any case; `--label-map` reads other words. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (the uv forms are in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install)).
+Reads promptfoo, DeepEval, Inspect AI, MLflow, Label Studio exports, or your own CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, or a file with only `input` and `output` to check the answers of your agent or chatbot. A `verdict` can be pass/fail, true/false, yes/no, correct/incorrect, right/wrong or 1/0, in any case; `--label-map` reads other words. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (the uv forms are in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install)).
 
 Using a coding agent? Give it this page and tell it: "Follow this to run judgekeeper on my project." It runs the steps and gives you the marking page link; you mark, then the coding agent explains the result.
 
@@ -43,19 +43,19 @@ Using a coding agent? Give it this page and tell it: "Follow this to run judgeke
    - Two or more people marked the same answers? judgekeeper also says how much they agree with each other (kappa, or Krippendorff's alpha for three or more people), because a check cannot be expected to agree with them more than they agree with each other. With too few labels, it writes a Label Studio import file with the few answers to label next.
 3. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside. It makes no AI call: you grade the marked answers again with your own eval tool, which may use your API key.
 4. **Re-check:** after you change the model or the rule, grade your marked answers again (`judgekeeper fix` writes them to `.judgekeeper/fix/marked-answers.csv`). `judgekeeper check <new results file>` shows if it still agrees with you.
-   - Changed your AI, not the LLM-as-a-judge? `judgekeeper results.json --before main-results.json` compares the grades in two results question by question and exits 1 when the change made it worse, or 3 when nothing could be compared ([how](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#did-your-change-make-it-worse)).
+   - Changed your agent or chatbot, not the LLM-as-a-judge? `judgekeeper results.json --before main-results.json` compares the grades in two results question by question and exits 1 when the change made it worse, or 3 when nothing could be compared ([how](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#did-your-change-make-it-worse)).
    - Checking an agent? `judgekeeper steps` helps you label the first wrong step of each run in Label Studio, then shows how often your reviewer finds the same one.
 
 In your project, judgekeeper reads your results files and writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
-## No LLM-as-a-judge? Check your AI's answers
+## No LLM-as-a-judge? Check the answers of your agent or chatbot
 
-For a chatbot, agent or any AI that answers questions. Save its answers in a CSV, TSV or JSONL file with `input` and `output` columns and no grades. No answers yet? `judgekeeper` prints a prompt for your coding agent (Claude Code, Cursor or Codex) to write about 40 test questions and save your AI's answers. Your AI runs once for each question, so this may use your API credits.
+For a chatbot, agent or any AI that answers questions. Save its answers in a CSV, TSV or JSONL file with `input` and `output` columns and no grades. No answers yet? `judgekeeper` prints a prompt for your coding agent (Claude Code, Cursor or Codex) to write about 40 test questions and save the answers of your agent or chatbot, which runs once for each question, so this may use your API credits.
 
 1. **Read:** run `judgekeeper` in your project folder. It finds your answers. Mark each one Pass or Fail. On the result page, add a reason to the failed ones.
 2. **Measure:** from 10 marks, see how many passed, with a range.
-3. **Fix:** judgekeeper saves the failed answers, apart from the half kept aside, in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
-4. **Re-check:** run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.
+3. **Fix:** judgekeeper saves the failed answers, apart from the half kept aside, in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve the prompt of your agent or chatbot.
+4. **Re-check:** run your agent or chatbot again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.
 
 [An example run](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md).
 
