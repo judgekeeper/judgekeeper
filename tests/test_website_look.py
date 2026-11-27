@@ -39,9 +39,6 @@ GUIDE = WEBSITE / "start.html"
 PRIVACY = WEBSITE / "privacy.html"
 CHECK = WEBSITE / "check.html"
 NOT_FOUND = WEBSITE / "errors" / "404.html"
-AGENT_LINE = ('Using a coding agent? Give it this page and tell it: "Follow this to run '
-              'judgekeeper on my project." It runs the steps and gives you the marking page link; you '
-              "mark, then the coding agent explains the result.")  # word for word
 TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are [trademarks](https://github.com/"
                   "judgekeeper/judgekeeper/blob/main/TRADEMARKS.md) of Sathvik Thota. The "
                   "Apache-2.0 license covers the code, not the name or logo.")  # word for word
@@ -857,150 +854,185 @@ def test_the_homes_windows_share_the_guides_slate_and_the_chosen_step_is_green()
 # The Guide ------------------------------------------------------------------------------------
 
 REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
-GUIDE_STEPS = [("step-find", "Read your eval results, then mark answers"),
-               ("step-measure", "See how often your LLM-as-a-judge agrees with you"),
-               ("step-fix", "Write a better rule and test it"),
-               ("step-check", "Re-check after you change your LLM-as-a-judge")]
+EXAMPLES = f"{GITHUB}/blob/main/docs/examples"
+# "What do you have?": each tab's id, its label and line, and its heading
+GUIDE_TABS = [("results", "Eval results", "graded by an LLM-as-a-judge"),
+              ("ai-check", "Answers only", "no LLM-as-a-judge"),
+              ("agent-steps", "Agent runs", "the steps of each run")]
+# each tab's steps: the word, its words, and the commands beside them
+GUIDE_STEPS = {
+    "results": [
+        ("Read.", ("Run it in your project folder. It finds your results and opens the marking "
+                   "page. Mark each answer Pass or Fail. Your LLM-as-a-judge’s grade stays hidden "
+                   "while you mark."), ["judgekeeper"]),
+        ("Measure.", ("See how often your LLM-as-a-judge agrees with you, and the answers where "
+                      "you disagree. Too early to tell? Mark more."), ["judgekeeper mark"]),
+        ("Fix.", ("Get the answers it got wrong and write a better rule. Grade the marked answers "
+                  "again with the new rule, and judgekeeper tests it on marks kept aside."),
+         ["judgekeeper fix", "judgekeeper fix new-results.json"]),
+        ("Re-check.", ("Changed its model or rule? Grade your marked answers again and see if it "
+                       "still agrees with you. No new marking."),
+         ["judgekeeper check new-results.json"])],
+    "ai-check": [
+        ("Read.", ("Run it in your project folder. Mark each answer Pass or Fail, and add a "
+                   "reason to the failed ones."), ["judgekeeper"]),
+        ("Measure.", "From 10 marks, see how many passed, with a range.", []),
+        ("Fix.", ("Get the failed answers, apart from the half kept aside, with a prompt for your "
+                  "coding agent to improve the prompt of your agent or chatbot."),
+         ["judgekeeper fix"]),
+        ("Re-check.", ("Save the new answers over the old file and mark them. On the answers kept "
+                       "aside, see how many were fixed and how many broke."), ["judgekeeper"])],
+    "agent-steps": [
+        ("Read.", ("Opens a page with each run’s steps. Click the first wrong step, or All steps "
+                   "are fine."), ["judgekeeper steps runs.jsonl"]),
+        ("Measure.", ("Add the picks of your agent-as-a-judge to see how often it finds the same "
+                      "first wrong step as you."),
+         ["judgekeeper steps runs.jsonl --reviewer picks.jsonl"]),
+        ("Re-check.", ("Change your agent-as-a-judge, save its new picks and run it again. No new "
+                       "marking."), ["judgekeeper steps runs.jsonl --reviewer new-picks.jsonl"])]}
 
 
-def test_the_guide_says_how_to_check_an_agent_reviewer_step_by_step():
-    block = _by_id(GUIDE, "agent-steps")
-    assert any(a.attrs.get("id") == "ai-check" for a in block.ancestors())
-    assert _flat(_all(block, "h3")[0]) == "Checking an agent? Check its reviewer step by step"
-    text = _flat(block)
-    for words in ("judgekeeper steps runs.jsonl", "judgekeeper steps export.json",
-                  "first wrong step of each run (0 if all steps are fine)", "within one step",
-                  "--reviewer", "it never calls Label Studio or an AI"):
-        assert words in text, words
-    links = [a.attrs["href"] for a in _all(block, "a")]
-    assert links == [f"{GITHUB}/blob/main/docs/examples/agent-steps/README.md",
-                     f"{REFERENCE_MD}#steps-check-an-agent-reviewers-first-wrong-step"]
+def _panel(wanted: str) -> Element:
+    (panel,) = [el for el in _all(_main(GUIDE), "div", "gd-panel") if el.attrs["id"] == wanted]
+    return panel
 
 
-def test_the_guide_is_the_install_the_four_steps_and_three_cards():
+def _codes(root: Element) -> list[str]:
+    return [_flat(c) for c in _all(root, "code") if "cmd" in c.parent.classes()]
+
+
+def _anchor(heading: str) -> str:
+    """The anchor GitHub gives a Markdown heading."""
+    return re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
+
+
+def test_the_guide_says_how_to_check_an_agent_as_a_judge_step_by_step():
+    """The Agent runs tab: a JSONL file of runs, then Read, Measure and Re-check with
+    `judgekeeper steps`, the picks file, a Label Studio export, an example and the part of the
+    reference on steps."""
+    panel = _panel("agent-steps")
+    assert _flat(_all(panel, "h3", "gd-h")[0]) == "Agent runs"
+    assert _flat(_all(panel, "p", "gd-intro")[0]) == (
+        "Runs of your agent in a JSONL file, one run per line with an id and its steps.")
+    rows = [(_flat(_all(r, "b")[0]), _flat(_all(r, "span")[0]), _codes(r))
+            for r in _all(panel, "div", "gd-more-row")]
+    assert rows == [
+        ("The picks file", "One line per run. 0 means all steps are fine.",
+         ['{"id": "run-1", "first_wrong_step": 3, "model": "my-judge"}']),
+        ("Already labelled in Label Studio", "judgekeeper reads the project’s JSON export.",
+         ["judgekeeper steps export.json"])]
+    # the picks line is one judgekeeper reads: its keys are the ones `steps` takes
+    pick = json.loads(rows[0][2][0])
+    assert set(pick) == {"id", "first_wrong_step", "model"}
+    from judgekeeper import steps
+    source = Path(steps.__file__).read_text(encoding="utf-8")
+    for key in pick:
+        assert f'"{key}"' in source, key
+    links = [(a.attrs["href"], _flat(a)) for a in _all(_all(panel, "div", "gd-foot")[0], "a")]
+    heading = "steps: mark an agent run's first wrong step, then check an agent-as-a-judge"
+    assert links == [(f"{EXAMPLES}/agent-steps/README.md", "See an example run"),
+                     (f"{REFERENCE_MD}#{_anchor(heading)}", "Full reference")]
+    # the link lands on that part of the reference
+    reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+    assert f"\n## {heading}\n" in reference
+
+
+def test_the_guide_is_the_install_what_you_have_and_handy_commands():
     sections = [el for el in _main(GUIDE).children if isinstance(el, Element)]
-    assert [s.classes() for s in sections] == [{"hero", "gx-hero"}, {"gx-steps"}, {"gx-more"},
-                                               {"gx-more"}]
-    assert sections[2].attrs["id"] == "ai-check"  # checking an AI's answers: its own band
-    sections = [*sections[:2], sections[3]]
-    hero = sections[0]
-    assert hero.attrs["id"] == "install"  # judgekeeper prints start.html#install
+    assert [s.classes() for s in sections] == [{"hero", "gx-hero"}, {"gd-sec"},
+                                               {"gd-sec", "gd-handy"}]
+    assert [s.attrs["id"] for s in sections] == ["install", "steps", "misc"]  # judgekeeper
+    hero = sections[0]                                       # prints start.html#install
     (h1,) = _all(hero, "h1")
     assert _flat(h1) == "Install judgekeeper in your project."
     assert [_flat(s) for s in _all(h1, "span", "h-brand")] == ["judgekeeper"]
     assert "color: var(--green)" in _rule(".h-brand")
-    # "Install judgekeeper" stays on one line from 1000px: the text column is only 385px at
-    # 1101 wide and 388px at 1000, so the heading shrinks with the screen there
     assert "font-size: clamp(42px, calc(11vw - 80px), 62px)" in _rule(".gx-hero h1")
-    assert CSS.index(".gx-hero h1 {") < CSS.index("@media (max-width: 860px)")
     mid = CSS[CSS.index("@media (max-width: 1100px) {"):]
     mid = mid[:mid.index("\n}\n")]
     assert "font-size: clamp(42px, 4.2vw, 52px)" in _rule(".gx-hero h1", mid)
-    assert _flat(_all(hero, "p", "gx-lede")[0]) == (
-        "Works with promptfoo, DeepEval, Inspect AI, MLflow or your own file.")
-    # the install card is a window on your project folder: pip and uv, both in view
+    # three facts under the headline; the list keeps the old #keys anchor
+    (facts,) = _all(hero, "ul", "gx-facts")
+    assert facts.attrs.get("id") == "keys" and "gf" in facts.classes()
+    assert [_flat(li) for li in _all(facts, "li")] == [
+        "No API key needed", "Runs locally", "Open source"]
+    # the install card: a window with a tab each for pip, uv and a coding agent; without
+    # JavaScript the three show one after another
     (card,) = _all(hero, "div", "gx-install")
     assert "gwin" in card.classes()
-    assert _flat(_all(_all(card, "div", "rt-bar")[0], "span", "rt-title")[0]) == (
-        "your project folder")
-    assert not _all(card, "p", "gx-k")
-    # one command per box, so nobody pastes the two pip lines as one
-    pairs = [[_flat(c) for c in _all(p, "code")] for p in _all(card, "div", "gx-pair")]
-    assert pairs == [["pip install judgekeeper", "judgekeeper"], ["uvx judgekeeper"]]
-    assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
+    (tabs,) = _all(card, "div", "gi-tabs")
+    assert tabs.attrs.get("role") == "tablist" and "hidden" in tabs.attrs
+    assert [(b.attrs["id"], b.attrs["aria-controls"], _flat(b)) for b in _all(tabs, "button")] == [
+        ("gi-tab-gi-pip", "gi-pip", "pip"), ("gi-tab-gi-uv", "gi-uv", "uv"),
+        ("gi-tab-gi-agent", "gi-agent", "Coding agent")]
+    panels = _all(card, "div", "gi-panel")
+    assert [(p.attrs["id"], p.attrs["role"], p.attrs["aria-labelledby"]) for p in panels] == [
+        ("gi-pip", "tabpanel", "gi-tab-gi-pip"), ("gi-uv", "tabpanel", "gi-tab-gi-uv"),
+        ("gi-agent", "tabpanel", "gi-tab-gi-agent")]
     # pip into the project's virtual environment: a system Python refuses it (PEP 668)
-    assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
-        "With pip, in your project’s virtual environment", "With uv"]
-    assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
-        "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
-    assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
-    (rail,) = _all(_main(GUIDE), "nav")  # the one side list: the steps' rail
-    assert "sp-rail" in rail.classes()
-    # three plain boxes under the steps, each a heading in view, then its words and its
-    # commands: no window and no bar. The long one is on the left, the other two stacked on
-    # the right, so a phone reads them in the same order
-    rows = _all(sections[2], "div", "gm-row")
-    assert [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in rows] == [
-        ("own-format", "Your own file or code"), ("keys", "No API key needed"),
-        ("misc", "Handy commands")]
-    for r in rows:
-        (h3,) = _all(r, "h3")
-        assert h3.parent is r and "sr" not in h3.classes(), r.attrs["id"]
-        assert not _all(r, "div", "rt-bar"), r.attrs["id"]
-    assert all("sp-block" in r.classes() for r in rows)
-    assert [r.parent.classes() for r in rows] == [{"sp-band"}, {"sp-stack"}, {"sp-stack"}]
-    assert rows[1].parent is rows[2].parent and rows[1].parent.parent is rows[0].parent
-    assert not _all(sections[2], "div", "gm-pair") and ".gm-pair" not in CSS
-    assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
-        "In your project, judgekeeper reads your results files and writes only in "
-        ".judgekeeper/, plus "
-        "judgekeeper.toml after you say yes. It makes no AI call and needs no API key. "
-        "When you grade answers again, your own eval tool makes the calls, with your own key.")
-    assert not _all(sections[2], "div", "gx-card")
-    # the steps and the blocks below are as wide as the top section: "The 4 steps." starts
-    # under "Install", and the blocks end where the install window ends
-    assert not [s for s, d in _rules() if ("gx-steps .wrap" in s or "gx-more .wrap" in s)
-                and "max-width" in d]
-    # the top section is shorter, so the start of the steps shows on the first screen
+    assert [[_flat(h) for h in _all(p, "p", "gx-way-h")] for p in panels] == [
+        ["Install in your project’s virtual environment", "Run in your project folder"],
+        ["Run in your project folder, with nothing to install first (uv)",
+         "Or add it to your project, then run uv run judgekeeper"],
+        ["Give your coding agent this prompt"]]
+    # one command per box, so nobody pastes the two pip lines as one
+    assert [_codes(p) for p in panels] == [
+        ["pip install judgekeeper", "judgekeeper"], ["uvx judgekeeper", "uv add --dev judgekeeper"],
+        ["Follow www.judgekeeper.com/start.html to run judgekeeper on my project."]]
+    assert _flat(_all(panels[2], "p", "gi-note")[0]) == (
+        "It installs judgekeeper, runs it and gives you the marking page link. You mark, then it "
+        "explains the result.")
+    assert _flat(_all(card, "p", "gi-foot")[0]) == "macOS, Linux and Windows. Python 3.11 to 3.14."
+    assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
+    # no side list and no bar over the steps: the tabs say where you are
+    assert not [n for n in _all(_main(GUIDE), "nav")] and "sp-rail" not in CSS
+    assert _flat(_all(sections[1], "h2")[0]) == "What do you have?"
+    assert _flat(_all(sections[2], "h2")[0]) == "Handy commands"
+    handy = [(_flat(_all(d, "span")[0]), _codes(d)[0])
+             for d in _all(sections[2], "div") if d.parent.classes() == {"gd-handy-grid"}]
+    assert handy == [("Close the marking page", "judgekeeper --stop"),
+                     ("Start over (old marks are kept)", "judgekeeper --new"),
+                     ("Get the link, no browser", "judgekeeper --no-browser"),
+                     ("See every option", "judgekeeper --help")]
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in _rule(".gd-handy-grid")
     assert "padding-block: 64px 56px" in _rule(".gx-hero .wrap")
-    assert "padding-block: 64px 0" in _rule(".gx-steps .wrap")
-    # 96px and a line between steps; the three blocks below are plain bordered boxes, side
-    # by side on a laptop and one under the other from 1100px down
-    step = _rule(".gl-step")
-    for part in ("padding-block: 48px", "border-top: 1px solid var(--line)"):
-        assert part in step, part
-    assert "background" not in step and "border-radius" not in step
-    box = _rule(".sp-block")
-    assert "border: 1px solid var(--line)" in box and "border-radius: 12px" in box
-    assert "background" not in box and "shadow" not in box
-    # two columns that end on one line: the grid stretches the left box, and the right
-    # column's last box takes what is left, its commands growing with it
-    band = _rule(".sp-band")
-    assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)" in band
-    assert "align-items" not in band
-    assert "flex-direction: column" in _rule(".sp-stack")
-    assert "flex: 1" in _rule(".sp-stack > .sp-block:last-child")
-    assert "flex: 1" in _rule(".sp-stack .gm-pre")
-    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".sp-band", _narrow(1100))
     assert "clip: rect(0 0 0 0)" in _rule(".sr")
 
 
 def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
-    """A first-timer sees a three-column file and its command, and the one record() line;
-    scores, pass marks and every other option are in the reference."""
-    own = _all(_by_id(GUIDE, "own-format"), "div", "gx-text")[0]
-    said = [(el.tag, _flat(el)) for el in own.children if isinstance(el, Element)]
+    """Under the Eval results steps: a three-column file and its command, the one record()
+    line, and labels you already have; scores, pass marks and every other option are in the
+    reference."""
+    panel = _panel("results")
+    (more,) = _all(panel, "div", "gd-more")
+    assert _flat(_all(more, "h4")[0]) == "Other starting points"
+    rows = _all(more, "div", "gd-more-row")
+    assert rows[0].attrs.get("id") == "own-format"  # judgekeeper prints start.html#own-format
+    said = [(_flat(_all(r, "b")[0]), _flat(_all(r, "span")[0]), _codes(r)) for r in rows]
     assert said == [
-        ("p", ("No eval tool? Save your results as a CSV, TSV or JSONL file with three columns: "
-              "input (the question), output (the answer) and verdict (Pass or Fail from your "
-              "LLM-as-a-judge). Other names work too: judgekeeper asks how to read them. "
-              "Then run:")),
-        ("div", "judgekeeper results.csv"),
-        ("p", "Your LLM-as-a-judge runs in your own code? Add this after each grade:"),
-        ("pre", ("import judgekeeper judgekeeper.record(input=question, output=answer, "
-                "verdict=grade)")),
-        ("p", "It saves in .judgekeeper/records/ in your project folder. Run judgekeeper there."),
-        ("p", ("Your LLM-as-a-judge gives a score instead of Pass or Fail? The full reference "
-              "shows how to set where Pass starts, and every other option."))]
-    assert [_flat(b) for p in _all(own, "p") for b in _all(p, "b")] == [
-        "No eval tool?", "Your LLM-as-a-judge runs in your own code?"]
-    (link,) = _all(own, "a")
-    assert link.attrs["href"] == f"{REFERENCE_MD}#how-grades-are-read"
+        ("Your own file", "A CSV, TSV or JSONL file with input, output and verdict columns.",
+         ["judgekeeper results.csv"]),
+        ("Grading in your own code", "Add this line after each grade, then run judgekeeper.",
+         ["judgekeeper.record(input=question, output=answer, verdict=grade)"]),
+        ("Already have Pass or Fail labels",
+         "A CSV, TSV or JSONL file with an answer and a label column, or a Label Studio export.",
+         ["judgekeeper --labels your-labels.csv"])]
+    links = [(a.attrs["href"], _flat(a)) for a in _all(_all(panel, "div", "gd-foot")[0], "a")]
+    assert links == [(f"{EXAMPLES}/label-studio/README.md", "See an example run"),
+                     (REFERENCE_MD, "Full reference")]
     reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
-    assert "\n## How grades are read\n" in reference
-    # the reference line sits apart from the lines above it
-    assert "margin-top: 24px" in _rule("#own-format .gx-small")
+    assert "\n## How grades are read\n" in reference  # scores and pass marks
     text = GUIDE.read_text(encoding="utf-8")
     for gone in ("--pass-if", "pass_mark=", "can't test a new rule"):
         assert gone not in text, gone
 
 
 def test_the_guides_record_line_saves_what_judgekeeper_reads(tmp_path, monkeypatch):
-    """The two lines the Guide shows, run as they are after a grade, give answers judgekeeper
-    finds."""
+    """The line the Guide shows, run as it is after a grade (with judgekeeper imported), gives
+    answers judgekeeper finds."""
     from judgekeeper import recorder, start
 
-    (code,) = _all(_by_id(GUIDE, "own-format"), "pre", "gx-code")
+    (code,) = [c for c in _all(_by_id(GUIDE, "results"), "code") if "record(" in c.text()]
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("JUDGEKEEPER_RECORD", raising=False)
@@ -1008,321 +1040,149 @@ def test_the_guides_record_line_saves_what_judgekeeper_reads(tmp_path, monkeypat
     try:
         for i, grade in enumerate(["pass", "fail"]):
             space = {"question": f"Do you ship to {i}?", "answer": "Yes.", "grade": grade}
-            exec(code.text(), space)  # noqa: S102 - the Guide's own two lines
+            exec("import judgekeeper\n" + code.text(), space)  # noqa: S102 - the Guide's line
     finally:
         recorder._reset()
     found = start.find_judge(tmp_path)
     assert (found.pool.n_pass, found.pool.n_fail) == (1, 1)
 
 
-STEP_WORDS = ["Read.", "Measure.", "Fix.", "Re-check."]
-
-
-def test_the_guides_bar_is_the_four_words_and_the_one_in_view_is_green():
-    """The four words of the tagline run across the top of the steps and stay in view, each a
-    link to its step, over a thin line that is green up to the step in view. The word of the
-    step in view is green, the ones before it a softer green: only a colour, no movement."""
-    (rail,) = _all(_main(GUIDE), "nav", "sp-rail")
-    assert rail.attrs["aria-label"] == "The 4 steps"
-    links = _all(rail, "a")
-    assert [_flat(a) for a in links] == STEP_WORDS
-    assert [a.attrs["href"] for a in links] == ["#" + i for i, _ in GUIDE_STEPS]
-    assert all(set(a.attrs) == {"href"} for a in links)  # site.js marks the one in view
-    # one bar at every width: no side rail on a laptop and no other bar on a phone
-    bar = _rule(".sp-rail")
-    for part in ("position: sticky", "top: 0", "background: var(--bg)", "overflow-x: auto"):
-        assert part in bar, part
-    assert not [s for s, _ in _rules() if s == ".sp" or s.startswith(".sp {")]
-    row = _rule(".sp-rail ol")
-    assert "display: flex" in row and "justify-content: space-between" in row
-    assert "min-width: 100%" in row  # spread across the steps' width, the same edges
-    assert not [s for s, d in _rules() if s.startswith(".sp-rail") and "::before" in s
-                and "border-radius: 50%" in d]  # no dots
-    # the line under the words: grey across, green from the first word to the one in view
-    assert "bottom: 0" in _rule(".sp-rail ol::before, .sp-rail ol::after")
-    assert "background: var(--line)" in _last(".sp-rail ol::before")
-    assert "width: var(--fill, 0px)" in _last(".sp-rail ol::after")
-    assert "background: var(--green)" in _last(".sp-rail ol::after")
-    assert "color: var(--green)" in _rule(".sp-rail a[aria-current]")
-    assert "color: var(--muted)" in _rule(".sp-rail a")
-    assert "color: var(--green-muted)" in _rule(".sp-rail a.is-done")
-    assert not [s for s, d in _rules() if s.startswith(".sp-") and ("transition" in d or "animation" in d)]
-    rail_js = JS[JS.index("function setUpRail("):]
-    rail_js = rail_js[:rail_js.index("\n  }\n")]
-    assert "new IntersectionObserver" in rail_js and '"aria-current", "step"' in rail_js
-    assert '"is-done", i < at' in rail_js
-    assert 'setProperty("--fill", a.offsetLeft + a.offsetWidth + "px")' in rail_js
-    assert '"resize"' in rail_js  # the line follows the words when the window's width changes
-    assert "smooth" not in rail_js
-    assert "font-size: 16px" in _rule(".sp-rail a", _narrow(860))
-    # passed words muted green, still 4.5 to 1 on the page at 16px
-    assert "--green-muted: rgb(16 185 129 / 80%)" in _rule(":root")
-    t = _tokens()
-    mixed = "#" + "".join(f"{round(.8 * int(t['green'][i:i + 2], 16) + .2 * int(t['bg'][i:i + 2], 16)):02x}"
-                          for i in (1, 3, 5))
-    assert _contrast(mixed, t["bg"]) >= 4.5, mixed
+def test_what_you_have_is_three_tabs_and_a_link_opens_its_tab():
+    """"What do you have?": a tab each for eval results, answers only and agent runs, over one
+    box. Without JavaScript the three panels show one after another, each under its heading;
+    with it one shows, and a link to a part of a panel (#own-format, #agent-steps) opens it."""
+    (box,) = _all(_main(GUIDE), "div", "gd")
+    (tabs,) = _all(box, "div", "gd-tabs")
+    assert tabs.attrs.get("role") == "tablist" and "hidden" in tabs.attrs
+    assert tabs.attrs.get("aria-label") == "What do you have?"
+    found = [(b.attrs["aria-controls"], _flat(_all(b, "b")[0]), _flat(_all(b, "span")[0]))
+             for b in _all(tabs, "button")]
+    assert found == GUIDE_TABS
+    assert [b.attrs["id"] for b in _all(tabs, "button")] == [f"gd-tab-{i}" for i, *_ in GUIDE_TABS]
+    panels = _all(box, "div", "gd-panel")
+    assert [(p.attrs["id"], p.attrs["role"], p.attrs["aria-labelledby"],
+             _flat(_all(p, "h3", "gd-h")[0])) for p in panels] == [
+        (i, "tabpanel", f"gd-tab-{i}", label) for i, label, _ in GUIDE_TABS]
+    # the chosen tab: green under it; a panel's own heading shows only without the tabs
+    assert "border-bottom-color: var(--green)" in _rule(".gd-tabs button[aria-selected=true]")
+    assert "display: none" in _rule(".tabs-on .gd-h")
+    assert "display: none" in _rule(".gd-panel.is-off")
+    tabs_js = JS[JS.index("function setUpTabs("):]
+    tabs_js = tabs_js[:tabs_js.index("\n  }\n")]
+    for part in ("list.hidden = false", 'classList.add("tabs-on")', "location.hash",
+                 '"hashchange"', '"ArrowRight"', '"ArrowLeft"'):
+        assert part in tabs_js, part
+    assert 'function setUpGuide() { $all(".gd-tabs, .gi-tabs").forEach(setUpTabs); }' in JS
+    # each place judgekeeper or the site links to is inside a panel, so it opens that tab
+    for anchor in ("own-format", "question-prompt"):
+        assert any(a.attrs.get("role") == "tabpanel" for a in _by_id(GUIDE, anchor).ancestors())
 
 
 def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside_them():
-    (steps,) = _all(_main(GUIDE), "ol", "gl")
-    items = _all(steps, "li", "gl-step")
-    assert [(li.attrs["id"], _flat(_all(li, "h3")[0])) for li in items] == GUIDE_STEPS
-    for word, li in zip(STEP_WORDS, items):
-        (body, side) = [el for el in li.children if isinstance(el, Element)]
-        assert "gl-body" in body.classes() and "sp-side" in side.classes()
-        # the step's word, big and bold, then its heading; the word is the rail's, so a screen
-        # reader hears the heading only
-        first, h3 = [el for el in body.children if isinstance(el, Element)][:2]
-        assert (first.tag, first.classes(), _flat(first)) == ("p", {"sp-word"}, word)
-        # the word white, its full stop green, like the check in the logo
-        (dot,) = _all(first, "span", "sp-dot")
-        assert _flat(dot) == "." and first.children[-1] is dot
-        assert first.attrs.get("aria-hidden") == "true" and h3.tag == "h3"
-        # every command is beside the words, none inside them
-        assert not _all(body, "div", "cmd"), li.attrs["id"]
-    # the step's word: big, bold, smaller than Home's hero
-    assert "font-size: 44px" in _rule(".sp-word") and "font-weight: 800" in _rule(".sp-word")
+    from judgekeeper import no_grades
+
+    for key, steps in GUIDE_STEPS.items():
+        (ol,) = _all(_panel(key), "ol", "gd-steps")
+        items = _all(ol, "li")
+        found = []
+        for li in items:
+            say, cmds = [el for el in li.children if isinstance(el, Element)]
+            assert "gd-say" in say.classes() and "gd-cmds" in cmds.classes(), key
+            (word,) = _all(say, "h3", "gd-word")
+            (dot,) = _all(word, "span", "sp-dot")  # the full stop green, like the logo's tick
+            assert _flat(dot) == "." and word.children[-1] is dot
+            (words,) = _all(say, "p")
+            assert not _all(say, "div", "cmd"), key  # every command is beside the words
+            found.append((_flat(word), _flat(words), _codes(cmds)))
+        assert found == steps, key
+    assert f"From {no_grades.MIN_MARKS} marks" in GUIDE_STEPS["ai-check"][1][1]
     assert "color: var(--green)" in _rule(".sp-dot")
-    # beside the words: as tall as what it holds, in the middle of the step's height,
-    # commands then window. One frame only: the window has the slate, nothing goes around it
-    side = _rule(".sp-side")
-    assert "stretch" not in side and "min-height" not in side
-    assert "align-items: start" in _rule(".gl-step")
-    assert "align-self: center" in side
-    for part in ("background", "border", "padding"):
-        assert part not in side, part
-    assert ".sp-side" not in _narrow(600)
-    window = _rule(".gwin")
-    for part in ("background: var(--slate-panel)", "border: 1px solid var(--slate)",
-                 "border-radius: 12px"):
-        assert part in window, part
-    assert "--slate-panel: rgb(30 41 59 / 40%)" in _rule(":root")
-    assert "white-space: pre-wrap" in _rule(".sp-cmds .cmd code")  # wraps, never cut
-    # phones: a command stays on one line and a long one scrolls inside its bar
-    phone_cmd = _rule(".sp-cmds .cmd code", _narrow(600))
-    assert "white-space: pre" in phone_cmd and "pre-wrap" not in phone_cmd
-    assert "display: none" in _rule(".sp-cmds .cmd code wbr", _narrow(600))  # not at a "/"
-    assert "overflow-x: auto" in _rule(".cmd code")
-    # the install window opens the page in the same slate, on phones too
-    (card,) = _all(_main(GUIDE), "div", "gx-install")
-    assert "gwin" in card.classes() and ".gx-install.gwin" not in CSS
-    assert ".gx-install" not in _narrow(600)
-    assert "font-size: 36px" in _rule(".sp-word", _narrow(860))
-    cmds = {li.attrs["id"]: [_flat(c) for c in _all(li, "code") if c.parent.classes() == {"cmd"}]
-            for li in items}
-    assert cmds == {"step-find": ["judgekeeper", "judgekeeper path/to/results.json"],
-                    "step-measure": ["judgekeeper", "judgekeeper mark"],
-                    "step-fix": ["judgekeeper fix", "judgekeeper fix new-results.json"],
-                    "step-check": ["judgekeeper check new-results.json"]}
-    # the "if" notes: the question, then its answer
-    ifs = {li.attrs["id"]: [(_flat(d.children[0]), _flat(d.children[1]))
-                            for dl in _all(li, "dl", "sp-ifs") for d in _all(dl, "div")]
-           for li in items}
-    assert ifs == {
-        "step-find": [("Nothing found?", ("Run your eval first so it saves its results, or point "
-                                          "judgekeeper to your results file.")),
-                      ("Already have Pass/Fail labels, for example from Label Studio?",
-                       ("Run judgekeeper --labels your-labels.csv (a Label Studio export works too), or judgekeeper --labels if they "
-                        "are in your results. Then mark more if needed."))],
-        "step-measure": [("Result says it’s too early to tell?",
-                          ("Your LLM-as-a-judge needs more of your marks to be measured. Mark more "
-                           "answers, then look again."))],
-        "step-fix": [("Result says your LLM-as-a-judge needs work?",
-                      ("It saves the answers your LLM-as-a-judge got wrong in "
-                       ".judgekeeper/fix/mistakes.md, apart from the marks kept aside to test "
-                       "your rule. Read it to write a better rule yourself, or hand it to a "
-                       "coding agent to help you write one."))],
-        "step-check": [("Changed your LLM-as-a-judge’s model or rule?",
-                        ("Grade your marked answers again (judgekeeper fix writes them to "
-                         ".judgekeeper/fix/marked-answers.csv)."))]}
-    # the step's word says what the step is, so no title starts with it and a colon; the
-    # commands sit beside the words, so no line ends in a colon; a note's question shows once
-    assert not [t for _, t in GUIDE_STEPS if t.split(" ")[0].endswith(":")]
-    lines = [_flat(el) for li in items for el in _all(li, "p") + _all(li, "dd")]
-    assert not [x for x in lines if x.endswith(":")]
-    assert not [p for li in items for p in _all(li, "p", "gx-way-h")]
-    # a flag or a file name in a note never splits at its hyphens: its code wraps at spaces
-    labels = _all(_all(_by_id(GUIDE, "step-find"), "dl", "sp-ifs")[1], "code")
-    assert [[_flat(s) for s in _all(c, "span", "nb")] for c in labels] == [
-        ["--labels", "your-labels.csv"], ["--labels"]]
-    assert "white-space: nowrap" in _rule(".nb")
-    # each note is a soft slate box like the windows, the question over its answer, the
-    # same at every width: no green line, no columns
-    row = _rule(".sp-ifs > div")
-    for part in ("background: var(--slate-panel)", "border-radius: 12px", "padding: 16px 20px"):
-        assert part in row, part
-    assert "border-left" not in row and "grid-template-columns" not in row
-    assert "color: var(--fg)" in _rule(".sp-ifs dt")
-    assert ".sp-ifs" not in _narrow(600) and ".sp-ifs" not in _narrow(860)
-    assert "margin: 24px 0 0" in _rule(".sp-ifs") and "color: var(--muted)" in _rule(".sp-ifs dd")
-    # words beside commands on a laptop; one under the other from 1100px down
-    assert "minmax(0, 1fr) minmax(0, 1fr)" in _rule(".gl-step")
-    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gl-step", _narrow(1100))
-    assert "border-top: 0" in _rule(".gl-step:first-child")
-    done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
-            for step in ("step-find", "step-measure")}
-    assert done == {"step-measure": [],
-                    "step-find": [("When See the numbers so far or See your result appears at "
-                                   "the top, click it.")]}
-    # each step's words, as the person reads them
-    said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "gl-body")[0], "p")
-                   if not {"done", "gx-small", "gx-tap", "sp-word"} & p.classes()]
-            for step in ("step-find", "step-measure", "step-fix", "step-check")}
-    assert said == {
-        "step-find": [("Run judgekeeper in your project folder. It finds and reads your eval "
-                       "results, and opens the marking page."),
-                      ("Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to "
-                       "decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. "
-                       "Every mark is saved, so you can stop at any time and come back later.")],
-        "step-measure": [("The result page tells you one of three things: your LLM-as-a-judge "
-                          "is good enough to use, it needs work, or it’s too early to tell. "
-                          "Below that, it lists the answers where you and your LLM-as-a-judge "
-                          "disagreed."),
-                         ("Two or more people marked the same answers? judgekeeper also says "
-                          "how much they agree with each other (kappa, or Krippendorff’s alpha "
-                          "for three or more people), because a check cannot be expected to "
-                          "agree with them more than they agree with each other.")],
-        "step-fix": [
-            ("Change the rule in your eval tool. Have it grade the answers in "
-             ".judgekeeper/fix/marked-answers.csv again, then save the results."),
-            ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
-             "better, safe to try, worse, or if it can’t tell yet. How many marks you need "
-             "depends on how big the change is: see the reference.")],
-        "step-check": [
-            ("judgekeeper compares the new grades with your marks and tells you if your "
-             "LLM-as-a-judge still agrees with you. You don’t need to mark anything again."),
-            ("Checking an agent? judgekeeper steps helps you label the first wrong step of "
-             "each run in Label Studio, then shows how often your reviewer finds the same "
-             "one.")]}
-    bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
-            for step in ("step-measure", "step-fix", "step-check")}
-    assert bold == {"step-measure": [],
-                    "step-fix": ["better", "safe to try", "worse", "can’t tell yet"],
-                    "step-check": []}
-    assert not _all(_main(GUIDE), "details")  # no fold
-    # the numbers: in the reference (the one link opens the picture)
-    assert not [a for a in _all(_by_id(GUIDE, "step-measure"), "a") if a.parent.tag != "figure"]
-    assert not _all(_by_id(GUIDE, "step-fix"), "table")  # the six results: in the reference
-    # steps 4 and 5 open with when to run them, in a note, with their other words after it
-    for sid in ("step-fix", "step-check"):
-        body = _all(_by_id(GUIDE, sid), "div", "gl-body")[0]
-        opening = [el.tag for el in body.children if isinstance(el, Element)][:4]
-        assert opening == ["p", "h3", "dl", "p"], sid
-    assert "margin-top: 24px" in _rule(".sp-ifs + p")
-    assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
-        ("judgekeeper prints how to grade the answers again with your eval tool. It only reads "
-         "the new results.")]
-    # the two pictures sit beside their step's words, each in a window like Home's
-    shots = [li.attrs["id"] for li in items for f in _all(li, "figure", "gx-shot")]
-    assert shots == ["step-find", "step-measure"]
-    for li, title in ((_by_id(GUIDE, "step-find"), "marking page"),
-                      (_by_id(GUIDE, "step-measure"), "result page")):
-        (win,) = _all(li, "div", "sp-shot")
-        assert "gwin" in win.classes() and _all(win, "figure", "gx-shot")
-        assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == title
-    # a step with no picture has its commands in a window like the install box, so every
-    # step has a matching window beside its words; Fix's small line goes under its commands
-    for sid in ("step-find", "step-fix", "step-check"):
-        (side,) = _all(_by_id(GUIDE, sid), "div", "sp-side")
-        win = _all(side, "div", "gwin")[0]  # Read has the marking page's picture after it
-        assert "sp-win" in win.classes() and not _all(win, "figure")
-        assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == (
-            "your project folder")
-        (inner,) = _all(win, "div", "gwin-body")
-        assert _all(inner, "div", "sp-cmds"), sid
-    assert len(_all(steps, "div", "gwin")) == 5  # a window a step, two for Read
-    (small,) = _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")
-    assert "gwin-body" in small.parent.classes()
-    # Find's note stays beside its words: under the commands, it would leave the words short
-    assert _all(_all(_by_id(GUIDE, "step-find"), "div", "gl-body")[0], "dl", "sp-ifs")
-    assert "border: 0" in _rule(".sp-shot .gx-shot")
-    assert "max-width" not in _rule(".gx-shot")  # the pictures fill the step's width
+    assert "font-weight: 800" in _rule(".gd-word") and "color: var(--green)" in _rule(".gd-word")
+    # words beside commands on a laptop; one under the other on a narrow screen
+    assert "grid-template-columns: minmax(0, 1fr) minmax(0, 440px)" in _rule(".gd-steps li")
+    narrow = _rule(".gd-steps li, .gd-more-row, .gd-handy-grid", _narrow(900))
+    assert "grid-template-columns: minmax(0, 1fr)" in narrow
+    assert not _all(_main(GUIDE), "details") and not _all(_main(GUIDE), "table")
     text = GUIDE.read_text(encoding="utf-8")
-    for gone in ("<template", "steplist", "t-out", "learn.html", "data-panel", "npx"):
+    for gone in ("<template", "steplist", "t-out", "learn.html", "data-panel", "npx", "<figure"):
         assert gone not in text, gone
 
 
-def test_running_text_is_justified_only_once_the_columns_are_full_width():
-    """Straight edges on both sides for paragraphs and the install box's notes, never for
-    headings, the big words, tip questions or commands. Narrower lines stay left-aligned, as
-    they would get big holes between words."""
-    wide = CSS[CSS.index("@media (min-width: 1280px)"):]
-    wide = wide[:wide.index("\n}\n")]
-    chosen = (".gl-body p:not(.sp-word), .sp-ifs dd, .sp-win .gx-small, .gx-install .gx-small, "
-              ".sp-block p, .rt-line")
-    assert "text-align: justify" in _rule(chosen, wide)
-    assert CSS.count("text-align: justify") == 1
-    assert "text-wrap: wrap" in _last(".rt-line", wide)  # "pretty" leaves the first line short
-    # a path wraps after a "/" there, so the line before it isn't left short
-    assert "white-space: normal" in _rule(".gx-text code.path", wide)
-    paths = [c for c in _all(_main(GUIDE), "code") if "path" in c.classes()]
-    assert len(paths) == 4
-    text = GUIDE.read_text(encoding="utf-8")
-    assert text.count('<code class="path">.judgekeeper/<wbr>') == 4
-    # the AI-check band names no path, so it is justified like the rest of the Guide
+def test_running_text_is_never_justified():
+    """Lines stay left-aligned at every width: justified text gets big holes between words."""
+    assert "text-align: justify" not in CSS
     assert not [sel for sel, _ in _rules() if sel.startswith("#ai-check")]
 
 
-def test_the_guides_ai_check_says_what_ai_and_what_it_costs_in_few_words():
-    """The band says which AI it means (a chatbot, an agent, any AI that answers questions),
-    one line per step, and what running the AI on the questions may cost."""
-    band = _by_id(GUIDE, "ai-check")
-    paras = [_flat(p) for p in _all(band, "p") if "gx-small" not in p.classes()]
-    assert paras[:5] == [
-        ("For a chatbot, agent or any AI that answers questions. Save its answers in a CSV, TSV "
-         "or JSONL file with input and output columns and no grades."),
-        ("1. Read: run judgekeeper in your project folder. It finds your answers. Mark each "
-         "answer Pass or Fail. On the result page, add a reason to the failed ones."),
-        "2. Measure: from 10 marks, see how many passed, with a range.",
-        ("3. Fix: judgekeeper saves the failed answers, apart from the half kept aside, with a prompt "
-         "for your coding agent to improve your AI’s prompt."),
-        ("4. Re-check: run your AI again and mark the new answers. On the questions kept aside, "
-         "judgekeeper counts how many were fixed and how many broke, and says whether the change "
-         "is more than a coincidence.")]
-    small = [_flat(p) for p in _all(band, "p", "gx-small")]
-    assert "Your AI runs once for each question, so this may use your API credits." in small
+def test_the_guides_answers_only_tab_says_which_answers_and_what_the_prompt_costs():
+    """The Answers only tab: answers with no grades, the four steps, and for no answers yet
+    a prompt for your coding agent, which says that running the agent or chatbot may use
+    your API credits."""
+    from judgekeeper import front
+
+    panel = _panel("ai-check")
+    assert _flat(_all(panel, "p", "gd-intro")[0]) == (
+        "Answers from your agent or chatbot, with no grades: a CSV, TSV or JSONL file with input "
+        "and output columns.")
+    row = _by_id(GUIDE, "question-prompt")
+    assert _flat(_all(row, "b")[0]) == "No answers yet"
+    assert _flat(_all(row, "span")[0]) == (
+        "Your coding agent writes about 40 test questions with you, runs your agent or chatbot "
+        "on them and saves the answers. This may use your API credits.")
+    (button,) = _all(row, "button", "copy")
+    assert button.attrs["aria-label"] == "Copy the prompt"
+    assert _flat(_all(button, "span", "gd-copy-say")[0]) == "Copy the prompt"
+    (code,) = _all(row, "code")
+    assert "hidden" in code.attrs  # the button copies it; the page shows its words instead
+    assert code.text() == front.QUESTIONS_PROMPT.format(program="judgekeeper")  # word for word
+    links = [(a.attrs["href"], _flat(a)) for a in _all(_all(panel, "div", "gd-foot")[0], "a")]
+    assert links == [(f"{EXAMPLES}/ai-check/README.md", "See an example run"),
+                     (REFERENCE_MD, "Full reference")]
 
 
 def test_the_guides_commands_look_like_terminal_lines():
     """A green "$" before each one-line command, drawn by CSS so Copy copies the command
-    alone. Handy commands are a box of terminal lines."""
+    alone; a prompt or a line of code has none."""
     assert 'content: "$"' in _rule(".gx .cmd code::before")
     assert "var(--green)" in _rule(".gx .cmd code::before")
+    assert "content: none" in _rule(".gx .cmd.prompt code::before")
     assert "background: var(--term-bg)" in _rule(".gx .cmd")
     assert "code.textContent" in JS  # what Copy copies: never the "$"
-    misc = _by_id(GUIDE, "misc")
-    assert _flat(_all(misc, "h3")[0]) == "Handy commands"
-    (pre,) = _all(misc, "pre", "gm-pre")
-    # in a narrow box each comment goes under its command; half a wide page fits both
-    assert "display: block" in _rule(".sp-block .gm-pre .t-dim")
-    wide = CSS[CSS.index("@media (min-width: 1280px)"):]
-    assert "display: inline" in _rule(".sp-block .gm-pre .t-dim", wide)
-    assert "font-size: 13px" in _rule(".sp-block .gm-pre", wide)  # the longest line fits
-    assert pre.parent is misc  # straight under its heading
-    for part in ("border: 1px solid var(--line)", "background: var(--term-bg)"):
-        assert part in _rule(".gm-pre"), part
-    lines = [" ".join(line.split()) for line in pre.text().splitlines()]
-    assert lines == ["$ judgekeeper --stop # close the marking page",
-                     "$ judgekeeper --new # start over (old marks are kept)",
-                     "$ judgekeeper --no-browser # get the link, no browser",
-                     "$ judgekeeper --help # see every option"]
-    assert {_flat(s) for s in _all(pre, "span", "t-prompt")} == {"$"}
+    prompts = [_flat(_all(b, "code")[0]) for b in _all(_main(GUIDE), "div", "prompt")]
+    assert prompts == ["Follow www.judgekeeper.com/start.html to run judgekeeper on my project.",
+                       "judgekeeper.record(input=question, output=answer, verdict=grade)",
+                       '{"id": "run-1", "first_wrong_step": 3, "model": "my-judge"}']
+    assert "gx" in _main(GUIDE).classes()
 
 
 def test_every_command_box_has_a_copy_button_that_says_copied():
     boxes = [box for page in (GUIDE, CHECK) for box in _all(parse(page), "div", "cmd")]
-    install = ["pip install judgekeeper", "judgekeeper", "uvx judgekeeper"]  # one per box
-    assert [_flat(_all(b, "code")[0]) for b in boxes] == [
-        *install, "judgekeeper", "judgekeeper path/to/results.json",
-        "judgekeeper", "judgekeeper mark", "judgekeeper fix",
-        "judgekeeper fix new-results.json", "judgekeeper check new-results.json",
-        _flat(_all(_by_id(GUIDE, "question-prompt"), "code")[0]),
-        "judgekeeper results.csv"]  # the check page has none: its status bar links here
-    for box in boxes:  # each button is named by the command it copies, or "the prompt"
+    install = ["pip install judgekeeper", "judgekeeper", "uvx judgekeeper",
+               "uv add --dev judgekeeper",
+               "Follow www.judgekeeper.com/start.html to run judgekeeper on my project."]
+    steps = [c for key, _, _ in GUIDE_TABS for _, _, cmds in GUIDE_STEPS[key] for c in cmds]
+    more = {"results": ["judgekeeper results.csv",
+                        "judgekeeper.record(input=question, output=answer, verdict=grade)",
+                        "judgekeeper --labels your-labels.csv"],
+            "ai-check": [_flat(_all(_by_id(GUIDE, "question-prompt"), "code")[0])],
+            "agent-steps": ['{"id": "run-1", "first_wrong_step": 3, "model": "my-judge"}',
+                            "judgekeeper steps export.json"]}
+    by_tab = [c for key, _, _ in GUIDE_TABS for c in
+              [*[c for _, _, cmds in GUIDE_STEPS[key] for c in cmds], *more[key]]]
+    handy = ["judgekeeper --stop", "judgekeeper --new", "judgekeeper --no-browser",
+             "judgekeeper --help"]
+    assert [_flat(_all(b, "code")[0]) for b in boxes] == [*install, *by_tab, *handy]
+    assert len(by_tab) == len(steps) + 6  # the check page has none: its status bar links here
+    named = {"judgekeeper.record(input=question, output=answer, verdict=grade)":
+             "Copy code: judgekeeper.record()",
+             install[-1]: "Copy the prompt for your coding agent",
+             more["ai-check"][0]: "Copy the prompt",
+             more["agent-steps"][0]: "Copy an example picks line"}
+    for box in boxes:  # each button is named by what it copies
         (button,) = _all(box, "button", "copy")
         command = _flat(_all(box, "code")[0])
-        named = "Copy the prompt" if "prompt" in box.classes() else f"Copy command: {command}"
-        assert "data-copy" in button.attrs and button.attrs["aria-label"] == named
+        assert "data-copy" in button.attrs
+        assert button.attrs["aria-label"] == named.get(command, f"Copy command: {command}")
         assert _all(button, "svg", "i-copy") and _all(button, "svg", "i-tick")
         (said,) = _all(button, "span", "copied")
         assert said.attrs.get("aria-live") == "polite"
@@ -1332,6 +1192,7 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
     assert "position" not in _rule(".cmd .copied") and "display: inline" in _rule(
         ".cmd .copy.done .copied")
     assert "padding: 12px 18px" in _rule(".cmd code")
+    assert "padding: 11px 14px" in _rule(".gd-panel .cmd code")
     # a copy that failed says so in the button, never "Copied"
     assert "display: inline" in _rule(".cmd .copy.failed .copied")
 
