@@ -28,7 +28,7 @@ from pathlib import Path
 
 from judgekeeper import __version__, metrics, project, redact, targets, textio, weighted
 from judgekeeper.fingerprint import JudgeFingerprint, unknown_fields, utc_now
-from judgekeeper.redact import scrub_value
+from judgekeeper.redact import scrub, scrub_value, visible
 from judgekeeper.start import StartError, page_flags, path_word
 from judgekeeper.start_label import Workspace, make_folder
 from judgekeeper.textio import plural, program, write_replacing
@@ -83,6 +83,8 @@ NOT_EXPORT = ("{name} is not a Label Studio export of the runs judgekeeper steps
               "it your runs file (JSONL) or that project's export (JSON).")
 FLAT_EXPORT = ("{name} looks like a Label Studio JSON_MIN (or CSV) export. judgekeeper steps "
                "reads the full JSON export: in Label Studio, export as JSON.")
+PICKED_AGAIN = "Line {line} of {name} picks {run} again; the later line is used."
+PICKED_AGAIN_MANY = "Lines {lines} of {name} pick a run again; the later line is used for each."
 NO_STEPS_IN_EXPORT = ("{name} is a Label Studio export, but its tasks hold no `steps` (they "
                       "hold: {keys}). This reads the export of the project made from "
                       f"{SHOWN}/{TASKS_FILE}.")
@@ -453,9 +455,41 @@ def read_guesses(path: Path) -> tuple[dict, dict]:
     """(reviewer -> run id -> number, reviewer -> fingerprint fields given) from a JSONL file
     of {id, first_wrong_step, model}; a line may also say provider, snapshot, prompt_hash,
     rubric_version or temperature, and when it was judged (created_at or timestamp; the
-    newest of a reviewer's lines is its fingerprint's created_at)."""
+    newest of a reviewer's lines is its fingerprint's created_at). A run picked again by the
+    same reviewer: the later line wins (picked_again says which lines)."""
+    guesses, given, _ = _read_guesses(path)
+    return guesses, given
+
+
+def picked_again(path: Path, reviewers) -> list[tuple[int, str]]:
+    """(line number, run id) of each line of the picks file that picks a run again that one
+    of `reviewers` picked on an earlier line."""
+    return [(number, run_id) for number, name, run_id in _read_guesses(path)[2]
+            if name in reviewers]
+
+
+def _again_lines(path: Path, reviewers) -> list[str]:
+    """The line on the runs the picks file picks again: by line number, the run named only
+    when its id is plain text (no key, no hidden character)."""
+    again = picked_again(path, reviewers)
+    if not again:
+        return []
+    if len(again) == 1:
+        number, run_id = again[0]
+        plain = scrub(run_id) == run_id and visible(run_id) == run_id and run_id.isprintable()
+        return [PICKED_AGAIN.format(line=number, name=path.name,
+                                    run=f"run {run_id}" if plain else "a run")]
+    said = [str(n) for n, _ in again[:5]]
+    words = (", ".join(said) + f" and {len(again) - 5} more" if len(again) > 5
+             else ", ".join(said[:-1]) + f" and {said[-1]}")
+    return [PICKED_AGAIN_MANY.format(lines=words, name=path.name)]
+
+
+def _read_guesses(path: Path) -> tuple[dict, dict, list[tuple[int, str, str]]]:
+    """read_guesses's two, and (line number, reviewer, run id) of each run picked again."""
     guesses: dict[str, dict] = {}
     given: dict[str, dict] = {}
+    again: list[tuple[int, str, str]] = []
     text = textio.read_utf8(path, StepsError)
     for number, line in enumerate(textio.jsonl_lines(text), 1):
         if not line.strip():
@@ -472,7 +506,10 @@ def read_guesses(path: Path) -> tuple[dict, dict]:
                              f"{STEP_FIELD} (0 = all fine).")
         model = row.get("model")
         name = model if isinstance(model, str) and model.strip() else DEFAULT_REVIEWER
-        guesses.setdefault(name, {})[str(row["id"])] = row[STEP_FIELD]
+        picks = guesses.setdefault(name, {})
+        if str(row["id"]) in picks:
+            again.append((number, name, str(row["id"])))
+        picks[str(row["id"])] = row[STEP_FIELD]
         keep = {k: row[k] for k in ("provider", "snapshot", "prompt_hash", "rubric_version",
                                     "temperature") if k in row}
         entry = given.setdefault(name, keep)
@@ -480,7 +517,7 @@ def read_guesses(path: Path) -> tuple[dict, dict]:
                       if isinstance(row.get(k), str) and row[k].strip()), None)
         if stamp and stamp > (entry.get("created_at") or ""):
             entry["created_at"] = stamp  # the newest line's time is the fingerprint's
-    return guesses, given
+    return guesses, given, again
 
 
 # The numbers ------------------------------------------------------------------------------
@@ -869,6 +906,9 @@ def _report(export: Export, guesses: dict, given: dict, names: frozenset, shown:
     if stats["unusable"]:
         say(f"{plural(stats['unusable'], 'run')} had a number that is not a step of the run "
             "(a whole number from 0 to the last step); they are left out.")
+    if reviewer is not None:
+        for line in _again_lines(Path(reviewer), set(guesses)):
+            say(line)
     source = ({"marks": f"{SHOWN}/{MARKS_FILE}", "runs": runs_name,
                "reviewer_file": Path(reviewer).name if reviewer else None} if marks
               else _given(Path(export.name), reviewer))

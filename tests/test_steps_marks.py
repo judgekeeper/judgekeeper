@@ -327,6 +327,50 @@ def test_guesses_for_runs_not_in_the_runs_file_name_the_runs_file(here):
     assert "  Left out: 1 pick is for a run that is not in runs.jsonl." in lines
 
 
+def _pick_again(here, *rows):
+    with (here / "g.jsonl").open("a", encoding="utf-8") as f:
+        for run_id, step in rows:
+            f.write(json.dumps({"id": run_id, "first_wrong_step": step, "model": "reviewer-a"})
+                    + "\n")
+
+
+def test_a_run_picked_twice_is_said_and_the_later_pick_is_used(here):
+    runs = marked_project(here)
+    _pick_again(here, ("r3", 0))  # line 41; r3 was picked on line 4
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert "Line 41 of g.jsonl picks run r3 again; the later line is used." in lines
+    assert steps.read_guesses(here / "g.jsonl")[0]["reviewer-a"]["r3"] == 0
+
+
+def test_runs_picked_again_are_said_in_one_line(here):
+    runs = marked_project(here)
+    _pick_again(here, *[(f"r{i}", 0) for i in range(7)])
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert ("Lines 41, 42, 43, 44, 45 and 2 more of g.jsonl pick a run again; the later line "
+            "is used for each.") in lines
+
+
+def test_a_run_picked_again_is_not_named_when_its_id_looks_like_a_key(here):
+    key = "sk-ant-api03-" + "Q" * 80
+    runs = here / "runs.jsonl"
+    runs.write_text(json.dumps({"id": key, "steps": [{"role": "user", "content": "x"}]})
+                    + "\n", encoding="utf-8")
+    write_marks(here, [mark(key, 1, hashes_of(runs))])
+    (here / "g.jsonl").write_text("".join(json.dumps({"id": key, "first_wrong_step": s})
+                                          + "\n" for s in (1, 0)), encoding="utf-8")
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert "Line 2 of g.jsonl picks a run again; the later line is used." in lines
+    assert "Q" * 20 not in "\n".join(lines)
+
+
+def test_one_run_picked_by_two_agents_as_a_judge_is_not_a_repeat(here):
+    runs = marked_project(here)
+    with (here / "g.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"id": "r3", "first_wrong_step": 0, "model": "reviewer-b"}) + "\n")
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert not any("again; the later line" in x for x in lines)
+
+
 # The command ---------------------------------------------------------------------------------
 
 def test_steps_runs_with_marks_prints_the_numbers(here, capsys):
