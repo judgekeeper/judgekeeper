@@ -3947,7 +3947,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     from judgekeeper import steps, steps_page
 
     typed = steps_page.opened_with(closed["flags"]) if closed else None  # the steps page's
-    command = steps._command(*typed) if typed else _continue_command(talk, ws, closed)
+    command = (steps._command(*typed, *start.page_flags(closed["port"], closed["no_browser"]))
+               if typed else _continue_command(talk, ws, closed))
     talk.para("Next: " + NEXT_CONTINUE.format(command=command))
     return EXIT_OK
 
@@ -3956,10 +3957,10 @@ def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) 
     """The run that carries on the project after --stop: in its own folder, as the result
     was made (result.json's flags: the pass mark in use, the flags that read the results,
     how the page opens), so a scores project still reads its scores; else as typed. Either
-    way with how the `page` it closed was opened ({"port", "no_browser", "flags"}): its port,
-    but the default or any free one (0), and --no-browser when it was given it. With no
-    result yet, as the page was started (its flags: the file it was given, say)."""
-    port = page and page["port"] not in (None, 0, DEFAULT_PORT) and page["port"]
+    way with how the `page` it closed was opened ({"port", "no_browser", "flags"}), by
+    start.page_flags. With no result yet, as the page was started (its flags: the file it was
+    given, say)."""
+    port = page["port"] if page and page["port"] is not None else DEFAULT_PORT
     try:
         flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
@@ -3968,13 +3969,12 @@ def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) 
     if not isinstance(flags, dict) and page:
         flags, subcommand = page.get("flags"), talk.subcommand  # as typed: `mark --stop`
     if not isinstance(flags, dict) or Path.cwd().resolve() != ws.root.resolve():
-        typed = talk.options.get("port", DEFAULT_PORT) != DEFAULT_PORT
-        extra = ("--port", str(port)) if port and not typed else ()
-        if page and page["no_browser"] and not talk.options.get("no_browser"):
-            extra = (*extra, "--no-browser")
+        typed = talk.options.get("port", DEFAULT_PORT) != DEFAULT_PORT  # said by talk.command
+        extra = start.page_flags(DEFAULT_PORT if typed else port, bool(
+            page and page["no_browser"] and not talk.options.get("no_browser")))
         return talk.command(*extra)  # the paths it keeps are from the project folder
     if page:
-        flags = {**flags, "port": port or DEFAULT_PORT, "no_browser": page["no_browser"]}
+        flags = {**flags, "port": port, "no_browser": page["no_browser"]}
     return start.command_from(flags, subcommand)
 
 

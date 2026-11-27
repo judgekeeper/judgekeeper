@@ -27,7 +27,7 @@ import random
 from html import escape
 from pathlib import Path
 
-from judgekeeper import __version__, look, marks, steps, textio
+from judgekeeper import __version__, look, marks, start, steps, textio
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.label import StaleMark, make_server
 from judgekeeper.mark_page import NO_ANSWER, SEE_FIRST, SEE_READY
@@ -54,8 +54,8 @@ EMPTY_STEP = "(empty step)"
 # The result page
 RESULT_TITLE = "Your result"
 CHANGE = "Change a mark"
-NO_PICKS = ("Add your agent-as-a-judge's picks to see how often it agrees with you: "
-            "judgekeeper steps runs.jsonl --reviewer picks.jsonl")
+PICKS = "picks.jsonl"  # the picks file the result page's command names
+NO_PICKS = "Add your agent-as-a-judge's picks to see how often it agrees with you: `{command}`"
 JUDGE = "Agent-as-a-judge"
 ALL_FINE = "All fine"
 BOTH = "Both"
@@ -97,6 +97,8 @@ class StepsSession:
         self.reviewer = Path(reviewer) if reviewer else None
         self.model = model
         self.shown = shown  # the runs path as typed where the page was opened
+        # how to add picks, as the footer says the command (steps_server: with its flags)
+        self.picks_command = steps._command(shown or str(runs_path), PICKS)
         self.link: str | None = None  # marks.LINKS: how its link was shown (page.show)
         self._marks: dict[str, int] = {}
         self.changed = 0  # marks dropped because their run's steps changed
@@ -662,7 +664,7 @@ def result_page(session: StepsSession, back: str) -> str:
         picks, lines = None, [str(err)]
     else:
         if picks is None:
-            lines = [*lines, NO_PICKS]
+            lines = [*lines, NO_PICKS.format(command=session.picks_command)]
     head = ["Run", "You"] + ([] if picks is None else [picks[0]])
     rows = []
     for run_id in session.order:
@@ -712,9 +714,12 @@ def page_key(flags: dict) -> dict:
     return {"flags": kept, "start": about}
 
 
-def come_back(flags: dict) -> str:
-    """`judgekeeper steps RUNS [--reviewer FILE]`, as the footer says it."""
-    return steps._command(str(flags.get("path") or "."), flags.get("reviewer"))
+def come_back(flags: dict, reviewer: str | None = None) -> str:
+    """`judgekeeper steps RUNS [--reviewer FILE]` with how the page was opened
+    (start.page_flags), as the footer says it; `reviewer` in place of the page's picks file."""
+    again = start.page_flags(flags.get("port"), flags.get("no_browser") is True)
+    return steps._command(str(flags.get("path") or "."), reviewer or flags.get("reviewer"),
+                          *again)
 
 
 def steps_server(ws: Workspace, port: int, flags: dict, token: str | None = None,
@@ -725,6 +730,7 @@ def steps_server(ws: Workspace, port: int, flags: dict, token: str | None = None
                            model=flags.get("model"), shown=flags.get("path"))
     if stamp in marks.LINKS:
         session.link = stamp
+    session.picks_command = come_back(flags, PICKS)
     port_asked = flags.get("port")
     return make_server(session, port, result=result_page, page=page_template(come_back(flags)),
                        lock=ws.dir, stays=True, token=token, settings=page_key(flags),
@@ -776,6 +782,7 @@ def stop(given: Path) -> int:
     ws = Workspace(project_of(given))
     lock = read_lock(ws.dir) if is_open(ws.dir) else None
     typed = opened_with((lock.get("settings") or {}).get("flags")) if lock else None
+    again = start.page_flags(lock["asked"], lock["no_browser"] is True) if lock else ()
     _say(f"judgekeeper {__version__}")
     _say()
     if lock is None:
@@ -790,7 +797,7 @@ def stop(given: Path) -> int:
         saved = " Your marks are saved." if (ws.dir / steps.FOLDER / MARKS_FILE).is_file() else ""
         _say(f"Closed the marking page.{saved}")
     _say()
-    command = steps._command(*typed) if typed else steps._command(str(given), None)
+    command = steps._command(*typed, *again) if typed else steps._command(str(given), None)
     _say("Next: " + NEXT_CONTINUE.format(command=command))
     return steps.EXIT_OK
 
@@ -823,7 +830,11 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
     no_browser, wait = bool(options.get("no_browser")), bool(options.get("wait"))
     flags = flags_for(file, shown=shown, reviewer=reviewer, model=model,
                       port=options.get("port", pages.DEFAULT_PORT), no_browser=no_browser)
-    command = steps._command(shown, reviewer)
+    again = start.page_flags(flags["port"], no_browser)  # how this run opens the page
+
+    def command(*flags: str) -> str:
+        return steps._command(shown, reviewer, *flags)
+
     done = StepsSession(ws, file).summary()["done"]  # every run marked: open at the result
     opened = None
     try:
@@ -840,16 +851,16 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
         if opened is None and not pages.port_free(tried):
             _say(PORT_TAKEN.format(port=tried))
             _say()
-            _say("Next: " + NEXT_ANY_PORT.format(command=f"{command} --port 0"))
+            _say("Next: " + NEXT_ANY_PORT.format(command=command(*start.page_flags(0, no_browser))))
         else:
             _say(COULD_NOT_START)
             _say()
-            _say("Next: " + COULD_NOT.format(command=f"{command} --wait"))
+            _say("Next: " + COULD_NOT.format(command=command(*again, "--wait")))
         return steps.EXIT_NEEDS_YOU
     if opened.kept and not no_browser:  # no new tab for a page open already
         _say(IN_BROWSER if done else f"{IN_BROWSER} {CLICK}")
         if how == pages.KEPT:
-            _say(CLOSED_IT.format(command=f"{command} --no-browser"))
+            _say(CLOSED_IT.format(command=command(*start.page_flags(flags["port"], True))))
     elif done:  # opened at the result: its link says so when printed
         if how == pages.BROWSER:
             _say(RESULT_OPEN)
@@ -860,7 +871,7 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
     marked = steps.marks_path(given).is_file()
     _say()
     if (no_browser or done) and marked and opened.server is None:  # the numbers, also for a
-        code = steps.say_numbers_from_marks(file, shown, reviewer, model)  # program, no page
+        code = steps.say_numbers_from_marks(file, shown, reviewer, model, again)  # program
     else:  # with --wait the numbers are said once, when the page closes
         _say(NEXT)
         _say(LABEL_STUDIO.format(command=textio.program("steps EXPORT.json")))
@@ -873,7 +884,7 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
     except KeyboardInterrupt:
         stopped = True
     _say()
-    said = steps.say_numbers_from_marks(file, shown, reviewer, model)
+    said = steps.say_numbers_from_marks(file, shown, reviewer, model, again)
     if said is None:
         if stopped:
             raise KeyboardInterrupt

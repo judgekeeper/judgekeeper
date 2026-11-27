@@ -11,7 +11,6 @@ import itertools
 import json
 import math
 import re
-import sys
 from collections import Counter
 from pathlib import Path
 
@@ -23,6 +22,7 @@ from judgekeeper.textio import (
     make_private,
     read_utf8,
     shown_path,
+    to_stderr,
     utf8_lines,
     write_replacing,
 )
@@ -230,7 +230,7 @@ def capped(rows: list, path: str | Path, say: bool = True) -> list:
     if say and key not in _said_capped:
         _said_capped.add(key)
         line = CAPPED.format(n=MAX_ROWS, file=Path(path).name)
-        print(one_line(scrub(line)), file=sys.stderr, flush=True)  # as every line said
+        to_stderr(one_line(scrub(line)))  # as every line said
     return rows[:MAX_ROWS]
 
 

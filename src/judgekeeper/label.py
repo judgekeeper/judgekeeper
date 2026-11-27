@@ -51,7 +51,13 @@ from judgekeeper.table import (
     sheet_id,
     unguard_cell,
 )
-from judgekeeper.textio import describe_os_error, make_private, unwritable_file, write_replacing
+from judgekeeper.textio import (
+    describe_os_error,
+    make_private,
+    to_stderr,
+    unwritable_file,
+    write_replacing,
+)
 
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -560,11 +566,10 @@ class LabelServer:
                 break
             except PermissionError as e:
                 if tries == 1:
-                    print(f"judgekeeper: {path.name} was not removed ({e})", file=sys.stderr)
+                    to_stderr(f"judgekeeper: {path.name} was not removed ({e})")
                 time.sleep(RELEASE_PAUSE)
             except (OSError, ValueError, AttributeError) as e:
-                print(f"judgekeeper: {path.name} was not removed ({type(e).__name__}: {e})",
-                      file=sys.stderr)
+                to_stderr(f"judgekeeper: {path.name} was not removed ({type(e).__name__}: {e})")
                 break
 
     def serve(self, idle_timeout: float | None = None) -> None:

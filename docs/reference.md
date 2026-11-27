@@ -57,7 +57,7 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 | `--judge-model NAME` | The LLM-as-a-judge's model, when the results do not record it. Given after marking started, it is written down with your marks, not a change |
 | `--before FILE` | Results with grades to compare these with, question by question, in place of the last results read here: exit 1 when the change made it worse, 3 when nothing could be compared. Read the same way as these, with the same `--label-map`. See [Did your change make it worse?](#did-your-change-make-it-worse) |
 | `--yes` | Without a terminal: yes to the questions judgekeeper printed. Never to a choice of tool, LLM-as-a-judge or pass mark |
-| `--port PORT` | Port on 127.0.0.1 for the page (default 8765). `0` means any open port |
+| `--port PORT` | Port on 127.0.0.1 for the page (default 8765, or 0 for any free port) |
 | `--no-browser` | Print the page's link without opening a browser |
 | `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first when you have marks; nothing is deleted). `history.jsonl`, `verdicts/`, `records/` and `.gitignore` stay where they are |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
@@ -242,7 +242,7 @@ judgekeeper steps [PATH] [--reviewer FILE] [--model NAME] [--port PORT] [--no-br
 | `PATH` | Your agent runs (a JSONL file, one run per line with an id and its steps) to mark on a page in your browser, or a Label Studio export (JSON) of those runs to see the numbers |
 | `--reviewer FILE` | Your agent-as-a-judge's picks as a JSONL file, one line per run: {"id": ..., "first_wrong_step": ..., "model": ...}; else the predictions in the export |
 | `--model NAME` | The agent-as-a-judge to look at, when the picks hold several |
-| `--port PORT` | Port on 127.0.0.1 for the page (default 8765). `0` means any open port |
+| `--port PORT` | Port on 127.0.0.1 for the page (default 8765, or 0 for any free port) |
 | `--no-browser` | Print the page's link without opening a browser |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background. When the page closes, it says the numbers from your marks |
 | `--stop` | Close the open page |
@@ -269,7 +269,7 @@ A plain `judgekeeper` in a folder with agent runs and no eval results says where
 - **Mark:** click the first wrong step, or "All steps are fine". Your pick is tagged "You". A click only picks; Next saves your pick and opens the next run you have not marked. On the last one, Next says "See your result". The bar at the bottom says which run this is ("Run *n* of *total*").
 - **Undo** opens the run you last saved a mark for in this tab and puts back the mark it had before (or none). With nothing to undo it says "Nothing to undo."
 - **"See the numbers so far"**, at the top, appears after your first mark and opens the result page.
-- At the bottom, the command to come back: "To come back: `judgekeeper steps runs.jsonl`".
+- At the bottom, the command to come back: "To come back: `judgekeeper steps runs.jsonl`". Like every command judgekeeper prints to open a page again, it keeps `--port N` when the run had one other than 8765 (`--port 0` too) and `--no-browser` when the run had it.
 
 | Key | What it does |
 |---|---|
@@ -282,9 +282,9 @@ A key held down, or pressed with Cmd, Ctrl or Alt, does nothing. So does a key w
 
 **The order.** The runs come in one random order, made from the runs file's hash: the same file gives the same order on every computer. Your agent-as-a-judge's picks never reach the marking page, only the result page, so they can't sway your marks. Run `judgekeeper steps runs.jsonl` again and the page opens at the first run you have not marked. With every run marked, it opens at the result ("Your result page is open in your browser."). A run marked in another tab since your page loaded is not marked over: the page says "Not marked: this run was already marked in another tab. The list is up to date again."
 
-**The page itself** is the same as the answers page: on 127.0.0.1, with a random token in its link, one page per project at a time (the answers page or this one). `judgekeeper steps --stop` (or `judgekeeper --stop`) closes it. It says "Closed the marking page." (with "Your marks are saved." once you have marks) and "Next: run `judgekeeper steps runs.jsonl` when you want to continue." With `--wait` it is served in this terminal, and the numbers are said once, when it closes.
+**The page itself** is the same as the answers page: on 127.0.0.1, with a random token in its link, one page per project at a time (the answers page or this one). `judgekeeper steps --stop` (or `judgekeeper --stop`) closes it. It says "Closed the marking page." (with "Your marks are saved." once you have marks) and "Next: run `judgekeeper steps runs.jsonl` when you want to continue." (with the page's `--port` and `--no-browser`). With `--wait` it is served in this terminal, and the numbers are said once, when it closes.
 
-**The result page**, "Your result", shows the numbers' lines as the terminal says them, then one row per run you marked: the run's id, your mark ("Step *n*" or "All fine") and, with `--reviewer`, the agent-as-a-judge's pick ("Both" when it is the same as yours). "Change a mark" goes back to the page. Without `--reviewer` it says "Add your agent-as-a-judge's picks to see how often it agrees with you: judgekeeper steps runs.jsonl --reviewer picks.jsonl". When the picks file names several `model`s, the table shows the one `--model` names, else the first by name.
+**The result page**, "Your result", shows the numbers' lines as the terminal says them, then one row per run you marked: the run's id, your mark ("Step *n*" or "All fine") and, with `--reviewer`, the agent-as-a-judge's pick ("Both" when it is the same as yours). "Change a mark" goes back to the page. Without `--reviewer` it says "Add your agent-as-a-judge's picks to see how often it agrees with you: `judgekeeper steps runs.jsonl --reviewer picks.jsonl`", said as the come-back command is. When the picks file names several `model`s, the table shows the one `--model` names, else the first by name.
 
 **3. What is saved.** Your marks go in `.judgekeeper/steps/marks.jsonl`. Lines are only added, never changed. The first line says what the file is:
 

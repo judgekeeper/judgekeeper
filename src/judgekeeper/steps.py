@@ -29,7 +29,7 @@ from pathlib import Path
 from judgekeeper import __version__, metrics, project, targets, textio, weighted
 from judgekeeper.fingerprint import JudgeFingerprint, unknown_fields, utc_now
 from judgekeeper.redact import scrub_value
-from judgekeeper.start import StartError, path_word
+from judgekeeper.start import StartError, page_flags, path_word
 from judgekeeper.start_label import Workspace, make_folder
 from judgekeeper.textio import plural, program, write_replacing
 
@@ -598,11 +598,13 @@ def _fingerprint(name: str, created: str | None, given: dict) -> JudgeFingerprin
         **{k: v for k, v in given.items() if k in JudgeFingerprint.__dataclass_fields__}})
 
 
-def _command(path: str, reviewer: str | None) -> str:
+def _command(path: str, reviewer: str | None, *again: str) -> str:
+    """`judgekeeper steps PATH [--reviewer FILE]`, then `again`: how the run opened its page
+    (start.page_flags)."""
     words = ["steps", path_word(path)]
     if reviewer is not None:
         words += ["--reviewer", path_word(reviewer)]
-    return program(" ".join(words))
+    return program(" ".join((*words, *again)))
 
 
 def _is_export(path: Path) -> bool:
@@ -654,7 +656,8 @@ def run(path: str | None = None, reviewer: str | None = None, model: str | None 
     from judgekeeper.page import in_ci
 
     if not page or in_ci():
-        return _screen(file, given, reviewer, model)
+        return _screen(file, given, reviewer, model, again=page_flags(
+            page.get("port"), page.get("no_browser") is True))
     from judgekeeper import steps_page
 
     return _screen(file, given, reviewer, model, then=lambda: steps_page.open_runs(
@@ -674,9 +677,10 @@ def marks_path(given: Path) -> Path:
 
 
 def _screen(file: Path, given: Path, reviewer: str | None = None,
-            model: str | None = None, then=None) -> int:
+            model: str | None = None, then=None, again: tuple[str, ...] = ()) -> int:
     """Write the Label Studio files; then `then()` (the steps page opens), else the numbers
-    from the page's marks or how to label in Label Studio."""
+    from the page's marks or how to label in Label Studio. `again`: the page flags its
+    commands repeat (start.page_flags)."""
     runs = read_runs(file)
     picks = _picks({}, reviewer, model)  # a bad guesses file is said before anything is written
     tasks, config = screen_files(runs)
@@ -693,7 +697,7 @@ def _screen(file: Path, given: Path, reviewer: str | None = None,
     if marks.is_file():  # marked on the page already: the numbers, with their own Next line
         export = read_marks(marks, runs)
         return _report(export, *picks, str(given), reviewer, _say, runs_name=file.name,
-                       folder=folder, terminal=True)
+                       folder=folder, terminal=True, again=again)
     export = program("steps EXPORT.json")
     _say("Next: " + NEXT_LABEL.format(config=f"{SHOWN}/{CONFIG_FILE}",
                                        tasks=f"{SHOWN}/{TASKS_FILE}", export=export))
@@ -701,15 +705,16 @@ def _screen(file: Path, given: Path, reviewer: str | None = None,
 
 
 def say_numbers_from_marks(file: Path, shown: str, reviewer: str | None = None,
-                           model: str | None = None) -> int | None:
+                           model: str | None = None, again: tuple[str, ...] = ()) -> int | None:
     """The numbers from the page's marks for the runs in `file` (`shown` as the person typed
-    it), said line by line; the exit code, or None when nothing is marked on the page yet."""
+    it), said line by line; the exit code, or None when nothing is marked on the page yet.
+    `again`: the page flags its commands repeat (start.page_flags)."""
     marks = marks_path(Path(shown))
     if not marks.is_file():
         return None
     picks = _picks({}, reviewer, model)
     return _report(read_marks(marks, read_runs(file)), *picks, shown, reviewer, _say,
-                   runs_name=file.name, folder=marks.parent, terminal=True)
+                   runs_name=file.name, folder=marks.parent, terminal=True, again=again)
 
 
 def numbers_from_marks(runs: str | Path, marks: str | Path, reviewer: str | Path | None,
@@ -808,15 +813,16 @@ def _marks_read(stats: dict, runs_name: str, say, news_in: Path | None = None) -
 
 def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: str | None,
             say, runs_name: str | None = None, folder: Path | None = None,
-            terminal: bool = False) -> int:
+            terminal: bool = False, again: tuple[str, ...] = ()) -> int:
     """The numbers of `export` (a Label Studio export's, or the page's marks when
     `runs_name`, the runs file's name, is given), each line handed to `say`; result.json
     saved in `folder` (else the steps folder of the project at `shown`), with the numbers it
     held before (`before`, said as what changed since the last check). `terminal`: said in
-    the terminal, not on the result page. The exit code."""
+    the terminal, not on the result page. `again`: the page flags its commands repeat
+    (start.page_flags). The exit code."""
     marks = runs_name is not None
     name = runs_name if marks else export.name
-    command = _command(shown, reviewer)
+    command = _command(shown, reviewer, *again)
     stats = export.stats
     people = {"tasks": stats["tasks"], "labelled": stats["labelled"],
               "disagreed": stats["disagreed"], "no_label": stats["no_label"],
@@ -870,7 +876,7 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
                 + (": Label Studio exports hold only the ids of predictions unless you ask "
                    "for the full ones." if export.ids_only else "."))
         say("")
-        say("Next: " + NEXT_GUESSES.format(command=_command(shown, None)))
+        say("Next: " + NEXT_GUESSES.format(command=_command(shown, None, *again)))
         return EXIT_NEEDS_YOU
     for entry in reviewers:
         say("")
@@ -900,7 +906,7 @@ def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: st
     if any(r["run_level"]["too_few"] or r["step_level"]["too_few"] for r in reviewers):
         say("Next: " + more)
     else:
-        say("Next: " + NEXT_AGAIN.format(command=_command(shown, None)))
+        say("Next: " + NEXT_AGAIN.format(command=_command(shown, None, *again)))
     return EXIT_OK
 
 

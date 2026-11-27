@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import http.client
 import json
+import re
 import threading
 import time
 from html import unescape
@@ -489,10 +490,29 @@ def test_the_result_shows_the_numbers_lines_and_a_row_per_marked_run(serve, tmp_
 def test_the_result_with_no_picks_says_how_to_add_them(serve, tmp_path):
     path = _runs(tmp_path)
     _marked(tmp_path, path, {"r1": 1})
-    page = serve(path).request("GET", "/result")[1].decode("utf-8")
+    page = serve(path, shown="runs.jsonl", port=8765).request("GET", "/result")[1].decode("utf-8")
     assert "<th>Run</th><th>You</th></tr>" in page
     assert ("Add your agent-as-a-judge's picks to see how often it agrees with you: "
-            "judgekeeper steps runs.jsonl --reviewer picks.jsonl") in unescape(page)
+            "<code>judgekeeper steps runs.jsonl --reviewer picks.jsonl</code>") in unescape(page)
+
+
+def test_the_no_picks_command_is_the_footer_s_command_form(serve, tmp_path, monkeypatch):
+    """Started by uvx on another port, without a browser: the result page's command to add
+    picks is said as the marking page's footer and the terminal say it."""
+    from tests.test_uvx import CACHES, UVX
+
+    monkeypatch.setenv("UV", "/Users/me/.local/bin/uv")
+    monkeypatch.setattr("sys.prefix", CACHES[0])
+    monkeypatch.setattr("judgekeeper.textio.extras_here", lambda: ())
+    path = _runs(tmp_path)
+    _marked(tmp_path, path, {"r1": 1})
+    client = serve(path, shown="runs.jsonl", port=0, no_browser=True)
+    page = unescape(client.request("GET", "/result")[1].decode("utf-8"))
+    assert ("Add your agent-as-a-judge's picks to see how often it agrees with you: "
+            f"<code>{UVX} steps runs.jsonl --reviewer picks.jsonl --port 0 "
+            "--no-browser</code>") in page, page
+    footer = re.sub(r"<[^>]+>", "", unescape(client.request("GET", "/")[1].decode("utf-8")))
+    assert f"{UVX} steps runs.jsonl --port 0 --no-browser" in footer
 
 
 def test_with_several_names_and_no_model_the_column_names_the_one_shown(serve, tmp_path):

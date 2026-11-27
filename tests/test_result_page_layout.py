@@ -376,6 +376,8 @@ APPROVED = [  # the wording changes this layout makes
      r"tested on answers you haven't looked at again\.$"), r"\1 more \2 kept aside to test your fix."),
     (r"^Next, in your terminal, in your project folder:$", "Next, in your project folder:"),
     (r"^Show all$", "Show more"),
+    (r"^Change a mark: click it in the list and mark it again\.$",  # the list is not here
+     "Change a mark opens the list of your answers: click one and mark it again."),
 ]
 CUT = {"More details", "Value", "Estimate", "Between", "Optional: tell judgekeeper why you disagree.",
        "judgekeeper fix uses your reasons to find where your LLM-as-a-judge goes wrong.",  # 6
