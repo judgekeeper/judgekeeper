@@ -8,6 +8,7 @@ import json
 from urllib.parse import urlsplit
 
 from judgekeeper import report_page
+from judgekeeper.redact import item_key
 from tests.test_long_reasons import _node
 from tests.test_reasons import _ready, _run, here  # noqa: F401
 
@@ -30,9 +31,11 @@ def test_a_reason_saved_answers_with_the_own_buttons(here, capsys, pages, no_bro
     code, out = _run(capsys, "mark")
     assert code == 0, out
     url = no_browser[0]
-    status, got = _post(url, {"id": passes[0], "reasons": [], "note": "Gives the old price"})
+    status, got = _post(url, {"id": item_key(passes[0]), "reasons": [],
+                              "note": "Gives the old price"})
     assert status == 200, got
-    assert got["own"] == [{"id": "own-1", "text": "Gives the old price", "from": passes[0]}]
+    assert got["own"] == [{"id": "own-1", "text": "Gives the old price",
+                           "from": item_key(passes[0])}]  # as the box's data-id
 
 
 # Two answers' reason boxes, as the page draws them -------------------------------------------

@@ -136,7 +136,7 @@ def test_the_result_links_back_to_the_marking_page_with_the_marks_made(ws, again
     assert resp.status == 200
     [data] = re.findall(r'<script type="application/json" id="data">(.*?)</script>',
                         body.decode("utf-8"), re.DOTALL)
-    data = json.loads(data)["items"]
+    data = client.ids(json.loads(data))["items"]  # each answer's key as its id
     shown = {i["id"]: i["label"] for i in data if "again" not in i}
     assert all(shown[i["id"]] == groups[i["id"]] for i in items)
     back = [i for i in data if "again" in i]  # shown again, not marked again yet

@@ -406,6 +406,7 @@ def test_a_bad_reasons_json_never_stops_a_reason_being_saved(here, data):
 
 def test_the_page_never_drops_a_connection_on_a_bad_reasons_json(here, monkeypatch):
     from judgekeeper import page
+    from judgekeeper.redact import item_key
     from tests.test_reasons import _post
 
     ws, passes, _, _ = _ready(here)
@@ -417,7 +418,8 @@ def test_the_page_never_drops_a_connection_on_a_bad_reasons_json(here, monkeypat
             raise TypeError("unhashable type: 'list'")
 
         monkeypatch.setattr(reasons, "sync_own", broken)
-        status = _post(server.url, {"id": passes[0], "reasons": ["left_out"], "note": "x"})
+        status = _post(server.url, {"id": item_key(passes[0]), "reasons": ["left_out"],
+                                    "note": "x"})
         assert status == 400
     finally:
         server.stop()

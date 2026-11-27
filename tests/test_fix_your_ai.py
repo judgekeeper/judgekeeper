@@ -15,6 +15,7 @@ import pytest
 
 from judgekeeper import fix, marks, no_grades, reasons, report_page, start_fix_rule, start_label
 from judgekeeper.metrics import wilson
+from judgekeeper.redact import item_key
 from judgekeeper.textio import is_windows
 from tests.test_answers_without_grades import (
     _chips,
@@ -237,12 +238,13 @@ def test_a_kept_aside_answer_never_shows_but_is_counted(here, capsys, marked):
     assert set(r["fails"]) == set(shown) and r["kept"] == 3
     assert all("kept" not in words for words, _ in r["reasons"])
     for html in (_report(here), _live(here)):
-        assert set(_row_ids(html)) == set(shown) or _row_ids(html) == []  # report: no boxes
+        # the boxes (by each answer's key), or none on the report: no boxes
+        assert set(_row_ids(html)) == {item_key(i) for i in shown} or _row_ids(html) == []
         for i in kept:
             assert _text(page, i) not in html
         assert "3 more answers you failed are kept aside to test your next change." in html
     live = _live(here)
-    assert "kept" not in " ".join(_chips(live, shown[0])).lower()
+    assert "kept" not in " ".join(_chips(live, item_key(shown[0]))).lower()
     assert all("kept" not in c["text"] for c in reasons.own_chips(_ws(here))
                if c.get("from") in shown)
     text = _failed(here).read_text(encoding="utf-8")

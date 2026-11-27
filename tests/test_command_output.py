@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import marks, start_label
+from judgekeeper.redact import item_key
 from judgekeeper.start_label import Workspace
 from tests.start_projects import promptfoo_project, split, unwrapped
 from tests.test_check import HAIKU
@@ -911,7 +912,7 @@ def test_the_live_result_page_says_what_fix_does_for_an_own_file(here, capsys, n
         with urllib.request.urlopen(req, timeout=10) as r:
             return json.loads(r.read())
 
-    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    groups = {item_key(q["id"]): q["group"] for q in ws.data()["queue"]}  # as the page has them
     flipped = 0
     for item in call("/state")["items"]:  # 16 Pass, 20 Fail; the judge passed 8 of the fails
         label = groups[item["id"]]

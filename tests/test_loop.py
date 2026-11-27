@@ -16,6 +16,7 @@ import re
 import pytest
 
 from judgekeeper import __version__, background, label, marks, page, report_page, start, start_label
+from judgekeeper.redact import item_key
 from tests.page_http import retried
 from tests.start_projects import answer, promptfoo_project, records_project, split
 from tests.test_front import assert_one_next_at_the_end, before_comparison, next_lines, run
@@ -101,7 +102,7 @@ def _post_marks(url: str, ws, n: int, seconds=5) -> int:
 
         return retried(send)
 
-    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    groups = {item_key(q["id"]): q["group"] for q in ws.data()["queue"]}  # as the page has them
     items = call("/state")["items"][:n]
     for item in items:
         call("/label", {"id": item["id"], "label": groups[item["id"]], "seconds": seconds})

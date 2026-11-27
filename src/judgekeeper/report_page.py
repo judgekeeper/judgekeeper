@@ -24,6 +24,7 @@ from html import escape
 
 from judgekeeper import batches, look, reasons, targets
 from judgekeeper.judge_check import shown_reason
+from judgekeeper.redact import item_key
 from judgekeeper.start_label import (
     BEST_SO_FAR,
     EARLY,
@@ -1079,7 +1080,7 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0,
     mark = "Fail" if m["final"] == "fail" else "Pass"
     words = {c["id"]: c["text"] for c in own}
     said = _said_words(m, parts, words)
-    out = [(f'<div class="why" data-id="{_e(m["id"])}" data-answer="a-{n}" '
+    out = [(f'<div class="why" data-id="{item_key(m["id"])}" data-answer="a-{n}" '
             f'data-len="{len(m["answer"]) if m["answer"].strip() else 0}" '
             f'data-spans="{_e(json.dumps(why.get("spans") or []))}" role="group" '
             f'aria-labelledby="q-{n}">'),

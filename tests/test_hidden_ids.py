@@ -5,11 +5,14 @@ of them (redact.visible), so the page never gets an id: it gets a key made from 
 from __future__ import annotations
 
 import json
+import threading
 
 import pytest
 
-from judgekeeper import redact, steps, steps_page
+from judgekeeper import label, page, redact, start, start_label, steps, steps_page
 from judgekeeper.start_label import Workspace
+from tests.start_projects import answer, question
+from tests.test_label_server import Client as AnswersClient
 from tests.test_steps_page import _lines, serve  # noqa: F401 - serve is a fixture
 
 HIDDEN = {"zero-width": "zw\u200bspace", "right-to-left": "rtl\u202eabc",
@@ -112,3 +115,90 @@ def test_two_run_ids_with_one_key_stop_at_the_runs_file(tmp_path, monkeypatch):
     assert str(e.value) == ("Line 2 of runs.jsonl has an id judgekeeper can't tell apart from "
                             "the id on line 1.")
 
+
+# The answers page -------------------------------------------------------------------------
+
+def _answers(tmp_path, monkeypatch, ids):
+    """Graded results with their own ids, in JSONL (a CSV file can't hold a NUL); each answer
+    shown once (no answer comes again)."""
+    monkeypatch.setattr(start_label, "REPEAT_FROM", 10**6)
+    (tmp_path / "results.jsonl").write_text("".join(json.dumps(
+        {"id": item_id, "input": question(n), "output": answer(n),
+         "verdict": "pass" if n < 21 else "fail"}) + "\n" for n, item_id in enumerate(ids)),
+        encoding="utf-8")
+    return start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
+
+
+@pytest.fixture
+def answers_client(tmp_path, monkeypatch):
+    started = []
+
+    def start_page(ids):
+        ws = _answers(tmp_path, monkeypatch, ids)
+        server = page.page_server(ws, 0)
+        thread = threading.Thread(target=server.serve, daemon=True)
+        thread.start()
+        started.append((server, thread))
+        return ws, AnswersClient(server)
+
+    yield start_page
+    for server, thread in started:
+        server.stop()
+        thread.join(timeout=5)
+
+
+def _mark_every_answer(ws, client):
+    """As the page goes: the first answer not marked, marked, then the next. The ids saved."""
+    for n in range(42):
+        state = client.state()
+        item = state["items"][state["start"]]
+        status, body = client.label(id=item["id"], label="pass", seconds=1)
+        assert status == 200 and body["summary"]["n_labeled"] == n + 1, body
+    lines = ws.marks.read_text(encoding="utf-8").splitlines()[1:]
+    return [json.loads(line)["id"] for line in lines]
+
+
+def _ids(**odd):
+    ids = [f"id{i}" for i in range(42)]
+    for at, value in odd.items():
+        ids[int(at.removeprefix("at"))] = value
+    return ids
+
+
+def test_two_answer_ids_that_differ_by_a_hidden_character_stay_two_answers(answers_client):
+    ids = _ids(at0="ab", at1="a\u200bb")
+    ws, client = answers_client(ids)
+    keys = [i["id"] for i in client.state()["items"]]
+    assert len(set(keys)) == len(keys) == 42
+    assert sorted(_mark_every_answer(ws, client)) == sorted(ids)  # each answer once
+
+
+@pytest.mark.parametrize("hidden", list(HIDDEN.values()), ids=list(HIDDEN))
+def test_an_answer_whose_id_has_a_hidden_character_is_saved_and_next_moves_on(answers_client,
+                                                                               hidden):
+    ids = _ids(at5=hidden)
+    ws, client = answers_client(ids)
+    assert sorted(_mark_every_answer(ws, client)) == sorted(ids)
+
+
+def test_the_answers_page_never_gets_the_answer_ids(answers_client):
+    _, client = answers_client(_ids(at0=FAKE_KEY, at1="plain-id"))
+    for path in ("/", "/state"):
+        text = _get(client, path)
+        assert FAKE_KEY not in text and "plain-id" not in text, path
+        assert redact.item_key("plain-id") in text, path
+
+
+def test_a_tab_that_sends_an_answer_id_instead_of_its_key_saves_nothing(answers_client):
+    ws, client = answers_client(_ids(at0="ab", at1="a\u200bb"))
+    resp, payload = client.request("POST", "/label", {"id": "ab", "label": "pass", "seconds": 1})
+    assert resp.status == 404 and json.loads(payload) == {"error": "no item with that id"}
+    assert len(ws.marks.read_text(encoding="utf-8").splitlines()) <= 1  # no mark line
+
+
+def test_two_answer_ids_with_one_key_are_refused(tmp_path, monkeypatch):
+    ws = _answers(tmp_path, monkeypatch, _ids())
+    monkeypatch.setattr(label, "item_key", lambda text: "k" + "0" * 16)
+    with pytest.raises(label.LabelError) as e:
+        start_label.StartSession(ws)
+    assert str(e.value) == label.TWO_KEYS and "id0" not in str(e.value)

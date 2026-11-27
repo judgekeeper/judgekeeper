@@ -83,14 +83,33 @@ class LabelError(Exception):
     """The items or the output file cannot be used: a usage error."""
 
 
+TWO_KEYS = ("Two answers have ids judgekeeper can't tell apart on the marking page. Give each "
+            "answer its own id, then run it again.")
+
+
 def page_data(session, data: dict) -> dict:
-    """`data` (a session's state or summary) as a page gets it: each run's id as its key. The
-    page's text is cleaned of hidden characters (shown), so it never holds an id; the POST it
-    sends names the run by the key."""
+    """`data` (a session's state or summary) as a page gets it: each item's id (an answer's, a
+    run's) as its key. The page's text is cleaned of hidden characters (shown), so it never
+    holds an id; the POST it sends names the item by the key."""
+    def key(item_id):
+        return item_key(item_id) if item_id in session.by_id else item_id
+
     out = dict(data)
-    if isinstance(out.get("runs"), list):  # the steps page
-        out["runs"] = [{**x, "id": item_key(x["id"])} for x in out["runs"]]
+    for name in ("items", "runs"):  # the answers page, the steps page
+        if isinstance(out.get(name), list):
+            out[name] = [{**x, "id": key(x["id"])} for x in out[name]]
+    if isinstance(out.get("again"), dict):  # an answer to show again
+        out["again"] = {**out["again"], "id": key(out["again"]["id"])}
     return out
+
+
+def item_keys(ids) -> dict[str, str]:
+    """{the page's key of each id: the id} (redact.item_key). Two ids with one key: LabelError,
+    never one answer for the other."""
+    keys = {item_key(i): i for i in ids}
+    if len(keys) < len(ids):
+        raise LabelError(TWO_KEYS)
+    return keys
 
 
 class PageBusy(LabelError):
@@ -139,6 +158,7 @@ class LabelSession:
                         note=_text(row.get("notes")))
             self.items.append(item)
         self.by_id = {i["id"]: i for i in self.items}
+        self.by_key = item_keys(self.by_id)  # what a page sends: never the id (redact.item_key)
         if self.out.is_file() and self.out.resolve() != self.items_path.resolve():
             self._resume()
 
@@ -907,8 +927,7 @@ def _handler(server: LabelServer):
             except RecursionError:  # nested deeper than Python's JSON reader goes
                 self._json(400, {"error": "expected a JSON object"})
                 return
-            keys = getattr(server.session, "by_key", None)  # the page sends a key, not the id
-            item_id = body["id"] if keys is None else keys.get(body["id"])
+            item_id = server.session.by_key.get(body["id"])  # the page sends a key, not the id
             if item_id not in server.session.by_id:
                 self._json(404, {"error": "no item with that id"})
                 return
@@ -945,7 +964,8 @@ def _handler(server: LabelServer):
                 from judgekeeper import reasons
 
                 try:
-                    reply["own"] = reasons.own_chips(server.session.workspace)
+                    reply["own"] = [{**c, "from": item_key(c["from"])} if c.get("from") else c
+                                    for c in reasons.own_chips(server.session.workspace)]
                 except (OSError, ValueError):
                     pass
             self._json(200, reply)
