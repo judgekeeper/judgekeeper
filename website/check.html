@@ -50,8 +50,8 @@
       <p class="ex-or"><span>or try an example</span></p>
       <div class="ex-row">
         <button type="button" class="fc-ex ex-card" draggable="true" data-example-file="shop-answers.csv"><svg class="ex-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5h6M9 16h4"/></svg><span class="ex-t"><b>Eval results</b><span>LLM-as-a-judge grades</span></span></button>
-        <button type="button" class="fc-ex ex-card" data-preview-kind="answers"><svg class="ex-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5h6M9 16h4"/></svg><span class="ex-t"><b>Answers only</b><span>no LLM-as-a-judge</span></span></button>
-        <button type="button" class="fc-ex ex-card" data-preview-kind="steps"><svg class="ex-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5h6M9 16h4"/></svg><span class="ex-t"><b>Agent runs</b><span>for an agent-as-a-judge</span></span></button>
+        <button type="button" class="fc-ex ex-card" draggable="true" data-example-file="shop-answers-no-grades.csv"><svg class="ex-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5h6M9 16h4"/></svg><span class="ex-t"><b>Answers only</b><span>no LLM-as-a-judge</span></span></button>
+        <button type="button" class="fc-ex ex-card" draggable="true" data-example-file="agent-runs.jsonl"><svg class="ex-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5h6M9 16h4"/></svg><span class="ex-t"><b>Agent runs</b><span>for an agent-as-a-judge</span></span></button>
       </div>
     </div>
   </div>
@@ -65,14 +65,14 @@
 <span class="t-dim">Drop it in the box, or try an example.</span>
 <span class="ck-cursor" aria-hidden="true">▋</span>
 <span class="ck-ghost" aria-hidden="true">
-Eval tool:       ··········
 File:            ··················
-Answers:         ·······
+Answers or runs: ·······
 LLM-as-a-judge:  ··············
-Rule:            ·····················
 
-Your LLM-as-a-judge passed ··· answers and failed ···.
-Checked: ··························</span></pre>
+This file has ········, so judgekeeper checks ····················.
+
+First answer or run in your file:
+  ·········      ·····························</span></pre>
       <div class="fc-result" id="fc-result" aria-live="polite"></div>
     </div>
     <div class="term-foot ck2-foot"><span class="tf-dot" aria-hidden="true"></span><span class="tf-text">your file stays on your computer</span><a class="tf-link" href="start.html">next step: install judgekeeper <span aria-hidden="true">→</span></a></div>

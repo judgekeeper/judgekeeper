@@ -1368,7 +1368,8 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert _flat(divider) == "or try an example"
     cards = _all(left, "button", "ex-card")
     assert [_flat(_all(c, "b")[0]) for c in cards] == ["Eval results", "Answers only", "Agent runs"]
-    assert cards[0].attrs.get("data-example-file") == "shop-answers.csv"  # the other two: s2
+    assert [c.attrs.get("data-example-file") for c in cards] == [
+        "shop-answers.csv", "shop-answers-no-grades.csv", "agent-runs.jsonl"]
     assert not _all(main, "div", "ck-run") and "uvx" not in _flat(main)
     # the terminal: the file's name in its bar once read, the waiting screen, the result
     assert _flat(_by_id(CHECK, "ck-title")) == "your file"
@@ -1394,21 +1395,33 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
 
 
 def test_waiting_terminal_uses_the_codes_labels(tmp_path):
-    """The faint lines while waiting are the labels the check then prints, values dotted."""
+    """The faint lines while waiting are the labels the check then prints for answers and for
+    agent runs, values dotted; the page's script sets the same lines."""
     from tests.test_freecheck_parity import NODE, browser
 
     ghost = _all(_by_id(CHECK, "ck-wait"), "span", "ck-ghost")[0].text()
-    labels = [line.split("·")[0].rstrip() for line in ghost.strip().splitlines() if line]
-    assert labels == ["Eval tool:", "File:", "Answers:", "LLM-as-a-judge:", "Rule:",
-                      "Your LLM-as-a-judge passed", "Checked:"]
+    labels = [line.split("·")[0].rstrip() for line in ghost.strip("\n").splitlines()]
+    assert labels == ["File:", "Answers or runs:", "LLM-as-a-judge:", "", "This file has", "",
+                      "First answer or run in your file:", ""]
     if NODE is None:
         pytest.skip("needs node to run the page's free check")
-    path = tmp_path / "results.csv"
-    path.write_text("input,output,verdict\nq1,a1,pass\nq2,a2,fail\n", encoding="utf-8")
-    (judge,) = browser(path)["judges"]
-    printed = "\n".join(judge["lines"])
-    for label in labels:
-        assert f"\n{label}" in "\n" + printed, label  # the check prints each, as a line's start
+    script = subprocess.run([NODE, "-e", "process.stdout.write(require(process.argv[1]).GHOST)",
+                             str(WEBSITE / "assets" / "freecheck.js")], capture_output=True,
+                            text=True, check=True, encoding="utf-8").stdout
+    assert script == ghost
+    answers = tmp_path / "answers.csv"
+    answers.write_text("input,output\nq1,a1\nq2,a2\n", encoding="utf-8")
+    runs = tmp_path / "runs.jsonl"
+    runs.write_text('{"id": "r1", "steps": [{"role": "user", "content": "Hi."}]}\n',
+                    encoding="utf-8")
+    printed = ["\n".join(browser(path)["lines"]) for path in (answers, runs)]
+    for label, means in (("File:", ("File:", "File:")), ("LLM-as-a-judge:", ("LLM-as-a-judge:",)),
+                         ("Answers or runs:", ("Answers:", "Runs:")),
+                         ("This file has", ("This file has", "This file has")),
+                         ("First answer or run in your file:",
+                          ("First answer in your file:", "First run in your file:"))):
+        for said, start in zip(printed, means, strict=False):
+            assert f"\n{start}" in "\n" + said, label  # the check prints each, as a line's start
 
 
 def test_the_browser_check_is_two_columns_and_its_terminal_fits_its_lines():
