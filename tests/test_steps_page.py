@@ -506,6 +506,23 @@ def test_with_a_model_named_the_column_is_that_one(serve, tmp_path):
     assert '<td class="g">Step 1</td></tr>' in page
 
 
+@pytest.mark.parametrize(("gone", "said"), [
+    ("runs.jsonl", "There is no file named runs.jsonl"),
+    ("picks.jsonl", "picks.jsonl is not a file judgekeeper can read."),
+])
+def test_a_file_gone_while_the_page_is_open_is_said_on_the_result(serve, tmp_path, gone, said):
+    path = _runs(tmp_path)
+    picks = _picks(tmp_path, [{"id": "r1", "first_wrong_step": 1, "model": "m"}])
+    _marked(tmp_path, path, {"r1": 2})
+    client = serve(path, reviewer=str(picks))
+    (tmp_path / gone).unlink()
+    resp, body = client.request("GET", "/result")
+    page = unescape(body.decode("utf-8"))
+    assert resp.status == 200
+    assert said in page and "Next:" not in page
+    assert "<td>r1</td>" in page
+
+
 def test_the_result_lines_keep_two_hyphens_as_typed():
     """No font ligature turns the `--` of --reviewer into a dash."""
     rule = steps_page.RESULT_STYLE.split(".lines li {")[1].split("}")[0]

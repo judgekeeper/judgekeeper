@@ -652,10 +652,14 @@ def result_page(session: StepsSession, back: str) -> str:
     pick and the agent-as-a-judge's ("Both" when they match)."""
     session._read()
     stand = session.marked()
-    picks = _picks(session)
-    lines = number_lines(session)
-    if picks is None:
-        lines = [*lines, NO_PICKS]
+    try:
+        picks = _picks(session)
+        lines = number_lines(session)
+    except steps.StepsError as err:  # a file gone or broken since the page opened
+        picks, lines = None, [str(err)]
+    else:
+        if picks is None:
+            lines = [*lines, NO_PICKS]
     head = ["Run", "You"] + ([] if picks is None else [picks[0]])
     rows = []
     for run_id in session.order:
