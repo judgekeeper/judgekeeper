@@ -1,4 +1,4 @@
-"""`judgekeeper steps [PATH]`: check an agent reviewer's "first wrong step" against people's.
+"""`judgekeeper steps [PATH]`: check an agent-as-a-judge's "first wrong step" against people's.
 
 Given agent runs (a JSONL file, one run per line: `id`, `steps`, each step `{"role" or "name",
 "content"}`) it writes the Label Studio screen people label them on:
@@ -19,6 +19,7 @@ or any other field of `completed_by`.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import random
@@ -35,8 +36,11 @@ from judgekeeper.textio import plural, program, write_replacing
 EXIT_OK, EXIT_USAGE, EXIT_NEEDS_YOU = 0, 2, 3
 FOLDER = "steps"
 TASKS_FILE, CONFIG_FILE, RESULT_FILE = "label-these.json", "label-config.xml", "result.json"
-RUNS_FILE = "runs.jsonl"
+RUNS_FILE, MARKS_FILE = "runs.jsonl", "marks.jsonl"
 STEP_FIELD = "first_wrong_step"
+MARK_FIELDS = frozenset({"id", STEP_FIELD, "steps_hash", "at", "seconds", "by"})
+LINK_FIELD = "link"  # how the page's link reached the person, as on the answers page
+LINKS = ("printed", "browser-env")
 DEFAULT_REVIEWER = "reviewer"
 SHOWN = f".judgekeeper/{FOLDER}"
 
@@ -55,11 +59,14 @@ NEXT_LABEL = ("in Label Studio, make a project with the labelling setup in {conf
 NEXT_NO_LABELS = ("label the runs in Label Studio (the first wrong step, 0 if all fine), export "
                   "the project as JSON and run `{command}`.")
 NEXT_MORE = "label more runs in Label Studio, export again and run `{command}`."
-NEXT_GUESSES = ("give your reviewer's first wrong step for each run as a JSONL file (one line "
-                "per run: {{\"id\": ..., \"first_wrong_step\": ..., \"model\": ...}}) and run "
-                "`{command} --reviewer GUESSES.jsonl`.")
-NEXT_AGAIN = ("change your reviewer, save its new guesses as a JSONL file and run "
+NEXT_GUESSES = ("give your agent-as-a-judge's first wrong step for each run as a JSONL file "
+                "(one line per run: {{\"id\": ..., \"first_wrong_step\": ..., \"model\": "
+                "...}}) and run `{command} --reviewer GUESSES.jsonl`.")
+NEXT_AGAIN = ("change your agent-as-a-judge, save its new guesses as a JSONL file and run "
               "`{command} --reviewer NEW-GUESSES.jsonl`.")
+NEXT_MARK = ("click the first wrong step of each run on the page (or \"All steps are fine\"): "
+             "`{command}`.")
+NEXT_MARK_MORE = "mark more runs on the page: `{command}`."
 
 NOT_EXPORT = ("{name} is not a Label Studio export of the runs judgekeeper steps writes: give "
               "it your runs file (JSONL) or that project's export (JSON).")
@@ -79,6 +86,7 @@ class Run:
     id: str
     steps: list[dict]
     task: str | None = None  # what the agent was asked to do, when the run says
+    steps_hash: str = ""  # of `steps` as the runs file holds them (steps_hash)
 
 
 @dataclass
@@ -170,6 +178,8 @@ def read_runs(path: Path) -> list[Run]:
             raise StepsError(f"Line {number} of {path.name} is not valid JSON.") from None
         if not isinstance(row, dict):
             raise StepsError(f"Line {number} of {path.name} is not a JSON object.")
+        if textio.lone_surrogate(row):  # never hashed or written: it isn't UTF-8
+            raise StepsError(textio.NOT_TEXT.format(file=f"Line {number} of {path.name}"))
         run_id = row.get("id")
         if not (isinstance(run_id, str) and run_id.strip()) and not (
                 _whole(run_id) and not isinstance(run_id, float)):
@@ -190,7 +200,8 @@ def read_runs(path: Path) -> list[Run]:
                                  "name.")
             out.append({"role": f"{k}. {role}", "content": step_text(step)})
         asked = next((row[k] for k in ("task", "input") if row.get(k) not in (None, "")), None)
-        runs.append(Run(run_id, out, None if asked is None else _text(asked)))
+        runs.append(Run(run_id, out, None if asked is None else _text(asked),
+                        steps_hash(steps)))
     if not runs:
         raise StepsError(f"{path.name} holds no runs.")
     return runs
@@ -324,6 +335,92 @@ def read_export(path: Path, wanted_name: str | None = None) -> Export:
     return export
 
 
+# The page's marks -> labels -------------------------------------------------------------------
+
+def steps_hash(raw_steps: list) -> str:
+    """The hash a mark keeps of its run's steps, the `steps` value exactly as the runs file
+    holds it (never as shown): a mark whose run has changed since is not that run's any
+    more."""
+    text = json.dumps(raw_steps, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _seconds(value) -> bool:
+    """Whether `value` is a time in seconds: a number a float holds, never inf or NaN (a
+    whole number too big for one is not)."""
+    if not _whole(value):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except OverflowError:
+        return False
+
+
+def _mark_of(row) -> tuple[str, int | None, str] | None:
+    """(id, first wrong step or None for taken back, steps_hash) of one mark line, or None
+    when the line is not a mark: exactly MARK_FIELDS, and `link` only as one of LINKS."""
+    if not isinstance(row, dict) or set(row) - {LINK_FIELD} != MARK_FIELDS:
+        return None
+    if LINK_FIELD in row and row[LINK_FIELD] not in LINKS:
+        return None
+    run_id, step, seconds = row["id"], row[STEP_FIELD], row["seconds"]
+    if not (isinstance(run_id, str) and run_id.strip()) or not isinstance(row["at"], str):
+        return None
+    if step is not None and not (isinstance(step, int) and not isinstance(step, bool)
+                                 and step >= 0):
+        return None
+    if not _seconds(seconds) or row["by"] != "page":
+        return None
+    if not isinstance(row["steps_hash"], str):
+        return None
+    return run_id, step, row["steps_hash"]
+
+
+def read_marks(path: Path, runs: list[Run]) -> Export:
+    """The first wrong steps clicked on the page, from the marks file, for `runs`: the newest
+    line for a run wins, a taken-back one (null) is no mark. Left out and counted in `stats`:
+    a mark for a run whose steps changed since (`changed`), for a run not in `runs`
+    (`not_in_runs`), past the run's last step (`unusable`); a line that is not a mark is
+    skipped and its number kept (`broken`), never its text."""
+    newest: dict[str, tuple[int | None, str]] = {}
+    broken: list[int] = []
+    first = True
+    for number, line in enumerate(textio.jsonl_lines(textio.read_utf8(path, StepsError)), 1):
+        if not line.strip():
+            continue
+        try:
+            row = textio.loads(line)
+        except ValueError:
+            row = None
+        header, first = first and isinstance(row, dict) and "step_marks" in row, False
+        if header:
+            continue
+        mark = _mark_of(row)
+        if mark is None:
+            broken.append(number)
+            continue
+        newest[mark[0]] = mark[1:]
+    tasks = {r.id: Task(r.id, len(r.steps)) for r in runs}
+    hashes = {r.id: r.steps_hash for r in runs}
+    changed = not_in_runs = 0
+    for run_id, (step, kept) in newest.items():
+        if step is None:
+            continue
+        if run_id not in tasks:
+            not_in_runs += 1
+        elif kept != hashes[run_id]:
+            changed += 1
+        else:
+            task = tasks[run_id]
+            task.label = usable(step, task.n_steps)
+            task.state = "unusable" if task.label is None else "label"
+    states = [t.state for t in tasks.values()]
+    stats = {"tasks": len(tasks), "labelled": states.count("label"), "disagreed": 0,
+             "no_label": states.count("no_label"), "unusable": states.count("unusable"),
+             "changed": changed, "not_in_runs": not_in_runs, "broken": broken}
+    return Export(path.name, list(tasks.values()), {}, {}, {}, stats=stats)
+
+
 def read_guesses(path: Path) -> tuple[dict, dict]:
     """(reviewer -> run id -> number, reviewer -> fingerprint fields given) from a JSONL file
     of {id, first_wrong_step, model}; a line may also say provider, snapshot, prompt_hash,
@@ -442,26 +539,32 @@ def _num(x: float) -> str:
     return f"{x:.2f}"
 
 
-def _reviewer_lines(name: str, r: dict) -> list[str]:
+def _reviewer_lines(name: str, r: dict, marks: bool = False) -> list[str]:
+    """One agent-as-a-judge's numbers as lines: against the people marking a Label Studio
+    export, or against the person's own `marks` from the page."""
     run, step = r["run_level"], r["step_level"]
+    people, say = ("you", "you say") if marks else ("the people marking", "the people marking say")
     need = run["needed_of_each_kind"]
     compared = plural(r["runs_compared"], "run")
-    lines = [f'Reviewer "{name}" against your people, on {compared} both labelled:']
+    who = ("Your agent-as-a-judge" if name == DEFAULT_REVIEWER  # the default name: never said
+           else f'Agent-as-a-judge "{name}"')
+    lines = [f"{who} against your marks, on {compared} both marked:" if marks
+             else f"{who} against the people marking, on {compared} both labelled:"]
     for what, key, n in (("went wrong", "tpr", run["n_wrong"]),
                          ("were fine", "tnr", run["n_fine"])):
-        said = (f"your reviewer also says so for {_pct(run[key])}." if run[key]
+        said = (f"your agent-as-a-judge also says so for {_pct(run[key])}." if run[key]
                 else f"too few ({n}) for a number; {need} are needed.")
-        lines.append(f"  Runs your people say {what}: {said}")
+        lines.append(f"  Runs {say} {what}: {said}")
     if run["kappa"] is not None:
         lo, hi = run["kappa_interval"]
         lines.append(f"  Kappa: {_num(run['kappa'])} (between {_num(lo)} and {_num(hi)}).")
     elif run["n_wrong"] >= need and run["n_fine"] >= need:
-        lines.append("  Kappa: none (your people or your reviewer gave the same answer for "
-                     "every run).")
+        lines.append(f"  Kappa: none ({people} or your agent-as-a-judge gave the same answer "
+                     "for every run).")
     else:
         lines.append("  Kappa: too few runs of one kind for a number.")
-    lines.append(f"How often your reviewer finds the same first wrong step as your people, on "
-                 f"the {step['n']} runs both say went wrong:")
+    lines.append(f"How often your agent-as-a-judge finds the same first wrong step as {people}, "
+                 f"on the {step['n']} runs {'you both' if marks else 'both'} say went wrong:")
     if step["same"]:
         lines.append(f"  The same first wrong step: {_pct(step['same'])}.")
         lines.append(f"  Within one step: {_pct(step['within_one'])}.")
@@ -512,10 +615,7 @@ def run(path: str | None = None, reviewer: str | None = None, model: str | None 
     _say()
     if _is_export(file):
         return _numbers(file, shown, reviewer, model)
-    if reviewer is not None or model is not None:
-        raise StepsError("--reviewer and --model are for a Label Studio export; "
-                         f"{file.name} is a runs file.")
-    return _screen(file, given)
+    return _screen(file, given, reviewer, model)
 
 
 def _workspace(given: Path) -> Workspace:
@@ -525,8 +625,15 @@ def _workspace(given: Path) -> Workspace:
     return ws
 
 
-def _screen(file: Path, given: Path) -> int:
+def marks_path(given: Path) -> Path:
+    """Where the page keeps the marks for the runs at `given` (a file or its folder)."""
+    return Workspace(project.project_of(given)).dir / FOLDER / MARKS_FILE
+
+
+def _screen(file: Path, given: Path, reviewer: str | None = None,
+            model: str | None = None) -> int:
     runs = read_runs(file)
+    picks = _picks({}, reviewer, model)  # a bad guesses file is said before anything is written
     tasks, config = screen_files(runs)
     ws = _workspace(given)
     folder = ws.dir / FOLDER
@@ -535,84 +642,191 @@ def _screen(file: Path, given: Path) -> int:
     _say(f"Wrote {plural(len(runs), 'run')} for Label Studio to {SHOWN}/{TASKS_FILE} and the "
          f"labelling setup to {SHOWN}/{CONFIG_FILE}.")
     _say()
+    marks = folder / MARKS_FILE
+    if marks.is_file():  # marked on the page already: the numbers, with their own Next line
+        export = read_marks(marks, runs)
+        return _report(export, *picks, str(given), reviewer, _say, runs_name=file.name,
+                       folder=folder)
     export = program("steps EXPORT.json")
     _say("Next: " + NEXT_LABEL.format(config=f"{SHOWN}/{CONFIG_FILE}",
                                        tasks=f"{SHOWN}/{TASKS_FILE}", export=export))
     return EXIT_OK
 
 
-def _numbers(file: Path, shown: str, reviewer: str | None, model: str | None) -> int:
-    export = read_export(file)
-    guesses, given = export.guesses, {}
+def say_numbers_from_marks(file: Path, shown: str, reviewer: str | None = None,
+                           model: str | None = None) -> int | None:
+    """The numbers from the page's marks for the runs in `file` (`shown` as the person typed
+    it), said line by line; the exit code, or None when nothing is marked on the page yet."""
+    marks = marks_path(Path(shown))
+    if not marks.is_file():
+        return None
+    picks = _picks({}, reviewer, model)
+    return _report(read_marks(marks, read_runs(file)), *picks, shown, reviewer, _say,
+                   runs_name=file.name, folder=marks.parent)
+
+
+def numbers_from_marks(runs: str | Path, marks: str | Path, reviewer: str | Path | None,
+                       model: str | None = None, shown: str | None = None
+                       ) -> tuple[list[str], dict]:
+    """(the lines, result.json) for the runs file `runs` and the page's marks file `marks`,
+    against the agent-as-a-judge's guesses in the file `reviewer` (None: no guesses yet).
+    The lines are the terminal's, blank ones included; their commands name the runs as
+    `shown` (as the person typed them; else `runs`). result.json is saved next to `marks`,
+    never through the current folder."""
+    from judgekeeper.check import no_such
+
+    lines: list[str] = []
+    for given in (runs, marks):
+        if not Path(given).is_file():
+            raise StepsError(no_such(str(given)))
+    reviewer = None if reviewer is None else str(reviewer)
+    picks = _picks({}, reviewer, model)
+    folder = Path(marks).parent
+    export = read_marks(Path(marks), read_runs(Path(runs)))
+    _report(export, *picks, str(runs) if shown is None else shown, reviewer, lines.append,
+            runs_name=Path(runs).name, folder=folder)
+    return lines, json.loads((folder / RESULT_FILE).read_text(encoding="utf-8"))
+
+
+def _picks(guesses: dict, reviewer: str | None, model: str | None) -> tuple[dict, dict]:
+    """(reviewer -> run id -> number, reviewer -> fingerprint fields given): the guesses
+    file's when one is given, else `guesses`; only `model`'s when one is named."""
+    given: dict = {}
     if reviewer is not None:
         if textio.not_a_file(Path(reviewer)) is not None or not Path(reviewer).exists():
             raise StepsError(f"{Path(reviewer).name} is not a file judgekeeper can read.")
         guesses, given = read_guesses(Path(reviewer))
-        export.created = {}
     if model is not None:
         if model not in guesses:
             names = ", ".join(sorted(guesses)) or "none"
-            raise StepsError(f"No reviewer named {model!r} in the guesses (found: {names}).")
+            raise StepsError(f"No agent-as-a-judge named {model!r} in the guesses (found: {names}).")
         guesses = {model: guesses[model]}
+    return guesses, given
+
+
+def _numbers(file: Path, shown: str, reviewer: str | None, model: str | None) -> int:
+    export = read_export(file)
+    picks = _picks(export.guesses, reviewer, model)
+    if reviewer is not None:
+        export.created = {}
+    return _report(export, *picks, shown, reviewer, _say)
+
+
+def _lines_of(numbers: list[int], name: str) -> str:
+    """"Line 4 of NAME is not a mark ..." for the line numbers of marks that are not marks."""
+    said = [str(n) for n in numbers[:5]]
+    if len(numbers) == 1:
+        return f"Line {said[0]} of {name} is not a mark judgekeeper can read; it is left out."
+    words = (", ".join(said) + f" and {len(numbers) - 5} more" if len(numbers) > 5
+             else ", ".join(said[:-1]) + f" and {said[-1]}")
+    return f"Lines {words} of {name} are not marks judgekeeper can read; they are left out."
+
+
+def _marks_read(stats: dict, runs_name: str, say) -> None:
+    """The lines that say what was read from the page's marks, and what was left out."""
+    n, marked = stats["tasks"], stats["labelled"]
+    if n == 1:
+        said = "you marked it" if marked else "you have not marked it"
+    else:
+        said = f"you marked {marked} of them"
+    say(f"Read {plural(n, 'run')} from {runs_name} and your marks from {SHOWN}/{MARKS_FILE}: "
+        f"{said}.")
+    if (k := stats["changed"]) == 1:
+        say("1 mark is for a run whose steps changed after you marked it; it is left out (mark "
+            "that run again).")
+    elif k:
+        say(f"{k} marks are for runs whose steps changed after you marked them; they are left "
+            "out (mark those runs again).")
+    if (k := stats["not_in_runs"]) == 1:
+        say(f"1 mark is for a run that is not in {runs_name}; it is left out.")
+    elif k:
+        say(f"{k} marks are for runs that are not in {runs_name}; they are left out.")
+    if stats["broken"]:
+        say(_lines_of(stats["broken"], f"{SHOWN}/{MARKS_FILE}"))
+
+
+def _report(export: Export, guesses: dict, given: dict, shown: str, reviewer: str | None,
+            say, runs_name: str | None = None, folder: Path | None = None) -> int:
+    """The numbers of `export` (a Label Studio export's, or the page's marks when
+    `runs_name`, the runs file's name, is given), each line handed to `say`; result.json
+    saved in `folder` (else the steps folder of the project at `shown`). The exit code."""
+    marks = runs_name is not None
+    name = runs_name if marks else export.name
     command = _command(shown, reviewer)
     stats = export.stats
     people = {"tasks": stats["tasks"], "labelled": stats["labelled"],
               "disagreed": stats["disagreed"], "no_label": stats["no_label"],
               "unusable": stats["unusable"], "who": dict(sorted(export.who.items()))}
+    if marks:
+        people.update(changed=stats["changed"], not_in_runs=stats["not_in_runs"])
     reviewers = []
-    for name, found in guesses.items():
+    for reviewer_name, found in guesses.items():
         numbers = compare(export.tasks, found)
-        fp = _fingerprint(name, export.created.get(name), given.get(name, {}))
-        reviewers.append({"name": name, "model": fp.model, "fingerprint": fp.to_dict(),
+        fp = _fingerprint(reviewer_name, export.created.get(reviewer_name),
+                          given.get(reviewer_name, {}))
+        reviewers.append({"name": reviewer_name, "model": fp.model, "fingerprint": fp.to_dict(),
                           "unknown_fields": unknown_fields(fp.to_dict()), **numbers})
-    if stats["tasks"] == 1:
-        labelled = "your people labelled it" if stats["labelled"] else "your people did not label it"
+    if marks:
+        _marks_read(stats, name, say)
     else:
-        labelled = f"your people labelled {stats['labelled']} of them"
-    _say(f"Read {plural(stats['tasks'], 'run')} from {file.name}: {labelled}.")
+        if stats["tasks"] == 1:
+            labelled = ("the people marking labelled it" if stats["labelled"]
+                        else "the people marking did not label it")
+        else:
+            labelled = f"the people marking labelled {stats['labelled']} of them"
+        say(f"Read {plural(stats['tasks'], 'run')} from {name}: {labelled}.")
     if stats["disagreed"]:
-        _say(f"People disagreed on {plural(stats['disagreed'], 'run')}; they are left out of "
-             "these numbers.")
+        say(f"People disagreed on {plural(stats['disagreed'], 'run')}; they are left out of "
+            "these numbers.")
     if stats["unusable"]:
-        _say(f"{plural(stats['unusable'], 'run')} had a number that is not a step of the run "
-             "(a whole number from 0 to the last step); they are left out.")
-    _write_result(shown, people, reviewers, _given(file, reviewer))
+        say(f"{plural(stats['unusable'], 'run')} had a number that is not a step of the run "
+            "(a whole number from 0 to the last step); they are left out.")
+    source = ({"marks": f"{SHOWN}/{MARKS_FILE}", "runs": runs_name,
+               "reviewer_file": Path(reviewer).name if reviewer else None} if marks
+              else _given(Path(export.name), reviewer))
+    _write_result(_workspace(Path(shown)).dir / FOLDER if folder is None else folder, people,
+                  reviewers, source)
     if not stats["labelled"]:
-        _say()
-        _say(f"No first wrong step is labelled in {file.name} yet.")
-        _say()
-        _say("Next: " + NEXT_NO_LABELS.format(command=command))
+        say("")
+        say("You have not marked a run yet." if marks
+            else f"No first wrong step is labelled in {name} yet.")
+        say("")
+        say("Next: " + (NEXT_MARK if marks else NEXT_NO_LABELS).format(command=command))
         return EXIT_NEEDS_YOU
     if not reviewers:
-        _say()
-        _say(f"{file.name} has no reviewer guesses"
-             + (": Label Studio exports hold only the ids of predictions unless you ask for "
-                "the full ones." if export.ids_only else "."))
-        _say()
-        _say("Next: " + NEXT_GUESSES.format(command=_command(shown, None)))
+        say("")
+        if marks:
+            say("There are no agent-as-a-judge guesses to compare your marks with yet.")
+        else:
+            say(f"{name} has no agent-as-a-judge guesses"
+                + (": Label Studio exports hold only the ids of predictions unless you ask "
+                   "for the full ones." if export.ids_only else "."))
+        say("")
+        say("Next: " + NEXT_GUESSES.format(command=_command(shown, None)))
         return EXIT_NEEDS_YOU
     for entry in reviewers:
-        _say()
-        for line in _reviewer_lines(entry["name"], entry):
-            _say(line)
+        say("")
+        for line in _reviewer_lines(entry["name"], entry, marks):
+            say(line)
         left = entry["left_out"]
         if left["no_guess"] or left["unusable"]:
-            _say(f"  Left out: {left['no_guess']} with no guess from this reviewer, "
-                 f"{left['unusable']} with a guess that is not a step of the run.")
+            say(f"  Left out: {left['no_guess']} with no guess from this agent-as-a-judge, "
+                f"{left['unusable']} with a guess that is not a step of the run.")
         if left["not_in_export"]:
             n = left["not_in_export"]
-            _say(f"  Left out: {n} guess is for a run that is not in {file.name}." if n == 1
-                 else f"  Left out: {n} guesses are for runs that are not in {file.name}.")
-    _say()
-    _say(f"Saved in {SHOWN}/{RESULT_FILE}.")
-    _say()
+            say(f"  Left out: {n} guess is for a run that is not in {name}." if n == 1
+                else f"  Left out: {n} guesses are for runs that are not in {name}.")
+    say("")
+    say(f"Saved in {SHOWN}/{RESULT_FILE}.")
+    say("")
+    more = NEXT_MARK_MORE if marks else NEXT_MORE
     if not any(has_number(r) for r in reviewers):
-        _say("Next: " + NEXT_MORE.format(command=command))
+        say("Next: " + more.format(command=command))
         return EXIT_NEEDS_YOU
     if any(r["run_level"]["too_few"] or r["step_level"]["too_few"] for r in reviewers):
-        _say("Next: " + NEXT_MORE.format(command=command))
+        say("Next: " + more.format(command=command))
     else:
-        _say("Next: " + NEXT_AGAIN.format(command=_command(shown, None)))
+        say("Next: " + NEXT_AGAIN.format(command=_command(shown, None)))
     return EXIT_OK
 
 
@@ -620,9 +834,8 @@ def _given(file: Path, reviewer: str | None) -> dict:
     return {"export": file.name, "reviewer_file": Path(reviewer).name if reviewer else None}
 
 
-def _write_result(shown: str, people: dict, reviewers: list, source: dict) -> None:
-    ws = _workspace(Path(shown))
+def _write_result(folder: Path, people: dict, reviewers: list, source: dict) -> None:
     data = {"kind": "agent-steps", "judgekeeper": __version__, "made_at": utc_now(),
             "source": source, "people": people, "reviewers": reviewers}
-    write_replacing(ws.dir / FOLDER / RESULT_FILE,
+    write_replacing(folder / RESULT_FILE,
                     json.dumps(scrub_value(data), indent=2, ensure_ascii=False) + "\n")

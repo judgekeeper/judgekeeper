@@ -1,0 +1,1257 @@
+{
+ "disagreed_and_unusable": {
+  "code": 0,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 40 runs from export.json: your people labelled 37 of them.",
+   "People disagreed on 1 run; they are left out of these numbers.",
+   "2 runs had a number that is not a step of the run (a whole number from 0 to the last step); they are left out.",
+   "",
+   "Reviewer \"reviewer-a\" against your people, on 37 runs both labelled:",
+   "  Runs your people say went wrong: your reviewer also says so for 75% (15 of 20; between 53% and 89%).",
+   "  Runs your people say were fine: your reviewer also says so for 76% (13 of 17; between 53% and 90%).",
+   "  Kappa: 0.51 (between 0.17 and 0.73).",
+   "How often your reviewer finds the same first wrong step as your people, on the 15 runs both say went wrong:",
+   "  The same first wrong step: 60% (9 of 15; between 36% and 80%).",
+   "  Within one step: 80% (12 of 15; between 55% and 93%).",
+   "",
+   "Saved in .judgekeeper/steps/result.json.",
+   "",
+   "Next: change your reviewer, save its new guesses as a JSONL file and run `PROGRAM steps export.json --reviewer NEW-GUESSES.jsonl`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 40,
+    "labelled": 37,
+    "disagreed": 1,
+    "no_label": 0,
+    "unusable": 2,
+    "who": {
+     "2": 38,
+     "3": 1
+    }
+   },
+   "reviewers": [
+    {
+     "name": "reviewer-a",
+     "model": "reviewer-a",
+     "fingerprint": {
+      "provider": null,
+      "model": "reviewer-a",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 37,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 37,
+      "n_wrong": 20,
+      "n_fine": 17,
+      "tpr": {
+       "k": 15,
+       "n": 20,
+       "p": 0.75,
+       "lo": 0.5312949900419365,
+       "hi": 0.888139947210597
+      },
+      "tnr": {
+       "k": 13,
+       "n": 17,
+       "p": 0.7647058823529411,
+       "lo": 0.5273775411082839,
+       "hi": 0.9044511092832406
+      },
+      "kappa": 0.5124450951683749,
+      "kappa_interval": [
+       0.17399933151913233,
+       0.7327425358439125
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": false
+     },
+     "step_level": {
+      "n": 15,
+      "same": {
+       "k": 9,
+       "n": 15,
+       "p": 0.6,
+       "lo": 0.357464427565077,
+       "hi": 0.8017577191740534
+      },
+      "within_one": {
+       "k": 12,
+       "n": 15,
+       "p": 0.8,
+       "lo": 0.5481406466534955,
+       "hi": 0.9295257935638959
+      },
+      "needed": 15,
+      "too_few": false
+     }
+    }
+   ]
+  }
+ },
+ "full_predictions": {
+  "code": 3,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 5 runs from export.json: your people labelled 4 of them.",
+   "People disagreed on 1 run; they are left out of these numbers.",
+   "",
+   "Reviewer \"reviewer-a\" against your people, on 4 runs both labelled:",
+   "  Runs your people say went wrong: too few (2) for a number; 15 are needed.",
+   "  Runs your people say were fine: too few (2) for a number; 15 are needed.",
+   "  Kappa: too few runs of one kind for a number.",
+   "How often your reviewer finds the same first wrong step as your people, on the 2 runs both say went wrong:",
+   "  Too few runs (2) for a number; 15 are needed.",
+   "",
+   "Saved in .judgekeeper/steps/result.json.",
+   "",
+   "Next: label more runs in Label Studio, export again and run `PROGRAM steps export.json`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 5,
+    "labelled": 4,
+    "disagreed": 1,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 5,
+     "3": 5
+    }
+   },
+   "reviewers": [
+    {
+     "name": "reviewer-a",
+     "model": "reviewer-a",
+     "fingerprint": {
+      "provider": null,
+      "model": "reviewer-a",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": "2026-11-22T05:19:21.716845Z",
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 4,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 4,
+      "n_wrong": 2,
+      "n_fine": 2,
+      "tpr": null,
+      "tnr": null,
+      "kappa": null,
+      "kappa_interval": [
+       null,
+       null
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": true
+     },
+     "step_level": {
+      "n": 2,
+      "same": null,
+      "within_one": null,
+      "needed": 15,
+      "too_few": true
+     }
+    }
+   ]
+  }
+ },
+ "ids_only": {
+  "code": 3,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 5 runs from export.json: your people labelled 4 of them.",
+   "People disagreed on 1 run; they are left out of these numbers.",
+   "",
+   "export.json has no reviewer guesses: Label Studio exports hold only the ids of predictions unless you ask for the full ones.",
+   "",
+   "Next: give your reviewer's first wrong step for each run as a JSONL file (one line per run: {\"id\": ..., \"first_wrong_step\": ..., \"model\": ...}) and run `PROGRAM steps export.json --reviewer GUESSES.jsonl`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 5,
+    "labelled": 4,
+    "disagreed": 1,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 5,
+     "3": 5
+    }
+   },
+   "reviewers": []
+  }
+ },
+ "model_picks_one": {
+  "code": 0,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 40 runs from export.json: your people labelled 40 of them.",
+   "",
+   "Reviewer \"reviewer-b\" against your people, on 40 runs both labelled:",
+   "  Runs your people say went wrong: your reviewer also says so for 100% (20 of 20; between 84% and 100%).",
+   "  Runs your people say were fine: your reviewer also says so for 100% (20 of 20; between 84% and 100%).",
+   "  Kappa: 1.00 (between 0.82 and 1.00).",
+   "How often your reviewer finds the same first wrong step as your people, on the 20 runs both say went wrong:",
+   "  The same first wrong step: 100% (20 of 20; between 84% and 100%).",
+   "  Within one step: 100% (20 of 20; between 84% and 100%).",
+   "",
+   "Saved in .judgekeeper/steps/result.json.",
+   "",
+   "Next: change your reviewer, save its new guesses as a JSONL file and run `PROGRAM steps export.json --reviewer NEW-GUESSES.jsonl`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 40,
+    "labelled": 40,
+    "disagreed": 0,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 40
+    }
+   },
+   "reviewers": [
+    {
+     "name": "reviewer-b",
+     "model": "reviewer-b",
+     "fingerprint": {
+      "provider": null,
+      "model": "reviewer-b",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 40,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 40,
+      "n_wrong": 20,
+      "n_fine": 20,
+      "tpr": {
+       "k": 20,
+       "n": 20,
+       "p": 1.0,
+       "lo": 0.8388698745050667,
+       "hi": 1.0
+      },
+      "tnr": {
+       "k": 20,
+       "n": 20,
+       "p": 1.0,
+       "lo": 0.8388698745050667,
+       "hi": 1.0
+      },
+      "kappa": 1.0,
+      "kappa_interval": [
+       0.8158821135336659,
+       1.0
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": false
+     },
+     "step_level": {
+      "n": 20,
+      "same": {
+       "k": 20,
+       "n": 20,
+       "p": 1.0,
+       "lo": 0.8388698745050667,
+       "hi": 1.0
+      },
+      "within_one": {
+       "k": 20,
+       "n": 20,
+       "p": 1.0,
+       "lo": 0.8388698745050667,
+       "hi": 1.0
+      },
+      "needed": 15,
+      "too_few": false
+     }
+    }
+   ]
+  }
+ },
+ "no_guesses": {
+  "code": 3,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 40 runs from export.json: your people labelled 40 of them.",
+   "",
+   "export.json has no reviewer guesses.",
+   "",
+   "Next: give your reviewer's first wrong step for each run as a JSONL file (one line per run: {\"id\": ..., \"first_wrong_step\": ..., \"model\": ...}) and run `PROGRAM steps export.json --reviewer GUESSES.jsonl`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 40,
+    "labelled": 40,
+    "disagreed": 0,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 40
+    }
+   },
+   "reviewers": []
+  }
+ },
+ "no_labels": {
+  "code": 3,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 3 runs from export.json: your people labelled 0 of them.",
+   "",
+   "No first wrong step is labelled in export.json yet.",
+   "",
+   "Next: label the runs in Label Studio (the first wrong step, 0 if all fine), export the project as JSON and run `PROGRAM steps export.json`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 3,
+    "labelled": 0,
+    "disagreed": 0,
+    "no_label": 3,
+    "unusable": 0,
+    "who": {}
+   },
+   "reviewers": [
+    {
+     "name": "rv",
+     "model": "rv",
+     "fingerprint": {
+      "provider": null,
+      "model": "rv",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 0,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 0,
+      "n_wrong": 0,
+      "n_fine": 0,
+      "tpr": null,
+      "tnr": null,
+      "kappa": null,
+      "kappa_interval": [
+       null,
+       null
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": true
+     },
+     "step_level": {
+      "n": 0,
+      "same": null,
+      "within_one": null,
+      "needed": 15,
+      "too_few": true
+     }
+    }
+   ]
+  }
+ },
+ "numbers": {
+  "code": 0,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 40 runs from export.json: your people labelled 40 of them.",
+   "",
+   "Reviewer \"reviewer-a\" against your people, on 40 runs both labelled:",
+   "  Runs your people say went wrong: your reviewer also says so for 75% (15 of 20; between 53% and 89%).",
+   "  Runs your people say were fine: your reviewer also says so for 80% (16 of 20; between 58% and 92%).",
+   "  Kappa: 0.55 (between 0.23 and 0.76).",
+   "How often your reviewer finds the same first wrong step as your people, on the 15 runs both say went wrong:",
+   "  The same first wrong step: 60% (9 of 15; between 36% and 80%).",
+   "  Within one step: 80% (12 of 15; between 55% and 93%).",
+   "",
+   "Saved in .judgekeeper/steps/result.json.",
+   "",
+   "Next: change your reviewer, save its new guesses as a JSONL file and run `PROGRAM steps export.json --reviewer NEW-GUESSES.jsonl`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 40,
+    "labelled": 40,
+    "disagreed": 0,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 40
+    }
+   },
+   "reviewers": [
+    {
+     "name": "reviewer-a",
+     "model": "reviewer-a",
+     "fingerprint": {
+      "provider": null,
+      "model": "reviewer-a",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 40,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 40,
+      "n_wrong": 20,
+      "n_fine": 20,
+      "tpr": {
+       "k": 15,
+       "n": 20,
+       "p": 0.75,
+       "lo": 0.5312949900419365,
+       "hi": 0.888139947210597
+      },
+      "tnr": {
+       "k": 16,
+       "n": 20,
+       "p": 0.8,
+       "lo": 0.5839782779742401,
+       "hi": 0.9193436467288
+      },
+      "kappa": 0.55,
+      "kappa_interval": [
+       0.23054407604783206,
+       0.7558171545769045
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": false
+     },
+     "step_level": {
+      "n": 15,
+      "same": {
+       "k": 9,
+       "n": 15,
+       "p": 0.6,
+       "lo": 0.357464427565077,
+       "hi": 0.8017577191740534
+      },
+      "within_one": {
+       "k": 12,
+       "n": 15,
+       "p": 0.8,
+       "lo": 0.5481406466534955,
+       "hi": 0.9295257935638959
+      },
+      "needed": 15,
+      "too_few": false
+     }
+    }
+   ]
+  }
+ },
+ "one_run": {
+  "code": 3,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 1 run from export.json: your people labelled it.",
+   "",
+   "Reviewer \"rv\" against your people, on 1 run both labelled:",
+   "  Runs your people say went wrong: too few (0) for a number; 15 are needed.",
+   "  Runs your people say were fine: too few (1) for a number; 15 are needed.",
+   "  Kappa: too few runs of one kind for a number.",
+   "How often your reviewer finds the same first wrong step as your people, on the 0 runs both say went wrong:",
+   "  Too few runs (0) for a number; 15 are needed.",
+   "",
+   "Saved in .judgekeeper/steps/result.json.",
+   "",
+   "Next: label more runs in Label Studio, export again and run `PROGRAM steps export.json`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 1,
+    "labelled": 1,
+    "disagreed": 0,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 1
+    }
+   },
+   "reviewers": [
+    {
+     "name": "rv",
+     "model": "rv",
+     "fingerprint": {
+      "provider": null,
+      "model": "rv",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 1,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 1,
+      "n_wrong": 0,
+      "n_fine": 1,
+      "tpr": null,
+      "tnr": null,
+      "kappa": null,
+      "kappa_interval": [
+       null,
+       null
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": true
+     },
+     "step_level": {
+      "n": 0,
+      "same": null,
+      "within_one": null,
+      "needed": 15,
+      "too_few": true
+     }
+    }
+   ]
+  }
+ },
+ "one_run_no_label": {
+  "code": 3,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 1 run from export.json: your people did not label it.",
+   "",
+   "No first wrong step is labelled in export.json yet.",
+   "",
+   "Next: label the runs in Label Studio (the first wrong step, 0 if all fine), export the project as JSON and run `PROGRAM steps export.json`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 1,
+    "labelled": 0,
+    "disagreed": 0,
+    "no_label": 1,
+    "unusable": 0,
+    "who": {}
+   },
+   "reviewers": [
+    {
+     "name": "rv",
+     "model": "rv",
+     "fingerprint": {
+      "provider": null,
+      "model": "rv",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 0,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 0,
+      "n_wrong": 0,
+      "n_fine": 0,
+      "tpr": null,
+      "tnr": null,
+      "kappa": null,
+      "kappa_interval": [
+       null,
+       null
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": true
+     },
+     "step_level": {
+      "n": 0,
+      "same": null,
+      "within_one": null,
+      "needed": 15,
+      "too_few": true
+     }
+    }
+   ]
+  }
+ },
+ "reviewer_file_left_out": {
+  "code": 0,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 40 runs from export.json: your people labelled 40 of them.",
+   "",
+   "Reviewer \"my-reviewer\" against your people, on 36 runs both labelled:",
+   "  Runs your people say went wrong: your reviewer also says so for 75% (15 of 20; between 53% and 89%).",
+   "  Runs your people say were fine: your reviewer also says so for 75% (12 of 16; between 51% and 90%).",
+   "  Kappa: 0.50 (between 0.15 and 0.73).",
+   "How often your reviewer finds the same first wrong step as your people, on the 15 runs both say went wrong:",
+   "  The same first wrong step: 60% (9 of 15; between 36% and 80%).",
+   "  Within one step: 80% (12 of 15; between 55% and 93%).",
+   "  Left out: 3 with no guess from this reviewer, 1 with a guess that is not a step of the run.",
+   "  Left out: 2 guesses are for runs that are not in export.json.",
+   "",
+   "Saved in .judgekeeper/steps/result.json.",
+   "",
+   "Next: change your reviewer, save its new guesses as a JSONL file and run `PROGRAM steps export.json --reviewer NEW-GUESSES.jsonl`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": "g.jsonl"
+   },
+   "people": {
+    "tasks": 40,
+    "labelled": 40,
+    "disagreed": 0,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 40
+    }
+   },
+   "reviewers": [
+    {
+     "name": "my-reviewer",
+     "model": "my-reviewer",
+     "fingerprint": {
+      "provider": null,
+      "model": "my-reviewer",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 36,
+     "left_out": {
+      "no_guess": 3,
+      "unusable": 1,
+      "not_in_export": 2
+     },
+     "run_level": {
+      "n": 36,
+      "n_wrong": 20,
+      "n_fine": 16,
+      "tpr": {
+       "k": 15,
+       "n": 20,
+       "p": 0.75,
+       "lo": 0.5312949900419365,
+       "hi": 0.888139947210597
+      },
+      "tnr": {
+       "k": 12,
+       "n": 16,
+       "p": 0.75,
+       "lo": 0.5050123107060135,
+       "hi": 0.8981809801576265
+      },
+      "kappa": 0.4968944099378882,
+      "kappa_interval": [
+       0.15188478349124504,
+       0.7270213820218546
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": false
+     },
+     "step_level": {
+      "n": 15,
+      "same": {
+       "k": 9,
+       "n": 15,
+       "p": 0.6,
+       "lo": 0.357464427565077,
+       "hi": 0.8017577191740534
+      },
+      "within_one": {
+       "k": 12,
+       "n": 15,
+       "p": 0.8,
+       "lo": 0.5481406466534955,
+       "hi": 0.9295257935638959
+      },
+      "needed": 15,
+      "too_few": false
+     }
+    }
+   ]
+  }
+ },
+ "reviewer_file_one_stray": {
+  "code": 0,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 40 runs from export.json: your people labelled 40 of them.",
+   "",
+   "Reviewer \"reviewer\" against your people, on 40 runs both labelled:",
+   "  Runs your people say went wrong: your reviewer also says so for 75% (15 of 20; between 53% and 89%).",
+   "  Runs your people say were fine: your reviewer also says so for 80% (16 of 20; between 58% and 92%).",
+   "  Kappa: 0.55 (between 0.23 and 0.76).",
+   "How often your reviewer finds the same first wrong step as your people, on the 15 runs both say went wrong:",
+   "  The same first wrong step: 60% (9 of 15; between 36% and 80%).",
+   "  Within one step: 80% (12 of 15; between 55% and 93%).",
+   "  Left out: 1 guess is for a run that is not in export.json.",
+   "",
+   "Saved in .judgekeeper/steps/result.json.",
+   "",
+   "Next: change your reviewer, save its new guesses as a JSONL file and run `PROGRAM steps export.json --reviewer NEW-GUESSES.jsonl`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": "g.jsonl"
+   },
+   "people": {
+    "tasks": 40,
+    "labelled": 40,
+    "disagreed": 0,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 40
+    }
+   },
+   "reviewers": [
+    {
+     "name": "reviewer",
+     "model": null,
+     "fingerprint": {
+      "provider": null,
+      "model": null,
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "model",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 40,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 1
+     },
+     "run_level": {
+      "n": 40,
+      "n_wrong": 20,
+      "n_fine": 20,
+      "tpr": {
+       "k": 15,
+       "n": 20,
+       "p": 0.75,
+       "lo": 0.5312949900419365,
+       "hi": 0.888139947210597
+      },
+      "tnr": {
+       "k": 16,
+       "n": 20,
+       "p": 0.8,
+       "lo": 0.5839782779742401,
+       "hi": 0.9193436467288
+      },
+      "kappa": 0.55,
+      "kappa_interval": [
+       0.23054407604783206,
+       0.7558171545769045
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": false
+     },
+     "step_level": {
+      "n": 15,
+      "same": {
+       "k": 9,
+       "n": 15,
+       "p": 0.6,
+       "lo": 0.357464427565077,
+       "hi": 0.8017577191740534
+      },
+      "within_one": {
+       "k": 12,
+       "n": 15,
+       "p": 0.8,
+       "lo": 0.5481406466534955,
+       "hi": 0.9295257935638959
+      },
+      "needed": 15,
+      "too_few": false
+     }
+    }
+   ]
+  }
+ },
+ "several_reviewers": {
+  "code": 0,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 40 runs from export.json: your people labelled 40 of them.",
+   "",
+   "Reviewer \"reviewer-a\" against your people, on 40 runs both labelled:",
+   "  Runs your people say went wrong: your reviewer also says so for 75% (15 of 20; between 53% and 89%).",
+   "  Runs your people say were fine: your reviewer also says so for 80% (16 of 20; between 58% and 92%).",
+   "  Kappa: 0.55 (between 0.23 and 0.76).",
+   "How often your reviewer finds the same first wrong step as your people, on the 15 runs both say went wrong:",
+   "  The same first wrong step: 60% (9 of 15; between 36% and 80%).",
+   "  Within one step: 80% (12 of 15; between 55% and 93%).",
+   "",
+   "Reviewer \"reviewer-b\" against your people, on 40 runs both labelled:",
+   "  Runs your people say went wrong: your reviewer also says so for 100% (20 of 20; between 84% and 100%).",
+   "  Runs your people say were fine: your reviewer also says so for 100% (20 of 20; between 84% and 100%).",
+   "  Kappa: 1.00 (between 0.82 and 1.00).",
+   "How often your reviewer finds the same first wrong step as your people, on the 20 runs both say went wrong:",
+   "  The same first wrong step: 100% (20 of 20; between 84% and 100%).",
+   "  Within one step: 100% (20 of 20; between 84% and 100%).",
+   "",
+   "Saved in .judgekeeper/steps/result.json.",
+   "",
+   "Next: change your reviewer, save its new guesses as a JSONL file and run `PROGRAM steps export.json --reviewer NEW-GUESSES.jsonl`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 40,
+    "labelled": 40,
+    "disagreed": 0,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 40
+    }
+   },
+   "reviewers": [
+    {
+     "name": "reviewer-a",
+     "model": "reviewer-a",
+     "fingerprint": {
+      "provider": null,
+      "model": "reviewer-a",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 40,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 40,
+      "n_wrong": 20,
+      "n_fine": 20,
+      "tpr": {
+       "k": 15,
+       "n": 20,
+       "p": 0.75,
+       "lo": 0.5312949900419365,
+       "hi": 0.888139947210597
+      },
+      "tnr": {
+       "k": 16,
+       "n": 20,
+       "p": 0.8,
+       "lo": 0.5839782779742401,
+       "hi": 0.9193436467288
+      },
+      "kappa": 0.55,
+      "kappa_interval": [
+       0.23054407604783206,
+       0.7558171545769045
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": false
+     },
+     "step_level": {
+      "n": 15,
+      "same": {
+       "k": 9,
+       "n": 15,
+       "p": 0.6,
+       "lo": 0.357464427565077,
+       "hi": 0.8017577191740534
+      },
+      "within_one": {
+       "k": 12,
+       "n": 15,
+       "p": 0.8,
+       "lo": 0.5481406466534955,
+       "hi": 0.9295257935638959
+      },
+      "needed": 15,
+      "too_few": false
+     }
+    },
+    {
+     "name": "reviewer-b",
+     "model": "reviewer-b",
+     "fingerprint": {
+      "provider": null,
+      "model": "reviewer-b",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 40,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 40,
+      "n_wrong": 20,
+      "n_fine": 20,
+      "tpr": {
+       "k": 20,
+       "n": 20,
+       "p": 1.0,
+       "lo": 0.8388698745050667,
+       "hi": 1.0
+      },
+      "tnr": {
+       "k": 20,
+       "n": 20,
+       "p": 1.0,
+       "lo": 0.8388698745050667,
+       "hi": 1.0
+      },
+      "kappa": 1.0,
+      "kappa_interval": [
+       0.8158821135336659,
+       1.0
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": false
+     },
+     "step_level": {
+      "n": 20,
+      "same": {
+       "k": 20,
+       "n": 20,
+       "p": 1.0,
+       "lo": 0.8388698745050667,
+       "hi": 1.0
+      },
+      "within_one": {
+       "k": 20,
+       "n": 20,
+       "p": 1.0,
+       "lo": 0.8388698745050667,
+       "hi": 1.0
+      },
+      "needed": 15,
+      "too_few": false
+     }
+    }
+   ]
+  }
+ },
+ "too_few": {
+  "code": 3,
+  "out": [
+   "judgekeeper VERSION",
+   "",
+   "Read 10 runs from export.json: your people labelled 10 of them.",
+   "",
+   "Reviewer \"reviewer-a\" against your people, on 10 runs both labelled:",
+   "  Runs your people say went wrong: too few (0) for a number; 15 are needed.",
+   "  Runs your people say were fine: too few (10) for a number; 15 are needed.",
+   "  Kappa: too few runs of one kind for a number.",
+   "How often your reviewer finds the same first wrong step as your people, on the 0 runs both say went wrong:",
+   "  Too few runs (0) for a number; 15 are needed.",
+   "",
+   "Saved in .judgekeeper/steps/result.json.",
+   "",
+   "Next: label more runs in Label Studio, export again and run `PROGRAM steps export.json`."
+  ],
+  "err": [],
+  "result": {
+   "kind": "agent-steps",
+   "judgekeeper": "VERSION",
+   "source": {
+    "export": "export.json",
+    "reviewer_file": null
+   },
+   "people": {
+    "tasks": 10,
+    "labelled": 10,
+    "disagreed": 0,
+    "no_label": 0,
+    "unusable": 0,
+    "who": {
+     "2": 10
+    }
+   },
+   "reviewers": [
+    {
+     "name": "reviewer-a",
+     "model": "reviewer-a",
+     "fingerprint": {
+      "provider": null,
+      "model": "reviewer-a",
+      "snapshot": null,
+      "prompt_hash": null,
+      "rubric_version": null,
+      "temperature": null,
+      "created_at": null,
+      "endpoint": null
+     },
+     "unknown_fields": [
+      "provider",
+      "snapshot",
+      "prompt_hash",
+      "rubric_version",
+      "temperature"
+     ],
+     "runs_compared": 10,
+     "left_out": {
+      "no_guess": 0,
+      "unusable": 0,
+      "not_in_export": 0
+     },
+     "run_level": {
+      "n": 10,
+      "n_wrong": 0,
+      "n_fine": 10,
+      "tpr": null,
+      "tnr": null,
+      "kappa": null,
+      "kappa_interval": [
+       null,
+       null
+      ],
+      "needed_of_each_kind": 15,
+      "too_few": true
+     },
+     "step_level": {
+      "n": 0,
+      "same": null,
+      "within_one": null,
+      "needed": 15,
+      "too_few": true
+     }
+    }
+   ]
+  }
+ }
+}

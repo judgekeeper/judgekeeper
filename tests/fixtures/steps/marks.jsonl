@@ -1,0 +1,8 @@
+{"step_marks": 1, "created_at": "2026-11-26T10:00:00Z", "judgekeeper_version": "1.5.0", "runs": "runs.jsonl", "runs_hash": "dc421238469b837ba8bec904240c645fd5dca61ed9618a2cc9090054c4a3867f"}
+{"id": "run-1", "first_wrong_step": 2, "steps_hash": "090a9b5d55ed763d1b74fa59dce4913c7a018a4f71c910e1cab6d774baa659b2", "at": "2026-11-26T10:00:12Z", "seconds": 11.5, "by": "page"}
+{"id": "run-2", "first_wrong_step": 0, "steps_hash": "3651dd73037cf6f6f42cc5c06680ca98fd0d531d362380265c59fa1a555d917b", "at": "2026-11-26T10:00:20Z", "seconds": 7.25, "by": "page"}
+{"id": "3", "first_wrong_step": 1, "steps_hash": "05cccf663102c0ad28d1e47fb0d7eaed81e3b283d5d6564de69f13001908b327", "at": "2026-11-26T10:00:31Z", "seconds": 9.0, "by": "page"}
+{"id": "3", "first_wrong_step": null, "steps_hash": "05cccf663102c0ad28d1e47fb0d7eaed81e3b283d5d6564de69f13001908b327", "at": "2026-11-26T10:00:33Z", "seconds": 1.5, "by": "page"}
+{"id": "run-1", "first_wrong_step": 4, "steps_hash": "090a9b5d55ed763d1b74fa59dce4913c7a018a4f71c910e1cab6d774baa659b2", "at": "2026-11-26T10:00:40Z", "seconds": 6.0, "by": "page"}
+{"id": "run-2", "first_wrong_step": 0, "steps_hash": "3651dd73037cf6f6f42cc5c06680ca98fd0d531d362380265c59fa1a555d917b", "at": "2026-11-26T10:00:52Z", "seconds": 3.0, "by": "page", "link": "printed"}
+{"id": "run-1", "first_wrong_step": 4, "steps_hash": "090a9b5d55ed763d1b74fa59dce4913c7a018a4f71c910e1cab6d774baa659b2", "at": "2026-11-26T10:01:05Z", "seconds": 2.5, "by": "page", "link": "browser-env"}
