@@ -32,6 +32,7 @@
 - After `judgekeeper check` takes on a new LLM-as-a-judge, the next run is the new starting point ("Your LLM-as-a-judge setup changed since the last results...") instead of comparing its grades with the old one's and saying your change made it worse, also after a `--before` run in between. After a check finds the new one worse, the next run still compares with the grades you had.
 - If your first run named the results file and `check new-results.csv` then took the new one on, later runs read new-results.csv and compare each change.
 - On the answers page, pressing Undo twice while a mark is still saving takes back only that mark, not two without a word.
+- Records format v2: a tool call in `trajectory` can be OpenAI's `{"id", "type": "function", "function": {"name", "arguments"}}` as well as `{"id", "name", "arguments"}`. Before, OpenAI's shape made every line of the file read as damaged. The same call gives the answer the same id in either shape, a tool call in neither shape is named by its line and step with the two shapes it can take, and `judgekeeper steps` reads tool calls by the same rule.
 
 ## 1.4.0 (2026-11-23)
 

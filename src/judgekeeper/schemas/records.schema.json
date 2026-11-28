@@ -218,9 +218,24 @@
       }
     },
     "tool_call": {
+      "description": "One tool call, in either shape: {id, name, arguments}, or OpenAI's {id, type: \"function\", function: {name, arguments}}.",
       "type": "object",
-      "required": [
-        "name"
+      "anyOf": [
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "function"
+          ],
+          "properties": {
+            "type": {
+              "const": "function"
+            }
+          }
+        }
       ],
       "properties": {
         "id": {
@@ -236,6 +251,23 @@
         },
         "arguments": {
           "description": "The arguments, as an object or as JSON text."
+        },
+        "type": {
+          "description": "In OpenAI's shape: \"function\"."
+        },
+        "function": {
+          "description": "OpenAI's shape: the tool's name and the arguments (JSON text, as OpenAI gives them).",
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "arguments": {}
+          }
         }
       }
     },
