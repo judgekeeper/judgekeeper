@@ -305,8 +305,9 @@ class Mark:
 # Field names of what changes on every run, not what a grade follows: ids, times, durations,
 # costs and token counts (snake_case or camelCase)
 _EVERY_RUN = re.compile(r"(^|_)(ids?|uuid|at|time|timestamp|date|duration|latency|elapsed|cost"
-                        r"|usage|tokens?|ms|seconds)$|[a-z0-9](Ids?|Uuid|At|Time|Timestamp"
-                        r"|Duration|Latency|Cost|Usage|Tokens?|Ms|Seconds)$")
+                        r"|usage|tokens?|ms|seconds|created|system_fingerprint)$"
+                        r"|[a-z0-9](Ids?|Uuid|At|Time|Timestamp|Duration|Latency|Cost|Usage"
+                        r"|Tokens?|Ms|Seconds|Created)$")
 
 
 # What an LLM-as-a-judge writes beside its grade: its words, a score or confidence of its own.
@@ -324,8 +325,11 @@ def judge_said(name: str) -> bool:
 
 
 def _every_run(name: str) -> bool:
-    """Whether a field named `name` changes on every run (_EVERY_RUN)."""
-    return bool(_EVERY_RUN.search(name))
+    """Whether a field named `name` changes on every run (_EVERY_RUN), spelled with "-" or
+    spaces too (x-request-id, Request Id), or in camel case (systemFingerprint)."""
+    snake = re.sub(r"[-\s]+", "_", name.strip())
+    camel = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", snake).lower()
+    return any(_EVERY_RUN.search(n) for n in (snake, snake.lower(), camel))
 
 
 def _kept(value):

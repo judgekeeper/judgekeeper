@@ -93,3 +93,28 @@ def test_what_the_judge_wrote_in_records_metadata_is_not_the_answer(tmp_path, mo
     _records(tmp_path / "records.jsonl", 2)
     code, out = _said(capsys, "records.jsonl")
     assert code == 0 and before_after.ONLY_GRADES in out, out
+
+
+@pytest.mark.parametrize("name", ["x-request-id", "openai-processing-ms", "created",
+                                  "system_fingerprint", "systemFingerprint", "Request Id"])
+def test_a_field_an_api_call_gives_each_row_is_not_the_answer(tmp_path, monkeypatch, capsys,
+                                                             name):
+    """Spelled with "-" or spaces too: an API call's own id, time or fingerprint, new on every
+    row and every run."""
+    def write(take: int) -> None:
+        with (tmp_path / "records.jsonl").open("w", encoding="utf-8") as f:
+            for i in range(N):
+                verdict = "fail" if i % 4 == 0 or (take == 2 and i in FLIPS) else "pass"
+                f.write(json.dumps({
+                    "schema_version": 2, "target_id": f"run-{i:02}", "name": "correct",
+                    "annotator_kind": "LLM", "label": verdict, "input": f"Question {i}?",
+                    "output": f"Answer {i}.", "metadata": {name: f"{take}-{i}-{take * i}"},
+                }) + "\n")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CI", "true")
+    write(1)
+    assert _said(capsys, "records.jsonl")[0] == 0
+    write(2)
+    code, out = _said(capsys, "records.jsonl")
+    assert code == 0 and before_after.ONLY_GRADES in out, out
