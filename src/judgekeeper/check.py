@@ -1940,6 +1940,9 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
                 checked_at=utc_now())
     _write_grades(ws, found, answers, now)
     _write_json(ws.start, data)
+    from judgekeeper import before_after
+
+    before_after.restart(ws)  # grades of another LLM-as-a-judge: no change of the answers
 
 
 def _write_grades(ws: Workspace, found, answers: dict, now: dict[str, str]) -> None:

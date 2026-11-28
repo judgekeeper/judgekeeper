@@ -31,6 +31,9 @@ from judgekeeper.start import StartError, Stop
 from judgekeeper.textio import loads, make_private, path_arg, plural, write_replacing
 
 FILE = "last-graded.json"  # in .judgekeeper/: the results read last and the ones before
+# its setup after `check` took on another LLM-as-a-judge's grades (restart): the next results
+# start again, as for another setup, whatever their own setup's hash
+RESTART = "restart"
 EXIT_WORSE = 1
 
 COMPARED = "On the {questions} in both results: fixed {fixed}, broke {broke}, same {same}."
@@ -229,6 +232,15 @@ def read(ws) -> dict | None:
     return {"before": before, "now": now, "setup": d["setup"]}
 
 
+def restart(ws) -> None:
+    """After `check` took on another LLM-as-a-judge's grades (check._adopt): the grades read
+    next changed because the LLM-as-a-judge did, so they start again (RESTARTED). The grades
+    read last stay, to tell --before's file of them (look)."""
+    raw = read(ws)
+    if raw is not None:
+        write(ws, raw["before"], raw["now"], RESTART)
+
+
 def write(ws, before: dict | None, now: dict, setup: str) -> None:
     """The results read now and the ones read before them. Never written through a link."""
     path = _path(ws)
@@ -289,6 +301,9 @@ def look(talk, ws, found: start.Found, given: str | None = None,
         other = file_found(talk, found, given)
         if _judged(found) and _judged(other) and setup_of(other) != setup:
             return Look(None, last, now, setup, state is not None, other_setup=True)
+        if raw is not None and raw["setup"] == RESTART and grades_of(other) == raw["now"]:
+            # the grades a check replaced with another LLM-as-a-judge's: not compared
+            return Look(None, None, now, setup, True, restarted=True)
         return Look(compare(grades_of(other, numbers=True), grades_of(found, numbers=True)),
                     last, now, setup, state is not None)
     return Look(compare(baseline, now) if baseline is not None else None, last, now, setup,
