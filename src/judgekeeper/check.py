@@ -2754,6 +2754,35 @@ def _held(checks: list[dict]) -> bool:
                for g in (last.get("groups") or {}).values())
 
 
+def _unchanged(ws: Workspace, graded: dict) -> dict:
+    """The marked answers of `graded` ({id: answer}) whose text is the one they were marked
+    on (pool.jsonl, _same_answer)."""
+    rows = _rows(ws)
+    return {i: a for i, a in graded.items() if i in rows and _same_answer(a, rows[i])}
+
+
+def _back_by_grades(ws: Workspace, found) -> bool:
+    """Results that don't say who graded them (no model, rule or prompt in them), after a
+    check took on another judge's grades (start.json's `picked`): back to the judge the marks
+    were made on when each marked answer whose text is unchanged has the grade it was marked
+    on, and one at least differs from the grades taken on. The same under both, or a mix of
+    the two: not back."""
+    from judgekeeper.before_after import _says_who
+
+    try:
+        data = ws.data()
+    except (OSError, ValueError, AttributeError):
+        return False
+    picked = data.get("picked")
+    if not isinstance(picked, dict) or _says_who(found):
+        return False
+    made_on = picked.get("groups") or {}
+    taken = {q["id"]: q["group"] for q in data.get("queue") or []}
+    graded = _unchanged(ws, lookup(found, list(marks.read(ws.marks).counted()), ws)[0])
+    return (bool(graded) and all(a.verdict == made_on.get(i) for i, a in graded.items())
+            and any(made_on.get(i) != taken.get(i) for i in graded))
+
+
 def back_to_marked(ws: Workspace, found, say, again: int | None = None,
                    closed: list[str] | None = None) -> str | None:
     """The judge in the newest results (`found`) is the one the marks were made on, and the
@@ -2770,19 +2799,22 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None,
     if marked is None or saved is None or not checks:
         return None
     now = judge_setup.of(found)
+    by_grades = _back_by_grades(ws, found)  # nothing in the results says which judge
     last = checks[-1]
     to_now = judge_setup.hash_of(last.get("after") or {}) == judge_setup.hash_of(now)
-    if (judge_setup.hash_of(now) != judge_setup.hash_of(marked)
-            or to_now and not (again is not None and last.get("trigger") == "back"
-                               and last.get("marks") == again)):
+    if not by_grades and (judge_setup.hash_of(now) != judge_setup.hash_of(marked)
+                          or to_now and not (again is not None and last.get("trigger") == "back"
+                                             and last.get("marks") == again)):
         return None
     data = ws.data()
     made_on = (data.get("picked") or {}).get("groups") or {
         q["id"]: q["group"] for q in data.get("queue") or []}
     graded = lookup(found, list(marks.read(ws.marks).counted()), ws)[0]
+    if by_grades:  # only answers whose text is unchanged say which judge graded them
+        graded = _unchanged(ws, graded)
     if not graded or any(a.verdict != made_on.get(i) for i, a in graded.items()):
         return None  # no marks (after --new): no result from them stands
-    restored = saved["setup_hash"] != judge_setup.hash_of(now)
+    restored = by_grades or saved["setup_hash"] != judge_setup.hash_of(now)
     new = found.results[0].rel if found.results else None
     # the file the check the marks leave read (_adopt), kept to say on each "back" after
     left = data.get("results_read") if restored else data.get("results_left")

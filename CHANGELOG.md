@@ -33,6 +33,7 @@
 - If your first run named the results file and `check new-results.csv` then took the new one on, later runs read new-results.csv and compare each change.
 - On the answers page, pressing Undo twice while a mark is still saving takes back only that mark, not two without a word.
 - When your results don't say which model, rule or prompt graded them, a question counts as fixed or broke only when its answers changed. When only the grades changed and every answer stayed word for word the same, a plain run says "Only the grades changed since the last results, not the answers, so there is nothing to compare." and starts again, and `--before` says it does not compare them and exits 3. A stricter LLM-as-a-judge on the same answers was "Your change made it worse" (exit 1).
+- When your results don't say which model, rule or prompt graded them, reading the results your marks were made on again after `check` took on another LLM-as-a-judge is now going back to the one you marked with, told by the grades of the marked answers whose text is unchanged. Their new answers are added for marking; before, they were never added and `check` said worse.
 
 ## 1.4.0 (2026-11-23)
 
