@@ -242,3 +242,44 @@ def test_promptfoo_vars_changed_on_some_answers_are_compared(tmp_path, monkeypat
 
     _broke_10(*_both_ways(tmp_path, monkeypatch, capsys, write, "output.json"))
 
+
+def _dated(path, side: str, flips: int, every: bool) -> None:
+    """40 rows with a date. New: the first `flips` passing rows keep their answer, get a new
+    date and fail; every other row gets a new answer, its grade the same, and, with `every`,
+    a new date too."""
+    rows, flipped = [], 0
+    for i in range(1, 41):
+        out, date, v = f"It is {3 * i}.", f"2026-12-{i % 28 + 1:02}", "pass" if i % 2 else "fail"
+        if side == "new":
+            if v == "pass" and flipped < flips:
+                date, v, flipped = f"2027-01-{i % 28 + 1:02}", "fail", flipped + 1
+            else:
+                out += " Shown in full."
+                date = f"2027-01-{i % 28 + 1:02}" if every else date
+        rows.append({"id": f"q-{i:02}", "input": f"Question {i}?", "output": out, "date": date,
+                     "verdict": v})
+    with path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+
+
+@pytest.mark.parametrize("flips", [10, 5])
+def test_a_field_new_only_where_the_answer_stayed_is_compared(tmp_path, monkeypatch, capsys,
+                                                              flips):
+    """Every other answer reworded, its date the same: the date changed on only some
+    questions, so it is the agent's. (5 broke of 40 is too few to say worse: exit 0.)"""
+    plain, before = _both_ways(tmp_path, monkeypatch, capsys,
+                               lambda path, side: _dated(path, side, flips, False),
+                               "results.csv")
+    for code, out in (plain, before):
+        assert code == (1 if flips == 10 else 0), out
+        assert f"broke {flips}," in out and not _left_out(out, "date"), out
+
+
+def test_a_field_new_on_every_question_reworded_ones_too_is_left_out(tmp_path, monkeypatch,
+                                                                    capsys):
+    plain, before = _both_ways(tmp_path, monkeypatch, capsys,
+                               lambda path, side: _dated(path, side, 10, True), "results.csv")
+    for _, out in (plain, before):
+        assert _left_out(out, "date") and "broke 10," not in out, out

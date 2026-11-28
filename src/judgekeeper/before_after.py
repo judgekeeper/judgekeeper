@@ -275,18 +275,21 @@ EVERY_ANSWER = 5  # _noise: a field new on every answer of at least this many is
 
 
 def _noise(before: dict, now: dict, both: set) -> tuple[tuple[str, ...], set]:
-    """The fields that changed on every answer compared (at least EVERY_ANSWER of them) while
-    the rest of each answer stayed the same: per-run noise (a field each run fills anew), left
-    out. A field that changed on only some is the agent's, and compared. With them, the
-    questions whose answers are then the same."""
-    rows = [k for k in both if k in before and k in now and before[k][0] == now[k][0]]
-    if len(rows) < EVERY_ANSWER:
-        return (), set()
-    names = set().union(*(set(before[k][1]) | set(now[k][1]) for k in rows))
-    noise = tuple(sorted(f for f in names
-                         if all(before[k][1].get(f) != now[k][1].get(f) for k in rows)))
+    """The fields that changed on every question in both results that has them on both
+    sides (at least EVERY_ANSWER), the reworded ones too: per-run noise (a field each run
+    fills anew), left out. A field that changed on only some is the agent's, and compared.
+    With them, the questions whose answers are then the same."""
+    rows = [k for k in both if k in before and k in now]
+    names = set().union(set(), *(set(before[k][1]) & set(now[k][1]) for k in rows))
+
+    def every(f: str) -> bool:
+        had = [k for k in rows if f in before[k][1] and f in now[k][1]]
+        return len(had) >= EVERY_ANSWER and all(before[k][1][f] != now[k][1][f] for k in had)
+
+    noise = tuple(sorted(f for f in names if every(f)))
     if not noise:
         return (), set()
+    rows = [k for k in rows if before[k][0] == now[k][0]]
 
     def rest(fields: dict) -> dict:
         return {f: h for f, h in fields.items() if f not in noise}
