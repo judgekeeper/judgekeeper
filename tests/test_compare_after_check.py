@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import shutil
 import time
 
 import pytest
@@ -287,3 +288,56 @@ def test_after_a_worse_check_new_results_of_the_old_judge_are_compared_in_a_plai
     assert code == 1, out
     assert "questions in both results: fixed 0, broke 18" in out, out
     assert before_after.RESTARTED not in out, out
+
+
+@pytest.mark.parametrize("ids", [False, True], ids=["by-text", "by-id"])
+@pytest.mark.parametrize("other", ["copy.csv", "results.csv"])
+def test_a_before_run_after_the_check_leaves_the_new_starting_point(
+        tmp_path, monkeypatch, capsys, ids, other):
+    """Right after a check took on judge-b, a --before run (a copy of the new results, or
+    the old judge-a file) says what it says, and the next plain run is still the new
+    starting point: the --before run had kept judge-a's grades as the ones before, so the
+    plain run compared judge-a with judge-b ("broke 18 ... made it worse", exit 1). A later
+    change graded by judge-b is compared."""
+    _checked(tmp_path, monkeypatch, capsys, ids, models=("judge-a", "judge-b"))
+    shutil.copy2(tmp_path / "new-results.csv", tmp_path / "copy.csv")
+    monkeypatch.setenv("CI", "true")
+    code, out = _run(capsys, "new-results.csv", "--before", other)
+    assert code == (0 if other == "copy.csv" else 3), out
+    code, out = _run(capsys)
+    flat = _flat(out)
+    assert code == 0, out
+    assert before_after.RESTARTED in flat and WORSE not in flat, out
+    assert "questions in both results:" not in flat, out
+    path = tmp_path / "new-results.csv"
+    with path.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    passed = [r for r in rows if r["verdict"] == "pass"][:8]
+    for r in passed:  # the agent now gets 8 answers wrong, graded so by judge-b
+        r["verdict"] = "fail"
+    _write(path, rows, ids, "judge-b")
+    code, out = _run(capsys, "new-results.csv")
+    assert code == 1, out
+    assert "questions in both results: fixed 0, broke 8" in _flat(out), out
+
+
+def test_a_before_run_on_another_judge_leaves_the_last_grades_alone(tmp_path, monkeypatch,
+                                                                     capsys):
+    """The last grades read are judge-b's. A --before run on two files graded by judge-c
+    compares them and leaves judge-b's grades as the last ones read: the next plain run on
+    judge-c's file compares nothing across the two (the --before run had kept judge-b's
+    grades as the ones before judge-c's)."""
+    _checked(tmp_path, monkeypatch, capsys, True, models=("judge-a", "judge-b"))
+    _plain(capsys)  # the new starting point: judge-b's grades are the last read
+    kept = _baseline(tmp_path)
+    with (tmp_path / "new-results.csv").open(encoding="utf-8", newline="") as f:
+        rows = [{**r, "verdict": "pass"} for r in csv.DictReader(f)]  # judge-c passes all
+    _write(tmp_path / "other.csv", rows, True, "judge-c")
+    shutil.copy2(tmp_path / "other.csv", tmp_path / "other-copy.csv")
+    monkeypatch.setenv("CI", "true")
+    code, out = _run(capsys, "other.csv", "--before", "other-copy.csv")
+    assert code == 0 and "questions in both results: fixed 0, broke 0" in _flat(out), out
+    assert _baseline(tmp_path) == kept
+    code, out = _run(capsys, "other.csv")
+    assert code == 0, out
+    assert "questions in both results:" not in _flat(out) and WORSE not in _flat(out), out

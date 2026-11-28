@@ -605,7 +605,7 @@ def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
         talk.say()
         for line in para:
             talk.para(line)
-    if write and not talk.noted and ws.start.is_file():
+    if write and not talk.noted and not seen.keep and ws.start.is_file():
         before_after.write(ws, seen.before, seen.now, seen.setup)
     return code
 

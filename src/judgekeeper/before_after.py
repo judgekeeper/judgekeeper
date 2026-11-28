@@ -263,6 +263,9 @@ class Look:
     had: bool  # last-graded.json was there and could be read
     restarted: bool = False  # it was, for another setup of the LLM-as-a-judge: RESTARTED
     other_setup: bool = False  # --before's file was graded by another setup: OTHER_SETUP
+    # a --before run on another setup than the grades read last (or than a check took on):
+    # last-graded.json stays as it is, so no plain run compares grades of two setups
+    keep: bool = False
 
     def paragraphs(self, comparison: Comparison | None,
                    gate: bool = True) -> tuple[list[list[str]], int | None]:
@@ -299,10 +302,11 @@ def look(talk, ws, found: start.Found, given: str | None = None,
     baseline = last  # ids that are plain numbers say nothing here: the text does
     if given is not None:
         other = file_found(talk, found, given)
+        keep = raw is not None and raw["setup"] != setup
         if _judged(found) and _judged(other) and setup_of(other) != setup:
-            return Look(None, last, now, setup, state is not None, other_setup=True)
+            return Look(None, last, now, setup, state is not None, other_setup=True, keep=keep)
         return Look(compare(grades_of(other, numbers=True), grades_of(found, numbers=True)),
-                    last, now, setup, state is not None)
+                    last, now, setup, state is not None, keep=keep)
     return Look(compare(baseline, now) if baseline is not None else None, last, now, setup,
                 state is not None, restarted=restarted)
 
