@@ -1,7 +1,8 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/logo.png" alt="judgekeeper logo" width="80">
-  <h1>judgekeeper <sup><sup><sub>™</sub></sup></sup></h1>
-  <p><strong>Check agents and chatbots with human judgment.</strong><br>Read. Measure. Fix. Re-check.</p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/readme-header-dark.svg">
+    <img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/readme-header-light.svg" alt="judgekeeper™: Check agents and chatbots with human judgment. Read. Measure. Fix. Re-check." width="640">
+  </picture>
   <p>
     <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a>
     <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests"></a>
@@ -11,7 +12,7 @@
 
 judgekeeper checks your AI agent or chatbot with human judgment. You mark what's right, and it shows how often an agent-as-a-judge or an LLM-as-a-judge (an AI model that grades another model's work) agrees with you, and where it goes wrong.
 
-![judgekeeper finds the results, opens the marking page, and shows how often the LLM-as-a-judge agrees with you.](https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/demo.webp)
+https://github.com/user-attachments/assets/VIDEO-LINK-AFTER-UPLOAD
 
 ## Install
 
@@ -28,9 +29,9 @@ Using a coding agent? Give it this page and say: "Follow this to run judgekeeper
 
 | You have | Run | You see |
 |---|---|---|
-| Grades from an LLM-as-a-judge | `judgekeeper` | How often it agrees with your marks |
-| Your agent's or chatbot's answers, no grades | `judgekeeper` | How many pass, with a range |
 | Agent runs | `judgekeeper steps runs.jsonl --reviewer picks.jsonl` | How often your agent-as-a-judge picks the same first wrong step as you |
+| Your agent's or chatbot's answers, no grades | `judgekeeper` | How many pass, with a range |
+| Grades from an LLM-as-a-judge | `judgekeeper` | How often it agrees with your marks |
 
 It reads promptfoo, DeepEval, Inspect AI, MLflow, Label Studio exports, or your own CSV, TSV or JSONL file. [Formats](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#what-it-reads)
 

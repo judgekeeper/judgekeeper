@@ -33,20 +33,52 @@ def _flat(text: str) -> str:
 
 # The README --------------------------------------------------------------------------------
 
+HEADLINE = "Check agents and chatbots with human judgment."  # the website hero's
+HEADER_ALT = f"judgekeeper™: {HEADLINE} Read. Measure. Fix. Re-check."
+VIDEO = "https://github.com/user-attachments/assets/"
+
+
 def test_the_readme_is_short_and_in_order():
     text = _readme()
-    assert text.startswith('<div align="center">\n  <img ')  # one centered header block
+    assert text.startswith('<div align="center">\n  <picture>')  # one centered header image
     body = text.split("\n</div>\n", 1)[1]
-    assert len(body.splitlines()) < 74# the text under the header stays short
+    assert len(body.splitlines()) < 74  # the text under the header stays short
     top = text[:text.index("\n## ")]
-    for needed in ("<strong>Check agents and chatbots with human judgment.</strong>",
-                   "Read. Measure. Fix. Re-check.", "docs/assets/demo.webp"):
-        assert needed in top, needed
+    # the header image, dark and light, says the headline and the steps in its alt text; then
+    # the first paragraph, then the video; no sub-line paragraph
+    for theme in ("dark", "light"):
+        assert f"docs/assets/readme-header-{theme}.svg" in top, theme
+    assert f'alt="{HEADER_ALT}"' in top
+    lines = [x for x in body.split("\n## ")[0].splitlines() if x.strip()]
+    assert len(lines) == 2 and lines[0].startswith("judgekeeper checks your AI agent or chatbot")
+    assert lines[1] == next(x for x in top.splitlines() if x.startswith(VIDEO))
+    assert "Human judgment decides what's right." not in text
     assert (ROOT / "docs" / "assets" / "demo.webp").stat().st_size < 1_000_000
     heads = list(_sections(text))
     wanted = ["Install", "What you can check", "The 4 steps", "The numbers",
               "Checked on public data", "More", "License"]
     assert [h for h in heads if h in wanted] == wanted
+
+
+def test_the_header_images_say_what_their_alt_text_says():
+    """Each header image's own title and label are the README's alt text: the words drawn in
+    it (outlined, so GitHub needs no font) are the headline and the four steps."""
+    for theme in ("dark", "light"):
+        svg = (ROOT / "docs" / "assets" / f"readme-header-{theme}.svg").read_text(encoding="utf-8")
+        assert f"<title>{HEADER_ALT}</title>" in svg and f'aria-label="{HEADER_ALT}"' in svg
+        assert "<text" not in svg and "@font-face" not in svg and "<script" not in svg
+
+
+def test_the_readme_names_agents_and_chatbots_before_the_llm_as_a_judge():
+    """No line opens with LLM-as-a-judge, and the table of what you can check starts with
+    agent runs, then an agent's or chatbot's answers."""
+    for line in _readme().splitlines():
+        words = re.sub(r"^[\s|>*#0-9.-]*(\*\*[^*]+\*\*\s*)?", "", line)
+        assert not words.lower().startswith(("llm-as-a-judge", "an llm-as-a-judge",
+                                             "the llm-as-a-judge")), line
+    rows = [x for x in _sections(_readme())["What you can check"].splitlines()
+            if x.startswith("| ") and not x.startswith("| You have")]
+    assert rows[0].startswith("| Agent runs |") and "chatbot" in rows[1], rows
 
 
 def test_the_readme_has_each_step_with_its_command():
