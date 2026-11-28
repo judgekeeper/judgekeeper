@@ -423,10 +423,34 @@ def graded_rest(item: dict, left: set, prefix: str = "") -> tuple[tuple[str, str
 
     kept = _kept({k: v for k, v in item.items() if k not in left})
     fields = tuple(sorted(
-        (prefix + path, hashlib.sha256(canonical_json(v).encode(
-            "utf-8", "surrogatepass")).hexdigest()[:16])
+        (prefix + path, (STAMP if looks_stamped(v) else "") + hashlib.sha256(canonical_json(
+            v).encode("utf-8", "surrogatepass")).hexdigest()[:16])
         for path, v in _leaves(_norm(kept))))
     return fields or None
+
+
+STAMP = "~"  # before a field's hash in graded_rest: its value looks like a run's stamp
+_STAMPED = re.compile(
+    r"[-+]?\d+(?:\.\d+)?(?:e[-+]?\d+)?(?:ns|us|ms|s)?"  # 12, 1.5, 230ms
+    r"|\d{4}-\d{2}-\d{2}(?:[t ]\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:z|[-+]\d{2}:?\d{2})?)?"
+    r"|\d{1,2}[/.]\d{1,2}[/.]\d{2,4}(?: \d{1,2}:\d{2}(?::\d{2})?)?"  # 1/12/2026 10:00
+    r"|\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?: ?[ap]m)?"  # 10:30, 10:30:05 pm
+    # an id or hash: a uuid, or a token with 8 or more letters and digits mixed in one part
+    # (a94a8fe5…, chatcmpl-AbC123xyz9, req_8f3a91bc); not a name or version (bm25, v2, 1.1.0)
+    r"|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    r"|(?:[a-z0-9]+[-_:.])*(?=[a-z]*\d)(?=\d*[a-z])[a-z0-9]{8,}(?:[-_:.][a-z0-9]+)*",
+    re.IGNORECASE)
+
+
+def looks_stamped(value) -> bool:
+    """Whether `value` looks like what a run writes anew each time, never the agent's: a date
+    or time, a number, an id or hash with a digit in it. Text with spaces never does
+    (before_after._noise: when in doubt, compare)."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int | float):
+        return True
+    return isinstance(value, str) and len(value) <= 40 and bool(_STAMPED.fullmatch(value))
 
 
 def _leaves(value, path: str = ""):

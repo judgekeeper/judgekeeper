@@ -185,18 +185,21 @@ def _answer_sums(answers) -> tuple[dict[str, list[str]], dict[str, list]]:
         out.setdefault(key, []).append(BLANK if blank else digest(
             base + ([fields] if fields else [])))
         if every and not blank:
-            parts.setdefault(key, []).append([digest(base), {f: h[:8] for f, h in every}])
+            parts.setdefault(key, []).append([digest(base), {f: _short(h) for f, h in every}])
     return ({k: sorted(v) for k, v in out.items()},
             {k: v[0] for k, v in parts.items() if len(v) == 1 and len(out[k]) == 1})
 
 
 def _per_run(fields: list) -> set:
-    """The (name, value) fields that every answer of a file has the same: what a run gives
-    each of its rows (a run number, a date, a version), not an answer of its own. None with
-    fewer than two answers."""
+    """The (name, value) fields that every answer of a file has the same and that look like
+    a run's stamp (records.looks_stamped): what a run gives each of its rows (a run number, a
+    date, a run id), not an answer of its own. Text the same on every row (a system prompt)
+    is the agent's, and compared. None with fewer than two answers."""
+    from judgekeeper.records import STAMP
+
     if len(fields) < 2 or any(not f for f in fields):
         return set()
-    same = set(fields[0])
+    same = {f for f in fields[0] if f[1].startswith(STAMP)}
     for f in fields[1:]:
         same &= set(f)
         if not same:
@@ -274,17 +277,29 @@ def compare(before: dict, now: dict) -> Comparison:
 EVERY_ANSWER = 5  # _noise: a field new on every answer of at least this many is per-run
 
 
+def _short(h: str) -> str:
+    """A field's hash as last-graded.json keeps it: 8 hex digits, with its STAMP mark."""
+    from judgekeeper.records import STAMP
+
+    return h[:9] if h.startswith(STAMP) else h[:8]
+
+
 def _noise(before: dict, now: dict, both: set) -> tuple[tuple[str, ...], set]:
     """The fields that changed on every question in both results that has them on both
-    sides (at least EVERY_ANSWER), the reworded ones too: per-run noise (a field each run
-    fills anew), left out. A field that changed on only some is the agent's, and compared.
-    With them, the questions whose answers are then the same."""
+    sides (at least EVERY_ANSWER), the reworded ones too, and whose every value looks like a
+    run's stamp (records.looks_stamped: a date, a number, an id): per-run noise, left out.
+    A field that changed on only some, or holds text, is the agent's, and compared. With
+    them, the questions whose answers are then the same."""
+    from judgekeeper.records import STAMP
+
     rows = [k for k in both if k in before and k in now]
     names = set().union(set(), *(set(before[k][1]) & set(now[k][1]) for k in rows))
 
     def every(f: str) -> bool:
         had = [k for k in rows if f in before[k][1] and f in now[k][1]]
-        return len(had) >= EVERY_ANSWER and all(before[k][1][f] != now[k][1][f] for k in had)
+        return len(had) >= EVERY_ANSWER and all(
+            before[k][1][f] != now[k][1][f] and before[k][1][f].startswith(STAMP)
+            and now[k][1][f].startswith(STAMP) for k in had)
 
     noise = tuple(sorted(f for f in names if every(f)))
     if not noise:

@@ -9,7 +9,9 @@ A pure re-grade read as "Your change made it worse"; a booking agent's wrong `da
 
 import copy
 import csv
+import hashlib
 import json
+import uuid
 
 import pytest
 
@@ -29,8 +31,17 @@ TELEMETRY = ["cost", "created_at", "duration_ms", "latency", "latency_ms", "requ
              "cost_usd", "elapsed", "elapsed_s", "eval_id", "evaluated_at",
              "grader_model_version", "input_tokens", "judge_tokens", "output_tokens", "price",
              "prompt_tokens", "timestamp_utc", "ts", "updated_at"]
-EVERY_ROW = ["date", "duration", "seconds", "time", "session",  # told by what they do
-             "notes", "reasoning", "comments"]  # an agent's or a judge's: not by the name
+# A run's stamp, new on every row: told by what it does, and only when it looks like one
+# (a date or time, a number, an id); `side` 0 before, 1 after
+EVERY_ROW = {
+    "date": lambda i, side: f"202{6 + side}-{i % 12 + 1:02}-{i % 28 + 1:02}",
+    "when": lambda i, side: f"2026-12-{i % 28 + 1:02}T10:{i % 60:02}:{side:02}Z",
+    "time": lambda i, side: f"10:{i % 60:02}:{side + 10}",
+    "duration": lambda i, side: str(1.5 + i / 100 + side),
+    "seconds": lambda i, side: f"{12.25 * i + side:.3f}",
+    "session": lambda i, side: str(uuid.UUID(int=i * 7 + side)),
+    "build": lambda i, side: hashlib.sha1(f"{i} {side}".encode()).hexdigest(),
+}
 CONTENT = ["agent_model", "category", "context", "documents", "expected_output", "messages",
            "metadata", "plan", "reference", "retrieved_docs", "sources", "sql", "steps",
            "system_prompt", "tags", "tool_calls", "tools_used", "trajectory", "date",
@@ -46,13 +57,15 @@ def _said(capsys, *argv) -> tuple[int, str]:
     return code, _flat(out)
 
 
-def _rows(column: str, mode: str, ids: bool) -> list[dict]:
+def _rows(column: str, mode: str, ids: bool, stamp=None) -> list[dict]:
     """80 rows: question, answer, grade and `column`. `noise`: `column` new on every row and
     the first 10 passing ones fail; `content`: those 10 get a new `column` and fail."""
     rows, flipped = [], 0
     for i in range(1, N + 1):
         verdict, value = "pass" if i % 3 else "fail", f"value one for {i}"
-        if mode == "noise":
+        if stamp:
+            value = stamp(i, int(mode == "noise"))
+        elif mode == "noise":
             value = f"value two for {i}"
         if verdict == "pass" and flipped < 10 and mode in ("noise", "content"):
             verdict, flipped = "fail", flipped + 1
@@ -64,8 +77,8 @@ def _rows(column: str, mode: str, ids: bool) -> list[dict]:
     return rows
 
 
-def _table(path, column: str, mode: str, ids: bool = True, sep: str = ",") -> None:
-    rows = _rows(column, mode, ids)
+def _table(path, column: str, mode: str, ids: bool = True, sep: str = ",", stamp=None) -> None:
+    rows = _rows(column, mode, ids, stamp)
     with path.open("w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]), delimiter=sep)
         w.writeheader()
@@ -111,15 +124,38 @@ def test_a_column_the_judge_or_the_run_writes_is_left_out(tmp_path, monkeypatch,
 
 
 @pytest.mark.parametrize("column", EVERY_ROW)
-def test_a_column_changed_on_every_answer_is_left_out_and_said(tmp_path, monkeypatch, capsys,
-                                                               column):
+def test_a_stamp_changed_on_every_answer_is_left_out_and_said(tmp_path, monkeypatch, capsys,
+                                                              column):
     def write(path, side):
-        _table(path, column, "noise" if side == "new" else "base")
+        _table(path, column, "noise" if side == "new" else "base", stamp=EVERY_ROW[column])
 
     plain, before = _both_ways(tmp_path, monkeypatch, capsys, write, "results.csv")
     _only_grades(plain, before)
     for _, out in (plain, before):
         assert _left_out(out, column), out
+
+
+@pytest.mark.parametrize("column", ["context", "notes", "reasoning", "comments", "date"])
+def test_text_changed_on_every_answer_is_compared(tmp_path, monkeypatch, capsys, column):
+    """A new retriever: every context new text, 10 passes now fail. Text is never a run's
+    stamp, whatever its name: when in doubt, compare."""
+    def write(path, side):
+        _table(path, column, "noise" if side == "new" else "base")
+
+    _broke_10(*_both_ways(tmp_path, monkeypatch, capsys, write, "results.csv"))
+
+
+def test_a_stamp_beside_text_changed_on_every_answer_is_compared(tmp_path, monkeypatch, capsys):
+    """Every value has to look like a stamp: one row of text keeps the column compared."""
+    def write(path, side):
+        rows = _rows("date", "noise" if side == "new" else "base", True, EVERY_ROW["date"])
+        rows[0]["date"] = f"the morning of day {int(side == 'new')}"
+        with path.open("w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
+
+    _broke_10(*_both_ways(tmp_path, monkeypatch, capsys, write, "results.csv"))
 
 
 @pytest.mark.parametrize("ids", [True, False], ids=["by-id", "by-text"])
@@ -214,7 +250,7 @@ def test_promptfoo_response_metadata_a_run_writes_is_left_out(tmp_path, monkeypa
         data = promptfoo_data([v and not (new and i in flip) for i, v in enumerate(verdicts)])
         for i, row in enumerate(data["results"]["results"]):
             meta = {"toolCalls": [{"name": "lookup_order", "args": {"id": i}}]}
-            stamp = f"{side}-{i}"
+            stamp = str(uuid.UUID(int=i * 2 + new))
             meta[key] = ({"status": 200, "headers": {"date": stamp, "x-request-id": stamp}}
                          if key == "http" else stamp)
             row["response"] = copy.deepcopy(row["response"]) | {"metadata": meta}
@@ -283,3 +319,47 @@ def test_a_field_new_on_every_question_reworded_ones_too_is_left_out(tmp_path, m
                                lambda path, side: _dated(path, side, 10, True), "results.csv")
     for _, out in (plain, before):
         assert _left_out(out, "date") and "broke 10," not in out, out
+
+
+def _one_value(path, column: str, side: str, value) -> None:
+    """80 rows, `column` the same on every row of the file; new: 10 passes fail."""
+    rows = _rows(column, "noise" if side == "new" else "base", True)
+    for r in rows:
+        r[column] = value
+    with path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+
+
+@pytest.mark.parametrize("column,before,after", [
+    ("system_prompt", "You are a helpful support agent.", "You are a terse support agent."),
+    ("retriever", "bm25 top 5", "dense top 10 rerank"),
+    ("agent_model", "Support bot", "Support bot two"),
+    ("agent_model", "support-agent-v1", "support-agent-v2"),  # a name or version, no id
+    ("agent_version", "1.0.0", "1.1.0"),
+    ("prompt_version", "v1", "v2"),
+    ("retriever", "bm25", "dense-v2"),
+])
+def test_text_the_same_on_every_row_and_new_is_compared(tmp_path, monkeypatch, capsys,
+                                                        column, before, after):
+    """A new system prompt, retriever or agent for the whole run: the agent's change."""
+    _broke_10(*_both_ways(tmp_path, monkeypatch, capsys,
+                          lambda path, side: _one_value(path, column, side,
+                                                        after if side == "new" else before),
+                          "results.csv"))
+
+
+@pytest.mark.parametrize("column,before,after", [
+    ("run_id", "3fa85f64-5717-4562-b3fc-2c963f66afa6", "9b2d1c40-1111-4562-b3fc-2c963f66afa6"),
+    ("batch_key", "3fa85f64-5717-4562-b3fc-2c963f66afa6", "9b2d1c40-1111-4562-b3fc-2c963f66afa6"),
+    ("job", "chatcmpl-AbC123xyz9", "chatcmpl-QrS456uvw8"),
+    ("batch", "2026-12-01", "2026-12-02"),
+    ("run", "7", "8"),
+])
+def test_a_stamp_the_same_on_every_row_is_left_out(tmp_path, monkeypatch, capsys, column,
+                                                   before, after):
+    _only_grades(*_both_ways(tmp_path, monkeypatch, capsys,
+                             lambda path, side: _one_value(path, column, side,
+                                                           after if side == "new" else before),
+                             "results.csv"))

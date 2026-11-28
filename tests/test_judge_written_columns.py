@@ -49,10 +49,9 @@ def _regraded(here, monkeypatch, capsys, columns, context_changed=False) -> tupl
     return _said(capsys)
 
 
-@pytest.mark.parametrize("column", [
-    "explanation", "rationale", "reasoning", "critique", "feedback", "comments", "notes",
-    "confidence", "gpt4_score", "grader_notes", "Judge Notes", "eval-comment", "judged_on",
-    "run"])
+@pytest.mark.parametrize("column", [  # bare notes, reasoning, comments: text, compared
+    "explanation", "rationale", "critique", "feedback", "confidence", "gpt4_score",
+    "grader_notes", "Judge Notes", "eval-comment", "judged_on", "run"])
 def test_a_column_the_judge_writes_or_one_per_run_is_not_the_answer(tmp_path, monkeypatch,
                                                                     capsys, column):
     code, out = _regraded(tmp_path, monkeypatch, capsys, [column])
