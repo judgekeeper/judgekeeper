@@ -2984,6 +2984,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     # --before on results graded by the judge the marks were made on: no grade the taken-on one
     # changed, nothing for a check to take on, and nothing moves (only a comparison)
     before_marked = not first and talk.before is not None and check.on_marked_judge(ws, found)
+    seen = check.as_marked(ws, found) if before_marked else None  # its own result, in memory
     marked_on = back is not None or before_marked  # the judge marked on ("": never left it)
     elsewhere = elsewhere or (None if first or marked_on else _checked_file(ws, found))
     changed = [] if first or marked_on or elsewhere else _changed(ws, found)
@@ -3026,6 +3027,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(back)  # the judge marked on
         if not marking and closed:
             head.extend(["", *closed])  # a paragraph of its own
+    if seen is not None:
+        head.append(check.as_marked_line(found, _newest(found)))
     if before_marked and (n := len(batches.new_answers(ws, found))):
         head.append(_not_added(n, _newest(found)))
     if elsewhere:  # the result is about that file, not the one read here
@@ -3099,7 +3102,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades),
                        elsewhere=bool(elsewhere) or before_marked, compare=bool(regraded),
-                       worse_said=any(x.startswith(HELD_WORSE[:20]) for x in head))
+                       worse_said=any(x.startswith(HELD_WORSE[:20]) for x in head), seen=seen)
     if not enough and ws.result_json.is_file():  # a mark taken back since: no result now
         start_label.store_result(ws, session, _flags_of(talk, saved, ws))
     if every and not enough:  # nothing left to mark, and no result yet
@@ -3585,13 +3588,17 @@ def _fix_command(talk: FrontTalk) -> str:
 
 def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
             head: list[str], check: bool = False, elsewhere: bool = False,
-            compare: bool = False, worse_said: bool = False) -> int:
+            compare: bool = False, worse_said: bool = False,
+            seen: Workspace | None = None) -> int:
     """Step 2: the result from the marks, saved; whether the page is open. `check`: the
     judge changed since the marks, so the Next: line is `judgekeeper check`. `elsewhere`: the
     marks test a file a check read elsewhere (_checked_file): a plain `check` would read the
     older results here, so the next one is given the new results file. `compare`: graded
     again with the same model and rule (REGRADED): the check that compares is the Next.
-    `worse_said`: the head named the check that found the newer grades worse (HELD_WORSE)."""
+    `worse_said`: the head named the check that found the newer grades worse (HELD_WORSE).
+    `seen`: the project as going back to the judge marked on would make it (check.as_marked):
+    the result is made from it and shown, never saved, and the files kept (report.html, the
+    disagreements fix lists) are not about it, so they are not named."""
     talk.say(STEP.format(n=2, name="Measure"))
     talk.say()
     _say_head(talk, head)
@@ -3606,8 +3613,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     # the terminal's: run where it is printed, as `check` says it
     worse_here = was and checking.worse_step(was["before"], was["after"],
                                              _check_command(talk), ws)
-    r = start_label.store_result(ws, session, _flags_of(talk, saved, ws), worse=worse or None,
-                                 redraw=True)
+    r = (start_label._made(seen, StartSession(seen), _flags_of(talk, saved, ws)) if seen
+         else start_label.store_result(ws, session, _flags_of(talk, saved, ws),
+                                       worse=worse or None, redraw=True))
     m = marks.read(ws.marks)
     made = marks.made(m, ids=set(session.by_id))  # reasons added since
     for line in made_lines(made, marks.imported(m, ids=set(session.by_id)),
@@ -3642,7 +3650,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     only = bool(r.get("only_wait"))  # a new mark would only wait: no line asks for one
     mark_next = (not worse and not check and step == "mark" and not start_label.all_labeled(r)
                  and not only)
-    why, have = start_label.why_counts(ws, r) if not worse else (0, 0)
+    why, have = start_label.why_counts(ws, r) if not (worse or seen) else (0, 0)
     if why:  # the result page has a box on each; those it lists, never those kept aside
         talk.say()
         talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark"), have))
@@ -3670,7 +3678,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         off = labels_mod.looks_off_line(r.get("imports_off"), r.get("imported"))
         if off:  # a warning, never a stop
             talk.para(off)
-    which = _which_judge(ws, found)
+    which = _which_judge(seen or ws, found)
     if which:
         talk.say()
         talk.para(which)
@@ -3679,9 +3687,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
         talk.para(left)
     talk.say()
-    report = link(ws.report_html, f"{shown_folder(ws)}/{ws.report_html.name}")
-    talk.say(f"Full report: {report} (open it in your browser)")
-    talk.say()
+    if seen is None:  # report.html is about the judge the project uses
+        report = link(ws.report_html, f"{shown_folder(ws)}/{ws.report_html.name}")
+        talk.say(f"Full report: {report} (open it in your browser)")
+        talk.say()
     opened = None
     ranges = report_page.shows_range(r)
     if start_label.all_labeled(r):  # nothing left to mark: no page
@@ -3713,6 +3722,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(WORSE_LAST)
             talk.say()
         next_step = worse_here
+    elif seen is not None:  # fix and mark are about the judge the project uses: nothing moves
+        next_step = checking.NEXT_SAME_FILE.removeprefix("Next: ").format(
+            command=f"{program('check')} {checking.NEW_RESULTS}")
     elif check and (few := checking.too_few_here(ws, found)):  # check would say can't tell
         talk.para(few[0])
         talk.say()

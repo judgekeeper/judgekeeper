@@ -5,6 +5,8 @@ LLM-as-a-judge is checked", and no Next to check it: that check has nothing to d
 
 import csv
 import os
+import re
+import shutil
 
 import pytest
 
@@ -58,7 +60,7 @@ def test_a_before_on_the_marked_judges_results_only_compares(tmp_path, monkeypat
     assert "check results.csv" not in out, out  # its LLM-as-a-judge is the one marked with
     # the broken answers are new: not added under the judge taken on, and said so once
     assert out.count(f"{BROKE} new answers in results.csv are not added for marking") == 1, out
-    assert "Next: nothing to do." in out, out  # the marks' result, as it was
+    assert "Next: nothing to do." in out, out  # the project's: a --before moves nothing
 
 
 @pytest.mark.parametrize("models", [None, ("judge-old", "judge-new")], ids=["unnamed", "named"])
@@ -73,3 +75,39 @@ def test_naming_the_marked_judges_file_right_after_a_take_on_is_one_story(
     assert code == 0 and "back to the one you marked with" in out, out
     assert before_after.RESTARTED not in out, out
     assert "changed since your marks" not in out, out
+
+
+def _numbers(out: str) -> list[str]:
+    """The result's own numbers: the verdict, the disagreements and the two counts."""
+    found = re.findall(r"Result: [^.]*\.|disagreed on \d+ of \d+ answers|You (?:passed|failed) "
+                       r"\d+ answers\. Of those, your LLM-as-a-judge passed \d+ and failed \d+",
+                       out)
+    assert len(found) == 4, out
+    return found
+
+
+@pytest.mark.parametrize("ids,models", [(True, None), (False, None),
+                                         (True, ("judge-old", "judge-new"))],
+                         ids=["by-id", "by-text", "named-models"])
+def test_a_before_after_a_take_on_measures_the_file_it_names(tmp_path, monkeypatch, capsys,
+                                                             ids, models):
+    """After a check took on new-results.csv, `results.csv --before main-results.csv` gives
+    results.csv's own result (its grades against the marks), as a plain run on it does, and
+    the project still uses the LLM-as-a-judge taken on: start.json is not changed."""
+    here = tmp_path / "p"
+    here.mkdir()
+    _checked(here, monkeypatch, capsys, ids, models=models)  # took on new-results.csv
+    monkeypatch.setenv("CI", "true")
+    shutil.copy(here / "results.csv", here / "main-results.csv")
+    plain = tmp_path / "plain"
+    shutil.copytree(here, plain)
+    kept = {n: (here / ".judgekeeper" / n).read_bytes()
+            for n in ("start.json", "judge.json", "result.json")}
+    code, out = _said(capsys, "results.csv", "--before", "main-results.csv")
+    assert kept == {n: (here / ".judgekeeper" / n).read_bytes() for n in kept}, out
+    assert code == 0 and "fixed 0, broke 0, same" in out, out
+    assert "about results.csv" in out, out  # whose numbers they are
+    monkeypatch.chdir(plain)
+    _, alone = _said(capsys, "results.csv")
+    assert "back to the one you marked with" in alone and "needs work" in alone, alone
+    assert _numbers(out) == _numbers(alone), (out, alone)

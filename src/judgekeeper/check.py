@@ -2823,6 +2823,43 @@ def on_marked_judge(ws: Workspace, found) -> bool:
     return now == judge_setup.hash_of(marked) and now != saved["setup_hash"]
 
 
+def as_marked(ws: Workspace, found) -> Workspace | None:
+    """While a check's take-on holds and `found` was graded by the LLM-as-a-judge the marks were
+    made on (on_marked_judge): `ws` as going back to it (_restore) would make it, in memory
+    only, so a --before measures that file without moving the marks (None otherwise)."""
+    import copy
+
+    try:
+        data = ws.data()
+    except (OSError, ValueError):
+        return None
+    picked = data.get("picked")
+    if not isinstance(picked, dict) or not on_marked_judge(ws, found):
+        return None
+    groups = picked.get("groups") or {}
+    data["queue"] = [{**q, "group": groups.get(q["id"], q["group"])} for q in data["queue"]]
+    data["pool"] = picked.get("pool") or data.get("pool")
+    for key in ("picked", "checked_at", "earlier_grades"):  # every grade is that judge's
+        data.pop(key, None)
+    data.update(rule=found.rule, one_rule=found.one_rule, judge=found.judge,
+                fingerprint=scrub_fingerprint(found.fingerprint))
+    seen = copy.copy(ws)
+    seen.data = seen.cached_data = lambda: copy.deepcopy(data)
+    seen.cached_strata = lambda: batches.strata(data)
+    return seen
+
+
+# A --before on the file the marks were made on, after a take-on (as_marked)
+AS_MARKED = ("This result is about {file}, graded by the LLM-as-a-judge you marked with "
+             "({model}). Your project still uses the one your last check took on.")
+
+
+def as_marked_line(found, file: str) -> str:
+    """AS_MARKED for `found`, named `file` here."""
+    names = [re.split(r"[:/]", str(m))[-1] for m in judge_setup.of(found).get("models") or []]
+    return AS_MARKED.format(file=file, model=", ".join(names) or "model not named")
+
+
 def _back_by_grades(ws: Workspace, found) -> bool:
     """Back to the judge the marks were made on, told by the grades (judged_by)."""
     return judged_by(ws, found) == MARKED_ON
