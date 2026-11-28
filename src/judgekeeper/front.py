@@ -22,9 +22,11 @@ compared), 2 usage error, 130 Ctrl-C. With --before or in CI the comparison alon
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import re
+import time
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -289,6 +291,7 @@ class FrontTalk(start.Talk):
         self.marking = False  # the run is `mark` (_run)
         self.before: str | None = None  # --before: the results file to compare with
         self.other_eval = False  # stopped at results of another eval: nothing is compared
+        self.went_back = False  # back to the LLM-as-a-judge marked with (_marking)
         self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
         self.left_below: list[str] = []  # projects below whose files were left out (_tool_below)
         self.refresh()
@@ -600,6 +603,8 @@ def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
     c = seen.comparison
     if c is not None and talk.before is None and seen.had and before_after.read(ws) is None:
         c = None  # started over (another LLM-as-a-judge): the last results are not its baseline
+    if talk.went_back and seen.restarted and not (seen.only_grades or seen.older):
+        seen = dataclasses.replace(seen, restarted=False)  # the back line says why: one story
     paragraphs, code = seen.paragraphs(c, gate)  # gate: --before or CI (run)
     for para in paragraphs:
         talk.say()
@@ -977,6 +982,44 @@ def _marked_files(talk: FrontTalk, path: Path, saved, found: start.Found) -> sta
     return found
 
 
+NOT_ADDED = ("{n} new {answers} in {file} {are} not added for marking: {they} {were} graded by "
+             "the LLM-as-a-judge you marked with, and your marks now test the one `check` took "
+             "on. {They} {are} added once that one grades {them}.")
+
+
+def _not_added(n: int, file: str) -> str:
+    """--before on results of the LLM-as-a-judge marked with, after a take-on: their new
+    answers can't join the pool, which holds the taken-on one's grades (batches.add)."""
+    one = n == 1
+    return NOT_ADDED.format(n=n, answers="answer" if one else "answers", file=file,
+                            are="is" if one else "are", they="it" if one else "they",
+                            They="It" if one else "They", were="was" if one else "were",
+                            them="it" if one else "them")
+
+
+def _remember(ws: Workspace, found: start.Found) -> None:
+    """A results file named on a plain run that went back to the LLM-as-a-judge the marks
+    were made on: start.json's `given`, as the first run keeps the file it was given, with
+    `given_back` the time of that run (_remembered reads it until results are written after
+    it). Not for a file read with a saved map (judgekeeper.toml names it), nor through a link.
+    Only in the folder start.json names its files from (_same_files), so those names still
+    hold. An older file looked at again never sticks: only going back does."""
+    given = getattr(found, "given", None)
+    if not given or ws.start.is_symlink():
+        return
+    with page.one_at_a_time(ws.dir, lambda line: None):  # two runs at once: one writes
+        try:
+            data = ws.data()
+            base = start.results_path(ws.root, data)
+            base = base if base.is_dir() else base.parent
+            if os.path.realpath(base) != os.path.realpath(
+                    Path(textio.kept_at(given, ws.root)).parent):
+                return
+        except (OSError, ValueError):
+            return
+        start_label._write_json(ws.start, {**data, "given": given, "given_back": time.time()})
+
+
 def _remembered(talk: FrontTalk, path: Path) -> Path:
     """The results file (or MLflow store) given by path when marking started, for a run
     with no path; else `path`. Never past a nearer project (a project file, code or its own
@@ -992,9 +1035,29 @@ def _remembered(talk: FrontTalk, path: Path) -> Path:
     try:
         if not ws.start.is_file() or start._saved(ws.root) is not None:
             return path
-        return start.results_path(ws.root, ws.data()) if ws.data().get("given") else path
+        data = ws.data()
+        if not data.get("given") or _written_since(store, data):
+            return path
+        return start.results_path(ws.root, data)
     except (OSError, ValueError):
         return path
+
+
+def _written_since(store: Path, data: dict) -> bool:
+    """Whether results were written in `store` after the run that went back to the marked
+    LLM-as-a-judge (start.json's `given_back`, _remember): the newest are read again then."""
+    since = data.get("given_back")
+    if isinstance(since, bool) or not isinstance(since, int | float):
+        return False
+    given = start.results_path(store, data)
+    for results in find.search(store).results.values():
+        for r in results:
+            try:
+                if r.path.stat().st_mtime > since and not os.path.samefile(r.path, given):
+                    return True
+            except OSError:
+                continue
+    return False
 
 
 def not_found(path: Path, given: str | None = None) -> StartError:
@@ -2785,7 +2848,8 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
         tool, metric, judge = data["tool"], data["metric"], data["judge"]
     except (OSError, ValueError, KeyError, TypeError):
         return [f"judgekeeper can't read {FOLDER}/start.json, so the marks there can't be used."]
-    if (found.tool, scrub(found.metric)) != (tool, scrub(metric)):  # start.json's, keys hidden
+    if (judge_setup.grading_tool(found.tool), scrub(found.metric)) != (
+            judge_setup.grading_tool(tool), scrub(metric)):  # start.json's, keys hidden
         return [(f"Your marks are for another LLM-as-a-judge: {judge} ({tool}). These "
                  f"results are from {found.judge}.")]
     if not _has_marks(ws) and _changed(ws, found):  # nothing marked yet: read them anew
@@ -2912,9 +2976,16 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     typed = Path(talk.path).is_file() or find.is_mlflow_folder(Path(talk.path))
     elsewhere = None if first or typed else _checked_file(ws, found)  # older results here
     closed: list[str] = []  # the marking page it closes: said by a plain run, not by `mark`
-    back = None if first or elsewhere else check.back_to_marked(ws, found, talk.say,
-                                                                closed=closed)
-    marked_on = back is not None  # the judge the marks were made on ("": they never left it)
+    # only a plain run (or check) goes back to the judge marked on: never --before
+    back = None if first or elsewhere or talk.before is not None else check.back_to_marked(
+        ws, found, talk.say, closed=closed)
+    if typed and back:  # gone back to the marked judge: plain runs read the file named
+        _remember(ws, found)
+    # --before on results graded by the judge the marks were made on: no grade the taken-on one
+    # changed, nothing for a check to take on, and nothing moves (only a comparison)
+    before_marked = not first and talk.before is not None and check.on_marked_judge(ws, found)
+    seen = check.as_marked(ws, found) if before_marked else None  # its own result, in memory
+    marked_on = back is not None or before_marked  # the judge marked on ("": never left it)
     elsewhere = elsewhere or (None if first or marked_on else _checked_file(ws, found))
     changed = [] if first or marked_on or elsewhere else _changed(ws, found)
     held = not (first or changed or marked_on or elsewhere) and found.rule is not None and \
@@ -2924,6 +2995,11 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     regraded = (check.grades_changed(ws, found, ruled=True)
                 if not (first or changed or marked_on or elsewhere or grades)
                 and found.rule is not None and found.results else 0)
+    # results that don't say who graded them: grades that changed on the same answers don't
+    # show another LLM-as-a-judge (the same one may grade otherwise), and marks don't depend
+    # on it, so new answers are added for marking all the same
+    noisy = bool(grades) and not (first or changed or elsewhere) and \
+        not before_after._says_who(found) and "picked" not in ws.data()  # no take-on: judged_by
     if regraded:  # the grades the numbers use are not the ones read: which, and the check
         head[:] = [x for x in head if x != newest]  # that compares them, as Next gives it
         head.append(_regraded_line(talk, ws, found, regraded))
@@ -2940,15 +3016,21 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
                 file=textio.line_path(read)))
         raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
             file=textio.line_path(read), program=project.program_anywhere() + talk.away))
-    if not (first or changed or grades or elsewhere):  # back on the marked judge too
+    if not (first or changed or grades or elsewhere or before_marked) or noisy:  # back too
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
-        took = check.take_new_grades(ws, found)  # grades on answers left that waited
+        if not noisy:
+            took = check.take_new_grades(ws, found)  # grades on answers left that waited
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
+        talk.went_back = True  # its own story: never also "setup changed" (_say_change)
         head.append(back)  # the judge marked on
         if not marking and closed:
             head.extend(["", *closed])  # a paragraph of its own
+    if seen is not None:
+        head.append(check.as_marked_line(found, _newest(found)))
+    if before_marked and (n := len(batches.new_answers(ws, found))):
+        head.append(_not_added(n, _newest(found)))
     if elsewhere:  # the result is about that file, not the one read here
         head[:] = [x for x in head if x != newest]
         head.append(CHECKED_FILE.format(file=elsewhere))
@@ -2967,7 +3049,13 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             head.append(_sentence(_graded_in(ws, found)) + ".")
         else:  # a table graded again
             head.append(_regraded_line(talk, ws, found, grades))
-        then = _waiting(talk, ws, found, head, bool(changed))
+        if noisy and added:
+            added_at = len(head)
+            head.append(batches.added_line(added))
+            if is_open(ws.dir):  # the page open shows the pool without the new batch
+                background.stop(ws.dir)
+        elif not noisy:
+            then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         added_at = len(head)
         head.append(batches.added_line(added))
@@ -3013,8 +3101,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades),
-                       elsewhere=bool(elsewhere), compare=bool(regraded),
-                       worse_said=any(x.startswith(HELD_WORSE[:20]) for x in head))
+                       elsewhere=bool(elsewhere) or before_marked, compare=bool(regraded),
+                       worse_said=any(x.startswith(HELD_WORSE[:20]) for x in head), seen=seen)
     if not enough and ws.result_json.is_file():  # a mark taken back since: no result now
         start_label.store_result(ws, session, _flags_of(talk, saved, ws))
     if every and not enough:  # nothing left to mark, and no result yet
@@ -3500,13 +3588,17 @@ def _fix_command(talk: FrontTalk) -> str:
 
 def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
             head: list[str], check: bool = False, elsewhere: bool = False,
-            compare: bool = False, worse_said: bool = False) -> int:
+            compare: bool = False, worse_said: bool = False,
+            seen: Workspace | None = None) -> int:
     """Step 2: the result from the marks, saved; whether the page is open. `check`: the
     judge changed since the marks, so the Next: line is `judgekeeper check`. `elsewhere`: the
     marks test a file a check read elsewhere (_checked_file): a plain `check` would read the
     older results here, so the next one is given the new results file. `compare`: graded
     again with the same model and rule (REGRADED): the check that compares is the Next.
-    `worse_said`: the head named the check that found the newer grades worse (HELD_WORSE)."""
+    `worse_said`: the head named the check that found the newer grades worse (HELD_WORSE).
+    `seen`: the project as going back to the judge marked on would make it (check.as_marked):
+    the result is made from it and shown, never saved, and the files kept (report.html, the
+    disagreements fix lists) are not about it, so they are not named."""
     talk.say(STEP.format(n=2, name="Measure"))
     talk.say()
     _say_head(talk, head)
@@ -3521,8 +3613,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     # the terminal's: run where it is printed, as `check` says it
     worse_here = was and checking.worse_step(was["before"], was["after"],
                                              _check_command(talk), ws)
-    r = start_label.store_result(ws, session, _flags_of(talk, saved, ws), worse=worse or None,
-                                 redraw=True)
+    r = (start_label._made(seen, StartSession(seen), _flags_of(talk, saved, ws)) if seen
+         else start_label.store_result(ws, session, _flags_of(talk, saved, ws),
+                                       worse=worse or None, redraw=True))
     m = marks.read(ws.marks)
     made = marks.made(m, ids=set(session.by_id))  # reasons added since
     for line in made_lines(made, marks.imported(m, ids=set(session.by_id)),
@@ -3557,7 +3650,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     only = bool(r.get("only_wait"))  # a new mark would only wait: no line asks for one
     mark_next = (not worse and not check and step == "mark" and not start_label.all_labeled(r)
                  and not only)
-    why, have = start_label.why_counts(ws, r) if not worse else (0, 0)
+    why, have = start_label.why_counts(ws, r) if not (worse or seen) else (0, 0)
     if why:  # the result page has a box on each; those it lists, never those kept aside
         talk.say()
         talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark"), have))
@@ -3585,7 +3678,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         off = labels_mod.looks_off_line(r.get("imports_off"), r.get("imported"))
         if off:  # a warning, never a stop
             talk.para(off)
-    which = _which_judge(ws, found)
+    which = _which_judge(seen or ws, found)
     if which:
         talk.say()
         talk.para(which)
@@ -3594,9 +3687,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
         talk.para(left)
     talk.say()
-    report = link(ws.report_html, f"{shown_folder(ws)}/{ws.report_html.name}")
-    talk.say(f"Full report: {report} (open it in your browser)")
-    talk.say()
+    if seen is None:  # report.html is about the judge the project uses
+        report = link(ws.report_html, f"{shown_folder(ws)}/{ws.report_html.name}")
+        talk.say(f"Full report: {report} (open it in your browser)")
+        talk.say()
     opened = None
     ranges = report_page.shows_range(r)
     if start_label.all_labeled(r):  # nothing left to mark: no page
@@ -3628,6 +3722,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(WORSE_LAST)
             talk.say()
         next_step = worse_here
+    elif seen is not None:  # fix and mark are about the judge the project uses: nothing moves
+        next_step = checking.NEXT_SAME_FILE.removeprefix("Next: ").format(
+            command=f"{program('check')} {checking.NEW_RESULTS}")
     elif check and (few := checking.too_few_here(ws, found)):  # check would say can't tell
         talk.para(few[0])
         talk.say()

@@ -276,9 +276,10 @@ def test_report_after_a_check_says_how_many_you_disagreed_on(here, capsys):
 
 # After "Worse" for a table judge, no loop ------------------------------------------------------
 
-NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge or change its rule, run "
+NEXT_WORSE_TABLE = ("Next: change your LLM-as-a-judge's rule, or run "  # no model named
                     "`judgekeeper fix` to write the answers you marked to "
-                    ".judgekeeper/fix/marked-answers.csv, grade them again with it, then run "
+                    ".judgekeeper/fix/marked-answers.csv, grade them again with the "
+                    "LLM-as-a-judge you marked with, then run "
                     "`judgekeeper check <new results file>`.")
 
 
@@ -304,11 +305,11 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
     assert "re-check your changed LLM-as-a-judge" not in out
     assert _next(_check(capsys)[1]) == NEXT_WORSE_TABLE
     report = unwrapped(_report(here))
-    assert ('Go back to your old <span class="term">LLM-as-a-judge</span> or change its rule, '
+    assert ('Change your <span class="term">LLM-as-a-judge</span>&#x27;s rule, or '
             "run <code>judgekeeper fix"
             "</code> to write the answers you marked to .judgekeeper/fix/marked-answers.csv, "
-            "grade them again with it, then run <code>judgekeeper check &lt;new results file&gt;"
-            "</code>.") in report
+            'grade them again with the <span class="term">LLM-as-a-judge</span> you marked '
+            "with, then run <code>judgekeeper check &lt;new results file&gt;</code>.") in report
     assert "judgekeeper mark</code>" not in report and 'id="next-h"' not in report
     _jk(capsys, "fix")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")

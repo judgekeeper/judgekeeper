@@ -43,12 +43,17 @@ from judgekeeper.records import (
     all_damaged,
     damaged,
     derive_record_id,
+    graded_rest,
     load_json,
     read_rows,
 )
 from judgekeeper.textio import MAX_NESTING, error_type, get_extra, read_json, shown_path
 
 DEFAULT_LABELS = {"C": "pass", "I": "fail"}
+# A sample's fields that are not what else its grade follows (records.graded_rest): read as the
+# question, answer, steps or grades, or about the run itself (its events repeat its messages)
+SAMPLE_READ = {"id", "epoch", "input", "output", "messages", "scores", "events", "model_usage",
+               "error", "error_retries", "limit", "total_time", "working_time", "uuid"}
 # Inspect's scorers that check text in code, never with a model: not judges, left out
 CODE_SCORERS = frozenset({"match", "includes", "exact", "pattern", "f1", "answer"})
 # Stands in for a template or instructions the scorer leaves at Inspect's default.
@@ -1044,6 +1049,7 @@ def _read(path: Path, data, samples, with_errors: bool) -> RecordList:
         output = (sample.get("output") or {}).get("completion")
         content = {"input": sample.get("input"), "output": output,
                    "trajectory": trajectory(sample)}
+        rest = graded_rest(sample, SAMPLE_READ)  # its target, metadata, files: the grade's too
         scores = sample.get("scores") or {}
         if with_errors and not scores and sample.get("error"):
             scores = {name: _sample_error(sample["error"]) for name in scorer_options}
@@ -1076,7 +1082,7 @@ def _read(path: Path, data, samples, with_errors: bool) -> RecordList:
                     label=label, score=number,
                     explanation=judged.get("explanation") or None, run=epoch, **content,
                     evaluator=dict(evaluator), created_at=created_at,
-                    mark=_mark(judged, label)))
+                    mark=replace(_mark(judged, label), graded_fields=rest)))
                 if stand_in:
                     waiting.append((len(records) - 1, records[-1]))
             if edit:

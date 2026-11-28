@@ -307,7 +307,10 @@ def test_the_docs_say_the_marking_page_leaves_out_the_documents():
             "given, unless they are part of the question (such as a promptfoo var). For a "
             "faithfulness check, keep those documents open while you mark.") in marking
     reader = ROOT / "src" / "judgekeeper" / "readers" / "deepeval.py"
-    assert "retrieval" not in reader.read_text(encoding="utf-8").lower()  # never read
+    lines = [line for line in reader.read_text(encoding="utf-8").splitlines()
+             if "retrieval" in line.lower()]
+    # read only into the hash a change is counted by (CASE_GRADED), never shown
+    assert lines and all(line.startswith("CASE_GRADED = ") for line in lines), lines
 
 
 def test_the_reference_says_where_kappa_is_and_that_it_never_decides():

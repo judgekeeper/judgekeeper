@@ -137,6 +137,7 @@ def test_a_later_change_of_the_answers_compares_as_usual(tmp_path, monkeypatch, 
     passed = [row for row in rows if row["verdict"] == "pass"][:4]  # rows come in any order
     assert len(passed) == 4, rows
     for row in passed:  # the agent got 4 answers wrong that it had right: graded so
+        row["output"] += " Or not."
         row["verdict"] = "fail"
     _write(tmp_path / "new-results.csv", rows, ids)
     _, out = _run(capsys, "--no-browser", "--port", "0")
@@ -186,6 +187,7 @@ def test_after_a_worse_check_a_change_of_the_answers_by_the_old_judge_still_comp
         rows = list(csv.DictReader(f))
     passed = [r for r in rows if r["verdict"] == "pass"][:8]
     for r in passed:  # the agent now gets 8 answers wrong, graded so by judge-a
+        r["output"] += " Or not."
         r["verdict"] = "fail"
     _write(tmp_path / "results.csv", rows, True, "judge-a")
     code, out = _run(capsys, "results.csv", "--no-browser", "--port", "0")
@@ -214,7 +216,8 @@ def test_before_right_after_a_check_compares_two_files_of_one_judge(
         rows = list(csv.DictReader(f))
     _write(tmp_path / "main-results.csv", rows, True, "judge-v1")
     passed = [r for r in rows if r["verdict"] == "pass"][:12]
-    for r in passed:
+    for r in passed:  # the agent got them wrong: new answers, graded so
+        r["output"] += " Or not."
         r["verdict"] = "fail"
     _write(tmp_path / "results.csv", rows, True, "judge-v1")
     if ci:
@@ -285,7 +288,8 @@ def test_after_a_worse_check_new_results_of_the_old_judge_are_compared_in_a_plai
         rows = list(csv.DictReader(f))
     passed = [r for r in rows if r["verdict"] == "pass"]
     assert len(passed) >= 18, rows
-    for r in passed[:18]:
+    for r in passed[:18]:  # the agent got them wrong: new answers, graded so
+        r["output"] += " Or not."
         r["verdict"] = "fail"
     _write(tmp_path / "results-a2.csv", rows, True, "judge-a")
     code, out = _plain(capsys)
@@ -318,6 +322,7 @@ def test_a_before_run_after_the_check_leaves_the_new_starting_point(
         rows = list(csv.DictReader(f))
     passed = [r for r in rows if r["verdict"] == "pass"][:8]
     for r in passed:  # the agent now gets 8 answers wrong, graded so by judge-b
+        r["output"] += " Or not."
         r["verdict"] = "fail"
     _write(path, rows, ids, "judge-b")
     code, out = _run(capsys, "new-results.csv")
@@ -467,7 +472,8 @@ def test_before_files_of_one_setup_still_compare_after_a_check(tmp_path, monkeyp
         rows = list(csv.DictReader(f))
     passed = [r for r in rows if r["verdict"] == "pass"][:8]
     assert len(passed) == 8
-    for r in passed:
+    for r in passed:  # the agent got them wrong: new answers, graded so
+        r["output"] += " Or not."
         r["verdict"] = "fail"
     _write(tmp_path / "new-results.csv", rows, ids)
     monkeypatch.setenv("CI", "true")

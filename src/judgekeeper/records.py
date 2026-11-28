@@ -148,9 +148,9 @@ def tool_call(call) -> tuple[object, str, object] | None:
 
 
 def _flat_calls(trajectory: list) -> list:
-    """`trajectory` with each OpenAI-shaped tool call as {id, name, arguments} (its arguments'
-    JSON text read as JSON), so the same call gives the same id in either shape. A call in
-    the flat shape is left exactly as it is: an id made before stays the same."""
+    """`trajectory` with each OpenAI-shaped tool call as {id, name, arguments}, its arguments
+    as written (text or an object), so the same call gives the same id in either shape. A
+    call in the flat shape is left exactly as it is: an id made before stays the same."""
     out = []
     for step in trajectory:
         calls = step.get("tool_calls") if isinstance(step, dict) else None
@@ -163,15 +163,39 @@ def _flat_calls(trajectory: list) -> list:
                 if parts is None:
                     flat.append(c)
                     continue
+                rest = {k: v for k, v in c.items() if k not in ("type", "function")}
+                flat.append({**rest, "name": parts[1], "arguments": parts[2]})
+            step = {**step, "tool_calls": flat}
+        out.append(step)
+    return out
+
+
+def calls_as_read(trajectory):
+    """`trajectory` with each tool call, in either shape, as what it is (tool_call): its
+    name and its arguments (JSON text read as JSON), with the rest of it (its id). An answer
+    compared by it is the same whatever shape its calls came in (before_after)."""
+    if not isinstance(trajectory, list):
+        return trajectory
+    out = []
+    for step in trajectory:
+        calls = step.get("tool_calls") if isinstance(step, dict) else None
+        if isinstance(calls, list):
+            read = []
+            for c in calls:
+                parts = tool_call(c)
+                if parts is None:
+                    read.append(c)
+                    continue
                 arguments = parts[2]
                 if isinstance(arguments, str):
                     try:
                         arguments = json.loads(arguments)
                     except (ValueError, RecursionError):
                         pass
-                rest = {k: v for k, v in c.items() if k not in ("type", "function")}
-                flat.append({**rest, "name": parts[1], "arguments": arguments})
-            step = {**step, "tool_calls": flat}
+                rest = {k: v for k, v in c.items()
+                        if k not in ("type", "function", "name", "arguments")}
+                read.append({**rest, "name": parts[1], "arguments": arguments})
+            step = {**step, "tool_calls": read}
         out.append(step)
     return out
 
@@ -337,11 +361,174 @@ class Mark:
     so there was no answer to judge). `tool_counted_as`: what the eval tool counted such a
     verdict as ("pass", "fail" or "left out"); None when it does not say. `output_elsewhere`:
     the answer is not in `output` (a DeepEval conversation's turns).
+
+    For before_after, whether an answer stayed the same: `graded_on`, a hash (graded_sum) of
+    what else of the case the grade can follow that the file holds (a DeepEval case's
+    retrievalContext, a conversation's turns, an MLflow trace's spans); `graded_unread`, the
+    grade follows something the file doesn't hold (a promptfoo agent assertion's run);
+    `graded_fields`, the rest of a row or record (graded_rest), each field as a hash, so a
+    field the same on every row of a file (a run number, a date) is left out of the answer.
     """
 
     problem: str | None = None
     tool_counted_as: str | None = None
     output_elsewhere: bool = False
+    graded_on: str | None = None
+    graded_unread: bool = False
+    graded_fields: tuple[tuple[str, str], ...] | None = None
+
+
+# Field names of what changes on every run, not what a grade follows: ids, times, durations,
+# costs and token counts (snake_case or camelCase)
+# Telemetry only a run writes, never the agent: told by its name, in words (snake_case, camelCase,
+# "-" or spaces). Not `date`, `time`, `duration` or `seconds` on their own: an agent's answer can
+# be one (a booking's date); those count by what they do (before_after._noise).
+_TELEMETRY = {"latency", "elapsed", "timestamp", "created", "updated", "cost", "price",
+              "token", "tokens", "usage", "fingerprint", "ts"}
+_TELEMETRY_IDS = {"request", "trace", "span", "run"}  # with `id`: request_id, traceId
+
+
+# What an LLM-as-a-judge writes beside its grade: its words, a score or confidence of its own.
+# Names compared in lower case, with "-", "_" and spaces left out.
+_JUDGE_SAID = {"explanation", "rationale", "reason", "critique", "feedback", "confidence"}
+# A word of the name, whole (judge_reason, llmJudgeScore, EvalReason, grade_level), never
+# inside another word: retrieval_context, upgrade_path and scoreboard are the agent's.
+_JUDGE_WORDS = ("judge", "judging", "judgment", "judgement", "grader", "grade", "grading",
+                "eval", "evals", "evaluation", "evaluator", "score", "scores", "scorer",
+                "verdict", "critique", "rationale",
+                "reason", "reasons", "explanation", "explanations", "feedback", "assessment",
+                "assessments", "justification", "justifications")
+_JUDGE_WORD = re.compile("(?:" + "|".join(_JUDGE_WORDS) + ")+")  # one or more: judgescore
+# Not `notes`, `reasoning` or `comment` on their own: an agent's reasoning or a person's notes
+# are the answer's; a judge's, new on every row, is left out by what it does (before_after._noise)
+
+
+def _words(name: str) -> list[str]:
+    """The words of a name in snake_case, camelCase or with "-" or spaces, in lower case."""
+    snake = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name.strip()).lower()
+    return [w for w in re.split(r"[-_\s.]+", snake) if w]
+
+
+# A judge's word that names nothing else: it wins over a word of the content's (judge_prompt,
+# critique_text). The rest of _JUDGE_WORDS (eval, evaluation, feedback, grade, score) can name
+# content too, and lose to one (evaluation_context, score_text)
+_STRONG_WORDS = ("judge", "grader", "scorer", "evaluator", "critique", "rationale",
+                 "explanation", "reason", "justification", "verdict", "judgment", "judgement",
+                 "assessment")
+_STRONG_JUDGE = re.compile("|".join(_STRONG_WORDS))
+_STRONG_SAID = {"explanation", "rationale", "reason", "critique"}
+# What a judge reads, not what it writes: a name with one of these words is the content's
+# (evaluation_context, user_feedback, graded_text), unless a strong judge word is in it too
+_CONTENT_WORDS = {"context", "user", "customer", "input", "question", "query", "prompt",
+                  "document", "documents", "retrieval", "source", "form", "request", "text",
+                  "message", "messages", "reference", "expected"}
+
+
+def judge_said(name: str) -> bool:
+    """Whether a field named `name` is what the LLM-as-a-judge wrote: its name (_JUDGE_SAID),
+    or a word of it that is the judge's (_JUDGE_WORD). With a word of the content's too
+    (_CONTENT_WORDS), only a strong judge word (_STRONG_JUDGE) keeps it the judge's. When in
+    doubt, it is the content's, and compared."""
+    words = [w.removeprefix("llm") for w in _words(name)]  # llmJudgeScore
+    judge = [w for w in words if _JUDGE_WORD.fullmatch(w)]
+    flat = re.sub(r"[-_\s]", "", name.lower())
+    if _CONTENT_WORDS & set(words):
+        return any(_STRONG_JUDGE.search(w) for w in judge) or flat in _STRONG_SAID
+    return flat in _JUDGE_SAID or bool(judge)
+
+
+def _every_run(name: str) -> bool:
+    """Whether a field named `name` is telemetry a run writes (_TELEMETRY): a word of it, an
+    `_ms` or `_ns` ending, or a request, trace, span or run id."""
+    words = _words(name)
+    if not words:
+        return False
+    return (bool(_TELEMETRY & set(words)) or words[-1] in ("ms", "ns") and len(words) > 1
+            or any(w in _TELEMETRY_IDS and nxt in ("id", "ids")
+                   for w, nxt in itertools.pairwise(words)))
+
+
+def _kept(value):
+    """`value` without the telemetry a run writes (_every_run) and the fields the
+    LLM-as-a-judge writes (judge_said), at any depth."""
+    if isinstance(value, dict):
+        return {k: _kept(v) for k, v in value.items()
+                if not (isinstance(k, str) and (_every_run(k) or judge_said(k)))}
+    if isinstance(value, list):
+        return [_kept(v) for v in value]
+    return value
+
+
+def graded_rest(item: dict, left: set, prefix: str = "") -> tuple[tuple[str, str], ...] | None:
+    """For Mark.graded_fields: every field of `item` but the ones in `left` (the question, the
+    answer, the grade, its score and reason, the LLM-as-a-judge's setup), the ones that change
+    on every run and the ones the LLM-as-a-judge writes (_kept), as (`prefix` + name, a hash
+    of its value). Erring toward a field kept: a changed answer is compared. None for none."""
+    from judgekeeper.anchors import canonical_json
+
+    kept = _kept({k: v for k, v in item.items() if k not in left})
+    fields = tuple(sorted(
+        (prefix + path, (STAMP if looks_stamped(v) else "") + hashlib.sha256(canonical_json(
+            v).encode("utf-8", "surrogatepass")).hexdigest()[:16])
+        for path, v in _leaves(_norm(kept))))
+    return fields or None
+
+
+STAMP = "~"  # before a field's hash in graded_rest: its value looks like a run's stamp
+_STAMPED = re.compile(
+    r"[-+]?\d+(?:\.\d+)?(?:e[-+]?\d+)?(?:ns|us|ms|s)?"  # 12, 1.5, 230ms
+    r"|\d{4}-\d{2}-\d{2}(?:[t ]\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:z|[-+]\d{2}:?\d{2})?)?"
+    r"|\d{1,2}[/.]\d{1,2}[/.]\d{2,4}(?: \d{1,2}:\d{2}(?::\d{2})?)?"  # 1/12/2026 10:00
+    r"|\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?: ?[ap]m)?"  # 10:30, 10:30:05 pm
+    # an id or hash: a uuid, or a token with 8 or more letters and digits mixed in one part
+    # (a94a8fe5…, chatcmpl-AbC123xyz9, req_8f3a91bc); not a name or version (bm25, v2, 1.1.0)
+    r"|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    r"|(?:[a-z0-9]+[-_:.])*(?=[a-z]*\d)(?=\d*[a-z])[a-z0-9]{8,}(?:[-_:.][a-z0-9]+)*",
+    re.IGNORECASE)
+
+
+def looks_stamped(value) -> bool:
+    """Whether `value` looks like what a run writes anew each time, never the agent's: a date
+    or time, a number, an id or hash with a digit in it. Text with spaces never does
+    (before_after._noise: when in doubt, compare)."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int | float):
+        return True
+    return isinstance(value, str) and len(value) <= 40 and bool(_STAMPED.fullmatch(value))
+
+
+def _leaves(value, path: str = ""):
+    """(path, value) of each field at any depth, a list as one field, empty ones left out:
+    so a field the same on every row, or new on every one, is told apart from the rest."""
+    if isinstance(value, dict):
+        for k, v in value.items():
+            yield from _leaves(v, f"{path}.{k}" if path else str(k))
+    elif value not in (None, "", [], {}):
+        yield path, value
+
+
+def _norm(value):
+    """`value` with each text as the answer's own is compared: without the spaces at its
+    ends, Windows line ends as \\n."""
+    if isinstance(value, str):
+        return value.replace("\r\n", "\n").strip()
+    if isinstance(value, dict):
+        return {k: _norm(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_norm(v) for v in value]
+    return value
+
+
+def graded_sum(parts: dict) -> str | None:
+    """For Mark.graded_on: a hash of the parts of a case, besides its question and answer,
+    that its grade can follow; the ones set only. None when none is."""
+    from judgekeeper.anchors import canonical_json
+
+    kept = {k: _norm(v) for k, v in parts.items() if v not in (None, "", [], {})}
+    if not kept:
+        return None
+    return hashlib.sha256(canonical_json(kept).encode("utf-8", "surrogatepass")).hexdigest()
 
 
 NO_MARK = Mark()
@@ -390,6 +577,11 @@ class ScoreRecord:
         if found:
             raise RecordsError(found[0])
         version = d.get("schema_version")
+        extra = {k: v for k, v in d.items() if k not in ALL_FIELDS}
+        metadata = dict(d.get("metadata") or {})
+        setup = ("pass_mark", "pass_op")  # how the score is held: the LLM-as-a-judge's
+        graded = (graded_rest(extra, set(), "extra:") or ()) + (
+            graded_rest(metadata, set(setup), "metadata:") or ())
         return cls(
             target_id=None if _blank(d.get("target_id")) else str(d["target_id"]).strip(),
             name=_name(d.get("name")),
@@ -402,12 +594,13 @@ class ScoreRecord:
             output=_content(d.get("output")),
             evaluator=_evaluator(d.get("evaluator")),
             created_at=None if _blank(d.get("created_at")) else str(d["created_at"]),
-            metadata=dict(d.get("metadata") or {}),
+            metadata=metadata,
             trajectory=d.get("trajectory") or None,
             outcome=d.get("outcome"),
             app_version=None if _blank(d.get("app_version")) else str(d["app_version"]),
             schema_version=1 if version is None else int(version),
-            extra={k: v for k, v in d.items() if k not in ALL_FIELDS},
+            extra=extra,
+            mark=Mark(graded_fields=graded) if graded else NO_MARK,
         )
 
 

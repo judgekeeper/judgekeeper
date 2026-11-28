@@ -40,6 +40,7 @@ from judgekeeper.records import (
     ScoreRecord,
     all_damaged,
     derive_record_id,
+    graded_rest,
     load_json,
     read_rows,
 )
@@ -460,6 +461,19 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
         run = seen[(item_id, r.get("promptIdx"))]
         test_opts = _options(r.get("testCase"))
         content = {"input": _question(r), "output": _text((r.get("response") or {}).get("output"))}
+        # what else the grade follows: the response beyond its output (its tool calls, its
+        # trace, its metadata but the transport's headers, metadata.http), the prompt the vars
+        # went into, the test's own asserts (their values: references, rubrics) and metadata;
+        # not its grader (options). Each field on its own (records.graded_rest)
+        test = r.get("testCase") if isinstance(r.get("testCase"), dict) else {}
+        response = r.get("response") if isinstance(r.get("response"), dict) else {}
+        response = {k: v for k, v in response.items() if k not in ("output", "cached")}
+        if isinstance(response.get("metadata"), dict):
+            response["metadata"] = {k: v for k, v in response["metadata"].items() if k != "http"}
+        raw = (r.get("prompt") or {}).get("raw") if isinstance(r.get("prompt"), dict) else None
+        rest = (graded_rest(response, set(), "response:") or ()) + (
+            graded_rest({"prompt": raw}, set()) or ()) + (graded_rest(
+                test, {"options", "provider", "description", "threshold"}, "test:") or ())
         per_row = defaultdict(int)
         components = _components(r.get("gradingResult"))
         failed = id(r) in no_details and _provider_failed(r)
@@ -505,7 +519,10 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 evaluator["prompt"] = prompt
             problem = MODEL_FAILED if failed else grader_problem(c, metadata)
             counted = "fail" if failed else label
-            mark = Mark(problem=problem, tool_counted_as=counted if problem else None)
+            # an agent assertion grades the agent's run, which the results don't hold
+            mark = Mark(problem=problem, tool_counted_as=counted if problem else None,
+                        graded_fields=rest or None,
+                        graded_unread=judge_type(kind) in AGENT_GRADED)
             kept = {"reference": True} if kind in REFERENCE_TYPES else {}
             threshold = a.get("threshold")  # a score under it fails: part of the judge
             if isinstance(threshold, int | float) and not isinstance(threshold, bool):

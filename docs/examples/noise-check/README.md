@@ -22,6 +22,8 @@ With nothing changed, up to about 1 in 10 answers came out different. The score 
 
 Grading the same 817 truthfulness answers twice flipped 21 grades (2.6%). Most of the movement comes from the AI's answers, not from the grader.
 
+Note (2026-11-27): the output for that pair, `same-1__same-1-regrade`, was recorded with judgekeeper 1.3.0. From 1.5.0, judgekeeper does not compare a pair where only the grades changed and every answer stayed the same: it says it "does not compare them" and exits 3.
+
 ## Real changes
 
 Each change was run once and compared with each of the 5 no-change runs. "Score move" is against the average of the 5 no-change runs. "Fixed" and "Broke" give the lowest and highest counts over the 5 comparisons.

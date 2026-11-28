@@ -186,6 +186,9 @@ NEXT_WORSE_SAME = ("the same model and rule gave different grades, so make your 
                    "Grade your marked answers again, then run `{command}`.")
 # A judge whose results hold no rule (a table): it changes only where the eval keeps it
 NEXT_WORSE_TABLE = "go back to your old LLM-as-a-judge or change its rule, {regrade}"
+# ...and no model named either: the grades may have changed with the same one
+NEXT_WORSE_UNNAMED = "change your LLM-as-a-judge's rule, or {regrade}"
+MARKED_WITH = "the LLM-as-a-judge you marked with"
 # A pass mark tried with --pass-if alone came out worse: the old one stays, nothing to grade
 NEXT_MARK_STAYS = ("nothing to do. Your pass mark stays {rule}. To try another, run "
                    "`{check} --pass-if {other}`.")  # other: quoted (quote_arg)
@@ -1947,6 +1950,8 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
                 checked_at=utc_now())
     _write_grades(ws, found, answers, now)
     _write_json(ws.start, data)
+    from judgekeeper import before_after
+
     before_after.restart(ws)  # grades of another LLM-as-a-judge: no change of the answers
 
 
@@ -2670,6 +2675,12 @@ def worse_step(old: dict, new: dict, command: str, ws: Workspace, kept: bool = F
 
         folder = FOLDER if kept else fix.shown_folder(ws)
         answers = f"{folder}/{fix.FOLDER}/{fix.ANSWERS}"  # plain: report.html too
+        if not (old.get("models") or new.get("models")):
+            regrade = _regrade_answers(ws, answers, MARKED_WITH, kept=kept)
+            if (fix._folder(ws) / fix.ANSWERS).is_file():
+                regrade = (f"grade {answers} again with {MARKED_WITH}, then "
+                           f"{_run_in(ws, fix.NEW_RESULTS, not kept and _away(ws))}.")
+            return NEXT_WORSE_UNNAMED.format(regrade=regrade)
         return NEXT_WORSE_TABLE.format(regrade=_regrade_answers(ws, answers, "it", kept=kept))
     if not judge_setup.changes(old, new):  # the same model and rule, other grades
         return NEXT_WORSE_SAME.format(command=command)
@@ -2754,6 +2765,106 @@ def _held(checks: list[dict]) -> bool:
                for g in (last.get("groups") or {}).values())
 
 
+def _unchanged(ws: Workspace, graded: dict) -> dict:
+    """The marked answers of `graded` ({id: answer}) that are the ones they were marked on
+    (pool.jsonl): the same text and question (_same_answer), steps and outcome."""
+    rows = _rows(ws)
+    return {i: a for i, a in graded.items() if i in rows and _same_answer(a, rows[i])
+            and all(rows[i].get(k) == a.agent.get(k) for k in ("trajectory", "outcome"))}
+
+
+MARKED_ON, TAKEN_ON = "marked", "taken"  # judged_by: whose grades a file holds
+
+
+def judged_by(ws: Workspace, found) -> str | None:
+    """Results that don't say who graded them (no model, rule or prompt in them), while a
+    check's take-on of another judge's grades holds (start.json's `picked`): MARKED_ON when
+    each marked answer in them that is unchanged has the grade the marks were made on,
+    TAKEN_ON when each has the grade taken on, and one at least differs between the two.
+    None when that can't be told: none differs, a mix of the two, or no take-on."""
+    from judgekeeper.before_after import _says_who
+
+    try:
+        data = ws.data()
+    except (OSError, ValueError, AttributeError):
+        return None
+    picked = data.get("picked")
+    if not isinstance(picked, dict) or _says_who(found):
+        return None
+    made_on = picked.get("groups") or {}
+    taken = {q["id"]: q["group"] for q in data.get("queue") or [] if isinstance(q, dict)}
+    graded = _unchanged(ws, lookup(found, list(marks.read(ws.marks).counted()), ws)[0])
+    if not any(made_on.get(i) != taken.get(i) for i in graded):
+        return None
+    for who, groups in ((MARKED_ON, made_on), (TAKEN_ON, taken)):
+        if all(a.verdict == groups.get(i) for i, a in graded.items()):
+            return who
+    return None
+
+
+def on_marked_judge(ws: Workspace, found) -> bool:
+    """While a check's take-on holds, whether `found` was graded by the LLM-as-a-judge the
+    marks were made on: told by the grades of the marked answers when nothing in it says who
+    graded it (judged_by), else by its setup, the one the marks were made on and not the one
+    taken on (a judge_model column naming the model marked with)."""
+    if judged_by(ws, found) == MARKED_ON:
+        return True
+    from judgekeeper.before_after import _says_who
+
+    try:
+        if not isinstance(ws.data().get("picked"), dict) or not _says_who(found):
+            return False
+    except (OSError, ValueError, AttributeError):
+        return False
+    marked, saved = _marked_setup(ws), judge_setup.read(ws)
+    if marked is None or saved is None:
+        return False
+    now = judge_setup.hash_of(judge_setup.of(found))
+    return now == judge_setup.hash_of(marked) and now != saved["setup_hash"]
+
+
+def as_marked(ws: Workspace, found) -> Workspace | None:
+    """While a check's take-on holds and `found` was graded by the LLM-as-a-judge the marks were
+    made on (on_marked_judge): `ws` as going back to it (_restore) would make it, in memory
+    only, so a --before measures that file without moving the marks (None otherwise)."""
+    import copy
+
+    try:
+        data = ws.data()
+    except (OSError, ValueError):
+        return None
+    picked = data.get("picked")
+    if not isinstance(picked, dict) or not on_marked_judge(ws, found):
+        return None
+    groups = picked.get("groups") or {}
+    data["queue"] = [{**q, "group": groups.get(q["id"], q["group"])} for q in data["queue"]]
+    data["pool"] = picked.get("pool") or data.get("pool")
+    for key in ("picked", "checked_at", "earlier_grades"):  # every grade is that judge's
+        data.pop(key, None)
+    data.update(rule=found.rule, one_rule=found.one_rule, judge=found.judge,
+                fingerprint=scrub_fingerprint(found.fingerprint))
+    seen = copy.copy(ws)
+    seen.data = seen.cached_data = lambda: copy.deepcopy(data)
+    seen.cached_strata = lambda: batches.strata(data)
+    return seen
+
+
+# A --before on the file the marks were made on, after a take-on (as_marked)
+AS_MARKED = ("This result is about {file}, graded by the LLM-as-a-judge you marked with "
+             "({model}). Your project still uses the one your last check took on.")
+
+
+def as_marked_line(found, file: str) -> str:
+    """AS_MARKED for `found`, named `file` here."""
+    names = [re.split(r"[:/]", str(m))[-1] for m in judge_setup.of(found).get("models") or []]
+    return AS_MARKED.format(file=file, model=", ".join(names) or "model not named")
+
+
+def _back_by_grades(ws: Workspace, found) -> bool:
+    """Back to the judge the marks were made on, told by the grades (judged_by)."""
+    return judged_by(ws, found) == MARKED_ON
+
+
 def back_to_marked(ws: Workspace, found, say, again: int | None = None,
                    closed: list[str] | None = None) -> str | None:
     """The judge in the newest results (`found`) is the one the marks were made on, and the
@@ -2770,19 +2881,22 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None,
     if marked is None or saved is None or not checks:
         return None
     now = judge_setup.of(found)
+    by_grades = _back_by_grades(ws, found)  # nothing in the results says which judge
     last = checks[-1]
     to_now = judge_setup.hash_of(last.get("after") or {}) == judge_setup.hash_of(now)
-    if (judge_setup.hash_of(now) != judge_setup.hash_of(marked)
-            or to_now and not (again is not None and last.get("trigger") == "back"
-                               and last.get("marks") == again)):
+    if not by_grades and (judge_setup.hash_of(now) != judge_setup.hash_of(marked)
+                          or to_now and not (again is not None and last.get("trigger") == "back"
+                                             and last.get("marks") == again)):
         return None
     data = ws.data()
     made_on = (data.get("picked") or {}).get("groups") or {
         q["id"]: q["group"] for q in data.get("queue") or []}
     graded = lookup(found, list(marks.read(ws.marks).counted()), ws)[0]
+    if by_grades:  # only answers whose text is unchanged say which judge graded them
+        graded = _unchanged(ws, graded)
     if not graded or any(a.verdict != made_on.get(i) for i, a in graded.items()):
         return None  # no marks (after --new): no result from them stands
-    restored = saved["setup_hash"] != judge_setup.hash_of(now)
+    restored = by_grades or saved["setup_hash"] != judge_setup.hash_of(now)
     new = found.results[0].rel if found.results else None
     # the file the check the marks leave read (_adopt), kept to say on each "back" after
     left = data.get("results_read") if restored else data.get("results_left")

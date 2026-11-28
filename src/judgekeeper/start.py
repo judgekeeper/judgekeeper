@@ -75,6 +75,7 @@ from judgekeeper.records import (
     damaged,
     derive_record_id,
     fingerprint_known,
+    graded_rest,
     left_out_note,
     load_json,
     read_records,
@@ -853,11 +854,15 @@ def read_results_table(path: Path, answers: bool = False) -> RecordList:
         records.model_refused, model_at = model_at, None
     if "id" in columns and not own:
         records.per_metric = {v: {"warnings": [MADE_IDS]} for v in verdicts}
+    # the columns that are not what a grade follows: the rest is (records.graded_rest)
+    graded = {"id", "input", "output", "score", "reason", "app_version", model_at, human,
+              *verdicts}  # the id names the question: not what it was answered
     for n, row in enumerate(rows, 1):
         textio.reading(n)
         content = {"target_id": ids[n - 1] if own else derive_record_id(row.get("input"),
                                                                         row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
+        mark = Mark(graded_fields=graded_rest(row, graded))
         model = row.get(model_at) if model_at else None
         score = _number(mapper.number(row.get("score"))) if "score" in columns else None
         for verdict in verdicts:
@@ -867,7 +872,7 @@ def read_results_table(path: Path, answers: bool = False) -> RecordList:
                 explanation=None if _blank(row.get("reason")) else str(row["reason"]),
                 evaluator={} if _blank(model) else {"model": str(model)},
                 app_version=None if _blank(row.get("app_version")) else str(row["app_version"]),
-                **content))
+                mark=mark, **content))
         if human and not _blank(row.get(human)):
             records.append(ScoreRecord(name=WHOLE_ANSWER, annotator_kind=HUMAN,
                                        label=row[human], **content))
