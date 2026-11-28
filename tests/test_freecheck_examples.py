@@ -38,9 +38,9 @@ EXAMPLES = WEBSITE / "assets" / "examples"
 GRADED = ["shop-answers.csv", "promptfoo-results.json", "two-llm-as-a-judge-metrics.json"]
 NAMES = [*GRADED, "shop-answers-no-grades.csv", "agent-runs.jsonl"]
 # The three cards under the drop box: each one's title, line and the example it opens.
-CARDS = [("Eval results", "LLM-as-a-judge grades", "shop-answers.csv"),
-         ("Answers only", "no LLM-as-a-judge", "shop-answers-no-grades.csv"),
-         ("Agent runs", "for an agent-as-a-judge", "agent-runs.jsonl")]
+CARDS = [("Agent runs", "for an agent-as-a-judge", "agent-runs.jsonl"),
+         ("Eval results", "LLM-as-a-judge grades", "shop-answers.csv"),
+         ("Answers only", "no LLM-as-a-judge", "shop-answers-no-grades.csv")]
 MADE_UP = "made-up example · "
 
 

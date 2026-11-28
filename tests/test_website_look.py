@@ -723,13 +723,13 @@ def test_the_public_datasets_are_three_tabs_each_with_its_numbers_and_report():
             for el in panels]
     assert feet == [("249 agent runs, labelled by people", "see its report"),
                     ("447 answers, labelled by two people", "see its report"),
-                    ("Over 1,000 checks per setup, on 3 datasets", "see its report")]
+                    ("1,000 checks per setup, 5 setups from 3 datasets", "see its report")]
     # each dataset is the one its report names (the numbers: tests/test_website.py)
-    for el, name in zip(panels, ("AgentProcessBench", "XSTest", "over 1,000 checks")):
+    for el, name in zip(panels, ("AgentProcessBench", "XSTest", "1,000 checks per LLM-as-a-judge")):
         (link,) = _all(el, "a", "tf-link")
         report = (ROOT / link.attrs["href"].split("/blob/main/", 1)[1]).read_text(encoding="utf-8")
         assert name in report, name
-    assert "3 public datasets" in (ROOT / "docs/examples/real-data-check/report.md").read_text(
+    assert "5 LLM-as-a-judge setups from 3 public datasets" in (ROOT / "docs/examples/real-data-check/report.md").read_text(
         encoding="utf-8")
     assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in _rule(".ds-nums.three")
     assert "grid-template-columns: 340px minmax(0, 1fr)" in _rule(".ds-grid")
@@ -857,9 +857,9 @@ def test_the_homes_windows_share_the_guides_slate_and_the_chosen_step_is_green()
 REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
 EXAMPLES = f"{GITHUB}/blob/main/docs/examples"
 # "What do you have?": each tab's id, its label and line, and its heading
-GUIDE_TABS = [("results", "Eval results", "graded by an LLM-as-a-judge"),
-              ("ai-check", "Answers only", "no LLM-as-a-judge"),
-              ("agent-steps", "Agent runs", "the steps of each run")]
+GUIDE_TABS = [("agent-steps", "Agent runs", "the steps of each run"),
+              ("results", "Eval results", "graded by an LLM-as-a-judge"),
+              ("ai-check", "Answers only", "no LLM-as-a-judge")]
 # each tab's steps: the word, its words, and the commands beside them
 GUIDE_STEPS = {
     "results": [
@@ -1049,7 +1049,7 @@ def test_the_guides_record_line_saves_what_judgekeeper_reads(tmp_path, monkeypat
 
 
 def test_what_you_have_is_three_tabs_and_a_link_opens_its_tab():
-    """"What do you have?": a tab each for eval results, answers only and agent runs, over one
+    """"What do you have?": a tab each for agent runs, eval results and answers only, over one
     box. Without JavaScript the three panels show one after another, each under its heading;
     with it one shows, and a link to a part of a panel (#own-format, #agent-steps) opens it."""
     (box,) = _all(_main(GUIDE), "div", "gd")
@@ -1151,8 +1151,8 @@ def test_the_guides_commands_look_like_terminal_lines():
     assert "code.textContent" in JS  # what Copy copies: never the "$"
     prompts = [_flat(_all(b, "code")[0]) for b in _all(_main(GUIDE), "div", "prompt")]
     assert prompts == ["Follow www.judgekeeper.com/start.html to run judgekeeper on my project.",
-                       "judgekeeper.record(input=question, output=answer, verdict=grade)",
-                       '{"id": "run-1", "first_wrong_step": 3, "model": "my-judge"}']
+                       '{"id": "run-1", "first_wrong_step": 3, "model": "my-judge"}',
+                       "judgekeeper.record(input=question, output=answer, verdict=grade)"]
     assert "gx" in _main(GUIDE).classes()
 
 
@@ -1368,9 +1368,9 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     (divider,) = _all(left, "p", "ex-or")
     assert _flat(divider) == "or try an example"
     cards = _all(left, "button", "ex-card")
-    assert [_flat(_all(c, "b")[0]) for c in cards] == ["Eval results", "Answers only", "Agent runs"]
+    assert [_flat(_all(c, "b")[0]) for c in cards] == ["Agent runs", "Eval results", "Answers only"]
     assert [c.attrs.get("data-example-file") for c in cards] == [
-        "shop-answers.csv", "shop-answers-no-grades.csv", "agent-runs.jsonl"]
+        "agent-runs.jsonl", "shop-answers.csv", "shop-answers-no-grades.csv"]
     assert not _all(main, "div", "ck-run") and "uvx" not in _flat(main)
     # the terminal: the file's name in its bar once read, the waiting screen, the result
     assert _flat(_by_id(CHECK, "ck-title")) == "your file"

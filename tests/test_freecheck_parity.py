@@ -232,7 +232,7 @@ def test_agent_runs_are_read_as_judgekeeper_steps_reads_them(fixture, tmp_path):
 
 
 def test_every_kind_of_answers_and_runs_file_is_compared():
-    """Readable and refused files of both kinds, as the spec lists them."""
+    """Readable and refused files of both kinds, each one compared."""
     assert {p.name for p in ANSWERS} >= {"answers.csv", "answers.tsv", "answers.jsonl"}
     assert {p.name for p in RUNS} >= {
         "equal.jsonl", "unequal.jsonl", "one-run.jsonl", "two-hundred-steps.jsonl",

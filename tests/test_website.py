@@ -250,6 +250,15 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
     committed report its "see its report" link opens. A share names its counts
     (`data-share="175 of 182"`), a kappa names its row of the report's table
     (`data-kappa="Setup A"`), and both are worked out again here from the report."""
+
+    def shares_in(panel, text, expected):
+        shares = [el for el in panel.iter() if "data-share" in el.attrs]
+        assert [el.attrs["data-share"] for el in shares] == expected
+        for el in shares:
+            a, b = map(int, el.attrs["data-share"].split(" of "))
+            assert re.sub(r"[^\d%]", "", el.text()) == f"{a / b:.0%}", el.attrs
+            assert re.search(rf"\b{a} of (?:the )?{b}\b", text), el.attrs
+
     panels = {el.attrs["id"]: el for el in parse(WEBSITE / "index.html").iter()
               if "ds-panel" in el.classes()}
     assert list(panels) == ["ds-a", "ds-b", "ds-c"]
@@ -263,15 +272,14 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
 
     # Agent runs: three shares, each "a of b" in the report and shown as a whole percent
     report, text = _panel_report(panels["ds-a"])
-    shares = [el for el in panels["ds-a"].iter() if "data-share" in el.attrs]
-    assert [el.attrs["data-share"] for el in shares] == ["175 of 182", "20 of 67", "100 of 175"]
-    for el in shares:
-        a, b = map(int, el.attrs["data-share"].split(" of "))
-        assert el.text().strip() == f"{a / b:.0%}", el.attrs
-        assert re.search(rf"\b{a} of (?:the )?{b}\b", text), (report, el.attrs)
+    shares_in(panels["ds-a"], text, ["175 of 182", "20 of 67", "100 of 175"])
     assert "| Runs the people say went wrong | 175 of 182 (96%) |" in text
     assert "| Runs the people say were fine | 47 of 67 (70%) |" in text  # 20 of 67 flagged
     assert "| Same first wrong step (on 175 runs both say went wrong) | 100 of 175 (57%) |" in text
+    assert "of the 175 runs both said went wrong" in panels["ds-a"].text()
+    (kappa,) = [el for el in panels["ds-a"].iter() if "data-kappa" in el.attrs]
+    assert kappa.attrs["data-kappa"] == "Kappa" and kappa.text() == "0.71"
+    assert "| Kappa | 0.71 | 0.58 to 0.80 |" in text and "Kappa 0.71 (" in text
     assert "249 agent runs" in panels["ds-a"].text() and "on the 249 runs" in text
 
     # Chatbot answers: setup A's kappa, then setup B's, from the counts in the report's table
@@ -285,7 +293,11 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
         assert len(counts) == 2, row
         shown = re.search(r"\d\.\d\d", el.text()).group()
         assert shown == f"{_kappa(*counts):.2f}" == row.rstrip(" |").rsplit("| ", 1)[1], row
-    assert big(panels["ds-b"]) == ["0.88 → 0.97"]
+    assert big(panels["ds-b"]) == ["0.88 → 0.97", "88% → 97%"]
+    # and beside it, how often it said Fail when the people did (TPR), and Pass (TNR)
+    shares_in(panels["ds-b"], text, ["190 of 217", "211 of 217", "230 of 230"])
+    assert "| Setup A (Sonnet 5.5) | 230 of 230 (100%) | 190 of 217 (88%) |" in text
+    assert "| Setup B (Haiku 5.5) | 230 of 230 (100%) | 211 of 217 (97%) |" in text
     assert "447 answers" in panels["ds-b"].text() and "On the 447 answers" in text
 
     # judgekeeper itself: the share of checks whose range held the real value, the one "96"
