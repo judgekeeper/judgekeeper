@@ -48,7 +48,7 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 
 | Flag | What it does |
 |---|---|
-| `PATH` | Your project folder (default: this folder), one results file, or an MLflow store (`mlflow.db` or an `mlruns/` folder). Later runs remember a file you name |
+| `PATH` | Your project folder (default: this folder), one results file, or an MLflow store (`mlflow.db` or an `mlruns/` folder). Later runs remember the file the first run names, and the one you name to go back to the LLM-as-a-judge you marked with until newer results are written. Naming an older file to look at it doesn't change which file they read |
 | `--tool NAME` | Which eval tool's results to read when several are found: `records`, `promptfoo`, `deepeval`, `inspect`, `mlflow` or `table` (a CSV, TSV or JSONL file) |
 | `--metric NAME` | The LLM-as-a-judge to look at when the results hold several |
 | `--experiment NAME_OR_ID` | MLflow: the experiment to read, when several have LLM-as-a-judge results. Kept with your marks: later runs read it without the flag |

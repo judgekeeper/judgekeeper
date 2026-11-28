@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -978,10 +979,12 @@ def _marked_files(talk: FrontTalk, path: Path, saved, found: start.Found) -> sta
 
 
 def _remember(ws: Workspace, found: start.Found) -> None:
-    """A results file named on a plain run once marking started: start.json's `given`, as the
-    first run keeps the file it was given (_remembered reads it on later runs). Not for a
-    file read with a saved map (judgekeeper.toml names it), nor through a link. Only in the
-    folder start.json names its files from (_same_files), so those names still hold."""
+    """A results file named on a plain run that went back to the LLM-as-a-judge the marks
+    were made on: start.json's `given`, as the first run keeps the file it was given, with
+    `given_back` the time of that run (_remembered reads it until results are written after
+    it). Not for a file read with a saved map (judgekeeper.toml names it), nor through a link.
+    Only in the folder start.json names its files from (_same_files), so those names still
+    hold. An older file looked at again never sticks: only going back does."""
     given = getattr(found, "given", None)
     if not given or ws.start.is_symlink():
         return
@@ -990,12 +993,12 @@ def _remember(ws: Workspace, found: start.Found) -> None:
             data = ws.data()
             base = start.results_path(ws.root, data)
             base = base if base.is_dir() else base.parent
-            if data.get("given") == given or os.path.realpath(base) != os.path.realpath(
+            if os.path.realpath(base) != os.path.realpath(
                     Path(textio.kept_at(given, ws.root)).parent):
                 return
         except (OSError, ValueError):
             return
-        start_label._write_json(ws.start, {**data, "given": given})
+        start_label._write_json(ws.start, {**data, "given": given, "given_back": time.time()})
 
 
 def _remembered(talk: FrontTalk, path: Path) -> Path:
@@ -1013,9 +1016,29 @@ def _remembered(talk: FrontTalk, path: Path) -> Path:
     try:
         if not ws.start.is_file() or start._saved(ws.root) is not None:
             return path
-        return start.results_path(ws.root, ws.data()) if ws.data().get("given") else path
+        data = ws.data()
+        if not data.get("given") or _written_since(store, data):
+            return path
+        return start.results_path(ws.root, data)
     except (OSError, ValueError):
         return path
+
+
+def _written_since(store: Path, data: dict) -> bool:
+    """Whether results were written in `store` after the run that went back to the marked
+    LLM-as-a-judge (start.json's `given_back`, _remember): the newest are read again then."""
+    since = data.get("given_back")
+    if isinstance(since, bool) or not isinstance(since, int | float):
+        return False
+    given = start.results_path(store, data)
+    for results in find.search(store).results.values():
+        for r in results:
+            try:
+                if r.path.stat().st_mtime > since and not os.path.samefile(r.path, given):
+                    return True
+            except OSError:
+                continue
+    return False
 
 
 def not_found(path: Path, given: str | None = None) -> StartError:
@@ -2937,8 +2960,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     # only a plain run (or check) goes back to the judge marked on: never --before
     back = None if first or elsewhere or talk.before is not None else check.back_to_marked(
         ws, found, talk.say, closed=closed)
-    if typed and talk.before is None and not first:
-        _remember(ws, found)  # later plain runs read the file named, as the first run's
+    if typed and back:  # gone back to the marked judge: plain runs read the file named
+        _remember(ws, found)
     # --before on results graded by the judge the marks were made on: no grade the taken-on one
     # changed, nothing for a check to take on, and nothing moves (only a comparison)
     before_marked = not first and talk.before is not None and \
