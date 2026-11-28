@@ -8,7 +8,7 @@ authors:
 repository-code: "https://github.com/judgekeeper/judgekeeper"
 url: "https://www.judgekeeper.com"
 license: Apache-2.0
-abstract: "The keeper of human judgment for AI. Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to a reviewer checking each step of an agent, and see if agreement goes up or down after each change."
+abstract: "Check agents and chatbots with human judgment. Read. Measure. Fix. Re-check."
 keywords:
   - LLM-as-a-judge
   - evaluation

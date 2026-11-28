@@ -31,6 +31,9 @@ from judgekeeper.start import StartError, Stop
 from judgekeeper.textio import loads, make_private, path_arg, plural, write_replacing
 
 FILE = "last-graded.json"  # in .judgekeeper/: the results read last and the ones before
+# its setup after `check` took on another LLM-as-a-judge's grades (restart): the next results
+# start again, as for another setup, whatever their own setup's hash
+RESTART = "restart"
 EXIT_WORSE = 1
 
 COMPARED = "On the {questions} in both results: fixed {fixed}, broke {broke}, same {same}."
@@ -45,6 +48,8 @@ NO_MATCH_NEXT = ("Next: give each question an id that stays the same from run to
                  "an `id` column), then run your eval again.")
 NO_MATCH_IDS_NEXT = ("Next: check that you compare results of the same eval: the two share no "
                      "question id.")
+NO_IDS_ONE_SIDE = ("Only one of the two results names its questions by an id, so judgekeeper "
+                   "can't tell which questions are the same, and compares nothing.")
 NOTHING_GRADED = ("No question has a Pass or Fail grade in both results, so there is nothing to "
                   "compare.")
 NOTHING_GRADED_NEXT = ("Next: check why your LLM-as-a-judge gave no Pass or Fail grade, then run "
@@ -75,6 +80,7 @@ class Comparison:
     kind: str  # no_grades.CHANGE's key
     ungraded: int = 0  # in both, with no Pass or Fail grade in one of them: left out
     ids: bool = False  # both name each question by its own id
+    one_side_ids: bool = False  # only one of the two does: their questions can't be matched
 
     @property
     def same(self) -> int:
@@ -159,7 +165,8 @@ def compare(before: dict, now: dict) -> Comparison:
     broke = sum(no_grades._broke(b[k], n[k]) for k in graded)
     return Comparison(n=len(graded), fixed=fixed, broke=broke, only=len(b.keys() ^ n.keys()),
                       kind=no_grades.change_kind(fixed, broke, len(graded), test=1),
-                      ungraded=len(both - graded), ids=before["ids"] and now["ids"])
+                      ungraded=len(both - graded), ids=before["ids"] and now["ids"],
+                      one_side_ids=before["ids"] != now["ids"])
 
 
 def lines(c: Comparison) -> list[list[str]]:
@@ -225,6 +232,15 @@ def read(ws) -> dict | None:
     return {"before": before, "now": now, "setup": d["setup"]}
 
 
+def restart(ws) -> None:
+    """After `check` took on another LLM-as-a-judge's grades (check._adopt): the grades a
+    plain run reads next changed because the LLM-as-a-judge did, so they start again
+    (RESTARTED). --before compares the two files it is given, as always."""
+    raw = read(ws)
+    if raw is not None:
+        write(ws, raw["before"], raw["now"], RESTART)
+
+
 def write(ws, before: dict | None, now: dict, setup: str) -> None:
     """The results read now and the ones read before them. Never written through a link."""
     path = _path(ws)
@@ -248,11 +264,17 @@ class Look:
     restarted: bool = False  # it was, for another setup of the LLM-as-a-judge: RESTARTED
     other_setup: bool = False  # --before's file was graded by another setup: OTHER_SETUP
 
-    def paragraphs(self, comparison: Comparison | None) -> tuple[list[list[str]], int | None]:
+    def paragraphs(self, comparison: Comparison | None,
+                   gate: bool = True) -> tuple[list[list[str]], int | None]:
         """What is said where the comparison goes, and the exit code it sets (None: the run's
-        own)."""
+        own). Outside a gate (`gate`: --before or CI), results that can't be matched because
+        only one of them names its questions by id (marked-answers.csv graded again without
+        it, say) are one line: the run's own Next: line and exit code stand."""
         if self.other_setup:
             return [[OTHER_SETUP], [OTHER_SETUP_NEXT]], start.EXIT_QUESTION
+        c = comparison
+        if c is not None and not gate and not c.n and not c.ungraded and c.one_side_ids:
+            return [[NO_IDS_ONE_SIDE]], None
         if comparison is not None:
             return lines(comparison), comparison.exit_code
         return ([[RESTARTED]] if self.restarted else []), None

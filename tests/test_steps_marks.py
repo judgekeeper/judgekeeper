@@ -250,11 +250,11 @@ def test_numbers_from_marks_with_no_reviewer_say_how_to_add_one(here):
     runs = marked_project(here)
     lines, saved = steps.numbers_from_marks(runs, here / MARKS, None)
     assert saved["reviewers"] == [] and saved["source"]["reviewer_file"] is None
-    assert "There are no agent-as-a-judge guesses to compare your marks with yet." in lines
+    assert "There are no agent-as-a-judge picks to compare your marks with yet." in lines
     assert lines[-1] == ("Next: give your agent-as-a-judge's first wrong step for each run as a JSONL "
                          'file (one line per run: {"id": ..., "first_wrong_step": ..., '
                          '"model": ...}) and run `judgekeeper steps runs.jsonl --reviewer '
-                         'GUESSES.jsonl`.')
+                         'PICKS.jsonl`.')
 
 
 def test_no_marks_yet_says_click_on_the_page(here):
@@ -281,7 +281,8 @@ def test_one_run_reads_it(here):
 
 
 def test_too_few_marks_say_mark_more_on_the_page(here):
-    runs = marked_project(here, n=10)
+    runs = marked_project(here, n=12)
+    write_marks(here, [mark(f"r{i}", 0, hashes_of(runs)) for i in range(10)])  # 2 not marked
     lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
     assert lines[-1] == ("Next: mark more runs on the page: "
                          "`judgekeeper steps runs.jsonl --reviewer g.jsonl`.")
@@ -323,7 +324,51 @@ def test_guesses_for_runs_not_in_the_runs_file_name_the_runs_file(here):
     with (here / "g.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps({"id": "x1", "first_wrong_step": 1, "model": "reviewer-a"}) + "\n")
     lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
-    assert "  Left out: 1 guess is for a run that is not in runs.jsonl." in lines
+    assert "  Left out: 1 pick is for a run that is not in runs.jsonl." in lines
+
+
+def _pick_again(here, *rows):
+    with (here / "g.jsonl").open("a", encoding="utf-8") as f:
+        for run_id, step in rows:
+            f.write(json.dumps({"id": run_id, "first_wrong_step": step, "model": "reviewer-a"})
+                    + "\n")
+
+
+def test_a_run_picked_twice_is_said_and_the_later_pick_is_used(here):
+    runs = marked_project(here)
+    _pick_again(here, ("r3", 0))  # line 41; r3 was picked on line 4
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert "Line 41 of g.jsonl picks run r3 again; the later line is used." in lines
+    assert steps.read_guesses(here / "g.jsonl")[0]["reviewer-a"]["r3"] == 0
+
+
+def test_runs_picked_again_are_said_in_one_line(here):
+    runs = marked_project(here)
+    _pick_again(here, *[(f"r{i}", 0) for i in range(7)])
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert ("Lines 41, 42, 43, 44, 45 and 2 more of g.jsonl pick a run again; the later line "
+            "is used for each.") in lines
+
+
+def test_a_run_picked_again_is_not_named_when_its_id_looks_like_a_key(here):
+    key = "sk-ant-api03-" + "Q" * 80
+    runs = here / "runs.jsonl"
+    runs.write_text(json.dumps({"id": key, "steps": [{"role": "user", "content": "x"}]})
+                    + "\n", encoding="utf-8")
+    write_marks(here, [mark(key, 1, hashes_of(runs))])
+    (here / "g.jsonl").write_text("".join(json.dumps({"id": key, "first_wrong_step": s})
+                                          + "\n" for s in (1, 0)), encoding="utf-8")
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert "Line 2 of g.jsonl picks a run again; the later line is used." in lines
+    assert "Q" * 20 not in "\n".join(lines)
+
+
+def test_one_run_picked_by_two_agents_as_a_judge_is_not_a_repeat(here):
+    runs = marked_project(here)
+    with (here / "g.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"id": "r3", "first_wrong_step": 0, "model": "reviewer-b"}) + "\n")
+    lines, _ = steps.numbers_from_marks(runs, here / MARKS, here / "g.jsonl")
+    assert not any("again; the later line" in x for x in lines)
 
 
 # The command ---------------------------------------------------------------------------------
@@ -454,3 +499,45 @@ def test_numbers_from_marks_with_a_missing_file_is_a_steps_error(here):
         steps.numbers_from_marks(runs, here / "none" / "marks.jsonl", None)
     with pytest.raises(steps.StepsError, match="gone.jsonl"):
         steps.numbers_from_marks(here / "gone.jsonl", here / MARKS, None)
+
+
+# rc2: one undecodable line, or one holding a NUL or a control character, is one damaged line
+
+@pytest.mark.parametrize("bad", [
+    b'{"id": "r1\x00", "first_wrong_step": 1}',  # NUL: valid UTF-8, not JSON text
+    b'{"id": "r1\xe9", "first_wrong_step": 1}',  # a Latin-1 byte: not UTF-8
+    b'\x00\x00\x00',
+], ids=["nul", "latin-1", "nul-only"])
+def test_a_bad_byte_leaves_out_its_line_only(here, bad):
+    """With a line holding a control character outside a JSON escape after it: one more
+    damaged line, said with it."""
+    runs = write_runs(here, 4)
+    hashes = hashes_of(runs)
+    path = write_marks(here, [mark(f"r{i}", 1, hashes) for i in range(4)])
+    path.write_bytes(path.read_bytes() + bad + b'\n{"id": "r1\x01", "first_wrong_step": 1}\n')
+    lines, saved = steps.numbers_from_marks(runs, path, None)
+    assert ("Lines 6 and 7 of .judgekeeper/steps/marks.jsonl are not marks judgekeeper can "
+            "read; they are left out.") in lines, lines
+    assert not any("UTF-8" in x for x in lines), lines
+    assert saved["people"]["labelled"] == 4
+
+
+def test_the_page_reads_the_other_marks_past_a_bad_byte(here):
+    from judgekeeper import steps_page
+    from judgekeeper.start_label import Workspace
+
+    runs = write_runs(here, 4)
+    hashes = hashes_of(runs)
+    path = write_marks(here, [mark(f"r{i}", 1, hashes) for i in range(3)])
+    path.write_bytes(path.read_bytes() + b'{"id": "r3\xe9"}\n')
+    session = steps_page.StepsSession(Workspace(here), runs)
+    assert session.marked() == {"r0": 1, "r1": 1, "r2": 1}
+
+
+def test_a_marks_file_that_is_not_utf8_at_all_still_says_so(here):
+    runs = write_runs(here, 4)
+    hashes = hashes_of(runs)
+    path = write_marks(here, [mark(f"r{i}", 1, hashes) for i in range(4)])
+    path.write_bytes(path.read_text(encoding="utf-8").encode("utf-16"))
+    with pytest.raises(steps.StepsError, match="is not saved as UTF-8 text"):
+        steps.numbers_from_marks(runs, path, None)

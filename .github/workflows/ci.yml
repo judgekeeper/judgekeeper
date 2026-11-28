@@ -51,6 +51,7 @@ jobs:
         if: needs.changes.outputs.code != 'false' || matrix.python-version == '3.12'
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
       # Node.js 22.18 or later runs the TypeScript record() snippet in docs/examples/records/jk_record.ts as it is.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         if: needs.changes.outputs.code != 'false' || matrix.python-version == '3.12'
@@ -68,7 +69,7 @@ jobs:
         # snippet test may not skip here.
         env:
           JUDGEKEEPER_NEEDS_NODE: "1"
-        run: pytest -rfEs
+        run: pytest -n auto -rfEs
       - name: Lint
         if: needs.changes.outputs.code != 'false'
         run: ruff check src tests
@@ -77,7 +78,7 @@ jobs:
         if: needs.changes.outputs.code == 'false' && matrix.python-version == '3.12'
         env:
           JUDGEKEEPER_NEEDS_NODE: "1"
-        run: pytest -rfEs $(grep -lE "README|CHANGELOG|SECURITY|reference\.md|eval-tools|docs/|website|WEBSITE" tests/test_*.py)
+        run: pytest -n auto -rfEs $(grep -lE "README|CHANGELOG|SECURITY|reference\.md|eval-tools|docs/|website|WEBSITE" tests/test_*.py)
 
   # The whole suite with every optional extra installed: with inspect_ai, Inspect logs are
   # read through it, a path the test job above never takes.
@@ -92,12 +93,13 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,mlflow,inspect]"
       - name: Test
-        run: pytest -rfEs
+        run: pytest -n auto -rfEs
 
   # The marking page runs as its own process (judgekeeper mark). The unit tests run on Linux
   # here and on Windows in windows.yml; this runs that page's real-process test on macOS.
@@ -112,6 +114,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install
         run: |
           python -m pip install --upgrade pip
@@ -133,6 +136,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.12"
+          cache: pip
       - name: Build both distributions
         run: |
           python -m pip install --upgrade pip build twine
@@ -155,6 +159,6 @@ jobs:
           ls .judgekeeper/records/*.jsonl
       - name: Run the test suite against the installed wheel
         run: |
-          "$RUNNER_TEMP/venv/bin/pip" install "pytest>=8" "pyyaml>=6" "jsonschema>=4.18"
+          "$RUNNER_TEMP/venv/bin/pip" install "pytest>=8" "pyyaml>=6" "jsonschema>=4.18" "pytest-xdist>=3"
           "$RUNNER_TEMP/venv/bin/python" -c 'import judgekeeper, sys; assert "site-packages" in judgekeeper.__file__, judgekeeper.__file__'
-          "$RUNNER_TEMP/venv/bin/python" -m pytest -p no:cacheprovider
+          "$RUNNER_TEMP/venv/bin/python" -m pytest -p no:cacheprovider -n auto

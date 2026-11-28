@@ -27,7 +27,7 @@ import random
 from html import escape
 from pathlib import Path
 
-from judgekeeper import __version__, look, marks, steps, textio
+from judgekeeper import __version__, look, marks, redact, start, steps, textio
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.label import StaleMark, make_server
 from judgekeeper.mark_page import NO_ANSWER, SEE_FIRST, SEE_READY
@@ -51,11 +51,13 @@ OTHER_TAB = ("Not marked: this run was already marked in another tab. "
 STALE = "this run was already marked in another tab"
 NOTHING_TO_UNDO = "Nothing to undo."
 EMPTY_STEP = "(empty step)"
+MOVED = "Your last mark was not saved: this link now opens the page for agent runs."
+
 # The result page
 RESULT_TITLE = "Your result"
 CHANGE = "Change a mark"
-NO_PICKS = ("Add your agent-as-a-judge's picks to see how often it agrees with you: "
-            "judgekeeper steps runs.jsonl --reviewer picks.jsonl")
+PICKS = "picks.jsonl"  # the picks file the result page's command names
+NO_PICKS = "Add your agent-as-a-judge's picks to see how often it agrees with you: `{command}`"
 JUDGE = "Agent-as-a-judge"
 ALL_FINE = "All fine"
 BOTH = "Both"
@@ -82,7 +84,8 @@ def _same(a, b) -> bool:
 
 class StepsSession:
     """The runs of one runs file and the person's step marks, for label.LabelServer: `by_id`,
-    `update`, `state`, `summary`, and `out` (the marks file)."""
+    `by_key` (the page's key of each run -> its id), `update`, `state`, `summary`, and `out`
+    (the marks file)."""
 
     def __init__(self, ws: Workspace, runs_path: str | Path, reviewer: str | Path | None = None,
                  model: str | None = None, shown: str | None = None):
@@ -91,12 +94,15 @@ class StepsSession:
         self.runs_hash = file_hash(self.runs_path)
         self.runs = steps.read_runs(self.runs_path)
         self.by_id = {r.id: r for r in self.runs}
+        self.by_key = {redact.item_key(r.id): r.id for r in self.runs}  # what the page sends
         self.hashes = {r.id: r.steps_hash for r in self.runs}
         self.order = shuffled([r.id for r in self.runs], self.runs_hash)
         self.out = ws.dir / steps.FOLDER / MARKS_FILE
         self.reviewer = Path(reviewer) if reviewer else None
         self.model = model
         self.shown = shown  # the runs path as typed where the page was opened
+        # how to add picks, as the footer says the command (steps_server: with its flags)
+        self.picks_command = steps._command(shown or str(runs_path), PICKS)
         self.link: str | None = None  # marks.LINKS: how its link was shown (page.show)
         self._marks: dict[str, int] = {}
         self.changed = 0  # marks dropped because their run's steps changed
@@ -113,16 +119,16 @@ class StepsSession:
         newest: dict[str, tuple[int | None, str]] = {}
         made, first = False, True
         try:
-            text = self.out.read_text(encoding="utf-8")
+            lines = textio.read_own_lines(self.out, ValueError)
         except (FileNotFoundError, NotADirectoryError):
-            text = ""
-        except (OSError, UnicodeDecodeError):
+            lines = []
+        except (OSError, ValueError):
             return  # memory stays as it is; the next write says what is wrong
-        for line in textio.jsonl_lines(text):
-            if not line.strip():
+        for line in lines:
+            if line is not None and not line.strip():
                 continue
             try:
-                row = textio.loads(line)
+                row = None if line is None else textio.loads(line)
             except ValueError:
                 row = None
             header, first = first and isinstance(row, dict) and "step_marks" in row, False
@@ -145,6 +151,11 @@ class StepsSession:
     def marked(self) -> dict[str, int]:
         """Run id -> the first wrong step the person gave (0: all fine)."""
         return dict(self._marks)
+
+    def takes(self, body: dict) -> bool:
+        """Whether `body` is a click on this page, not a change from a tab of the answers
+        page (a tab left open after the page started again for the steps)."""
+        return steps.STEP_FIELD in body
 
     def update(self, body: dict) -> None:
         """One click: {"id", "first_wrong_step": 0 to the run's step count, or null (Undo),
@@ -333,6 +344,19 @@ __TOP__
   var opened = {};  // the steps shown whole ("Show all"), on the run on screen
   var $ = function (id) { return document.getElementById(id); };
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
+
+  // Opened by a tab of the other kind of page whose mark was refused (the page started again
+  // for another command): the status says so until a mark is saved. The address loses
+  // `moved`, so a reload never says it again.
+  var moved = false;
+  try {
+    var query = new URLSearchParams(window.location.search || "");
+    moved = query.get("moved") === "1";
+    if (moved && window.history && window.history.replaceState) {
+      query.delete("moved");
+      window.history.replaceState(null, "", (window.location.pathname || "/") + "?" + query);
+    }
+  } catch (e) { moved = false; }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
     if (cls) { e.className = cls; }
@@ -340,6 +364,7 @@ __TOP__
     return e;
   }
   function say(text, calm) {
+    if (!text && moved) { text = WORDS.moved; calm = false; }
     $("status").textContent = text || "";
     $("status").classList.toggle("calm", !!calm);
   }
@@ -463,9 +488,12 @@ __TOP__
       return r.json().then(function (b) { return {ok: r.ok, status: r.status, body: b}; });
     }).then(function (res) {
       clearTimeout(waited);
+      if (res.status === 409 && res.body.reload) {  // the page is the answers page now
+        window.location.href = url("/") + "&moved=1"; return; }
       if (res.status === 409 && res.body.stale) { refresh(WORDS.otherTab); return; }
       busy = false;
       if (!res.ok) { say("Not saved: " + res.body.error); return; }
+      moved = false;
       marked = res.body.summary.marked;
       run.mark = change;
       then();
@@ -555,6 +583,7 @@ __TOP__
 
   take(data);
   open(pos);
+  if (moved) { hear(WORDS.moved); }  // open() put it in the status, under the welcome box
   if (data.intro === true) {
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     $("intro-box").focus();
@@ -569,7 +598,7 @@ __TOP__
 def _words() -> str:
     words = {"you": "You", "see": SEE_FIRST, "all": "Show all", "less": "Show less", "next": "Next",
              "result": SEE_READY, "fine": FINE, "empty": EMPTY_STEP, "otherTab": OTHER_TAB,
-             "noAnswer": NO_ANSWER, "nothing": NOTHING_TO_UNDO}
+             "noAnswer": NO_ANSWER, "nothing": NOTHING_TO_UNDO, "moved": MOVED}
     # no `<` and no `_`: the page can never hold a name the server fills in
     return json.dumps(words).replace("<", "\\u003c").replace("_", "\\u005f")
 
@@ -625,7 +654,7 @@ def _picks(session: StepsSession) -> tuple[str | None, dict] | None:
     several); None without a file."""
     if session.reviewer is None:
         return None
-    guesses, _ = steps._picks({}, str(session.reviewer), session.model)
+    guesses = steps._picks({}, str(session.reviewer), session.model)[0]
     if not guesses:
         return JUDGE, {}
     name = min(guesses)
@@ -662,7 +691,7 @@ def result_page(session: StepsSession, back: str) -> str:
         picks, lines = None, [str(err)]
     else:
         if picks is None:
-            lines = [*lines, NO_PICKS]
+            lines = [*lines, NO_PICKS.format(command=session.picks_command)]
     head = ["Run", "You"] + ([] if picks is None else [picks[0]])
     rows = []
     for run_id in session.order:
@@ -712,9 +741,12 @@ def page_key(flags: dict) -> dict:
     return {"flags": kept, "start": about}
 
 
-def come_back(flags: dict) -> str:
-    """`judgekeeper steps RUNS [--reviewer FILE]`, as the footer says it."""
-    return steps._command(str(flags.get("path") or "."), flags.get("reviewer"))
+def come_back(flags: dict, reviewer: str | None = None) -> str:
+    """`judgekeeper steps RUNS [--reviewer FILE]` with how the page was opened
+    (start.page_flags), as the footer says it; `reviewer` in place of the page's picks file."""
+    again = start.page_flags(flags.get("port"), flags.get("no_browser") is True)
+    return steps._command(str(flags.get("path") or "."), reviewer or flags.get("reviewer"),
+                          *again)
 
 
 def steps_server(ws: Workspace, port: int, flags: dict, token: str | None = None,
@@ -725,6 +757,7 @@ def steps_server(ws: Workspace, port: int, flags: dict, token: str | None = None
                            model=flags.get("model"), shown=flags.get("path"))
     if stamp in marks.LINKS:
         session.link = stamp
+    session.picks_command = come_back(flags, PICKS)
     port_asked = flags.get("port")
     return make_server(session, port, result=result_page, page=page_template(come_back(flags)),
                        lock=ws.dir, stays=True, token=token, settings=page_key(flags),
@@ -738,7 +771,7 @@ OPEN = "The marking page is open in your browser. Click the first wrong step of 
 CLICK = "Click the first wrong step of each run."
 NEXT = 'Next: mark runs on the page, then click "See the numbers so far".'
 LABEL_STUDIO = ("Label in Label Studio instead? Import .judgekeeper/steps/label-these.json with "
-                "label-config.xml, then run judgekeeper steps on its export.")
+                "label-config.xml, export the project as JSON and run `{command}`.")
 NEW_ANSWERS_ONLY = "--new works for answers only. To take back a step mark, use Undo on the page."
 NO_PAGE_ON_EXPORT = "`{command}` opens no page, so it takes no --port, --no-browser or --wait."
 # As the answers page says them (front.py)
@@ -776,6 +809,7 @@ def stop(given: Path) -> int:
     ws = Workspace(project_of(given))
     lock = read_lock(ws.dir) if is_open(ws.dir) else None
     typed = opened_with((lock.get("settings") or {}).get("flags")) if lock else None
+    again = start.page_flags(lock["asked"], lock["no_browser"] is True) if lock else ()
     _say(f"judgekeeper {__version__}")
     _say()
     if lock is None:
@@ -790,7 +824,7 @@ def stop(given: Path) -> int:
         saved = " Your marks are saved." if (ws.dir / steps.FOLDER / MARKS_FILE).is_file() else ""
         _say(f"Closed the marking page.{saved}")
     _say()
-    command = steps._command(*typed) if typed else steps._command(str(given), None)
+    command = steps._command(*typed, *again) if typed else steps._command(str(given), None)
     _say("Next: " + NEXT_CONTINUE.format(command=command))
     return steps.EXIT_OK
 
@@ -806,7 +840,7 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
     """After the Label Studio files are written: open the steps page for the runs in `file`
     (`given` as typed), with the page flags in `options` (port, no_browser, wait), and say
     how to go on. With --no-browser and marks already made, the numbers too; with --wait,
-    the numbers once the page closes."""
+    the numbers only once the page closes."""
     from judgekeeper import background
     from judgekeeper import page as pages
     from judgekeeper.front import (
@@ -823,7 +857,11 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
     no_browser, wait = bool(options.get("no_browser")), bool(options.get("wait"))
     flags = flags_for(file, shown=shown, reviewer=reviewer, model=model,
                       port=options.get("port", pages.DEFAULT_PORT), no_browser=no_browser)
-    command = steps._command(shown, reviewer)
+    again = start.page_flags(flags["port"], no_browser)  # how this run opens the page
+
+    def command(*flags: str) -> str:
+        return steps._command(shown, reviewer, *flags)
+
     done = StepsSession(ws, file).summary()["done"]  # every run marked: open at the result
     opened = None
     try:
@@ -840,16 +878,16 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
         if opened is None and not pages.port_free(tried):
             _say(PORT_TAKEN.format(port=tried))
             _say()
-            _say("Next: " + NEXT_ANY_PORT.format(command=f"{command} --port 0"))
+            _say("Next: " + NEXT_ANY_PORT.format(command=command(*start.page_flags(0, no_browser))))
         else:
             _say(COULD_NOT_START)
             _say()
-            _say("Next: " + COULD_NOT.format(command=f"{command} --wait"))
+            _say("Next: " + COULD_NOT.format(command=command(*again, "--wait")))
         return steps.EXIT_NEEDS_YOU
     if opened.kept and not no_browser:  # no new tab for a page open already
         _say(IN_BROWSER if done else f"{IN_BROWSER} {CLICK}")
         if how == pages.KEPT:
-            _say(CLOSED_IT.format(command=f"{command} --no-browser"))
+            _say(CLOSED_IT.format(command=command(*start.page_flags(flags["port"], True))))
     elif done:  # opened at the result: its link says so when printed
         if how == pages.BROWSER:
             _say(RESULT_OPEN)
@@ -859,11 +897,11 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
         _say(STAYS)
     marked = steps.marks_path(given).is_file()
     _say()
-    if (no_browser or done) and marked:  # the numbers, also for a program with no page
-        code = steps.say_numbers_from_marks(file, shown, reviewer, model)
-    else:
+    if (no_browser or done) and marked and opened.server is None:  # the numbers, also for a
+        code = steps.say_numbers_from_marks(file, shown, reviewer, model, again)  # program
+    else:  # with --wait the numbers are said once, when the page closes
         _say(NEXT)
-        _say(LABEL_STUDIO)
+        _say(LABEL_STUDIO.format(command=textio.program("steps EXPORT.json")))
         code = steps.EXIT_OK
     if opened.server is None:
         return steps.EXIT_OK if code is None else code
@@ -873,7 +911,7 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
     except KeyboardInterrupt:
         stopped = True
     _say()
-    said = steps.say_numbers_from_marks(file, shown, reviewer, model)
+    said = steps.say_numbers_from_marks(file, shown, reviewer, model, again)
     if said is None:
         if stopped:
             raise KeyboardInterrupt

@@ -68,7 +68,7 @@ def test_versions_agree():
 
 def test_package_description_and_classifiers():
     main = _toml(ROOT / "pyproject.toml")["project"]
-    assert main["description"] == ("The keeper of human judgment for AI: "
+    assert main["description"] == ("Check agents and chatbots with human judgment. "
                                    "Read. Measure. Fix. Re-check.")
     for classifier in ("Operating System :: OS Independent",
                        "Intended Audience :: Developers",

@@ -31,6 +31,7 @@ from judgekeeper import (
 )
 from judgekeeper.cli import main
 from judgekeeper.project import move_to_previous
+from judgekeeper.redact import item_key
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data, unwrapped
 from tests.test_fix import TAG, N, _outputs, project
@@ -560,7 +561,7 @@ def test_a_kept_aside_mark_gets_no_box_and_its_post_is_refused(here, served):
     ws, _, _, hidden = _ready(here)
     assert hidden
     html = _live(ws)
-    assert all(f'data-id="{i}"' not in html for i in hidden)
+    assert all(f'data-id="{item_key(i)}"' not in html for i in hidden)
     client = served(ws)
     status, body = client.label(id=hidden[0], reasons=["wrong_fact"])
     assert status == 400 and body["error"] == KEPT
@@ -921,7 +922,7 @@ def _flat(html: str) -> str:
 
 def _box(html: str, item_id: str) -> str:
     """The reason box of one answer on the live page."""
-    found = re.search(rf'<div class="why" data-id="{re.escape(item_id)}".*?</div></td></tr>',
+    found = re.search(rf'<div class="why" data-id="{item_key(item_id)}".*?</div></td></tr>',
                       html, re.DOTALL)
     assert found, item_id
     return found[0]
@@ -929,7 +930,7 @@ def _box(html: str, item_id: str) -> str:
 
 def _box_row(html: str, item_id: str) -> str:
     """The table row before an answer's reason box: its question, answer and judge's reason."""
-    at = html.index(f'data-id="{item_id}"')
+    at = html.index(f'data-id="{item_key(item_id)}"')
     return html[html.rindex("<tr", 0, at):at]
 
 
@@ -981,7 +982,7 @@ def test_a_new_batchs_disagreements_get_boxes_the_same_way(here, served):
     for i in new:  # the person disagrees with the judge on every new answer
         _say(ws, i, label="fail" if judge[i] == "pass" else "pass", seconds=4)
     html = _live(ws)
-    boxed = [i for i in new if f'data-id="{i}"' in html]
+    boxed = [i for i in new if f'data-id="{item_key(i)}"' in html]
     assert boxed  # the batch's disagreements the person can see have a box
     assert len(boxed) < len(new)  # some of the batch are kept aside, like the first batch
     status, _ = served(ws).label(id=boxed[0], reasons=["wrong_fact"]
@@ -1039,10 +1040,10 @@ def test_mark_with_every_answer_marked_opens_the_result_page_with_the_boxes(
     url = no_browser[0]
     assert re.fullmatch(r"http://127\.0\.0\.1:\d+/result\?token=[\w-]+", url), url
     html = _get(url)
-    assert "Why did you mark it Fail?" in html and f'data-id="{passes[0]}"' in html
+    assert "Why did you mark it Fail?" in html and f'data-id="{item_key(passes[0])}"' in html
     assert 'data-reason="wrong_fact"' in _box(html, passes[0])
     before = len(_lines(ws))
-    assert _post(url, {"id": passes[0], "reasons": ["wrong_fact"], "note": ""}) == 200
+    assert _post(url, {"id": item_key(passes[0]), "reasons": ["wrong_fact"], "note": ""}) == 200
     added = _lines(ws)[before:]
     assert len(added) == 1 and added[0]["reasons"] == ["wrong_fact"]
     assert added[0]["mark"] == "fail"  # the mark as it was
@@ -1263,7 +1264,7 @@ def test_the_reason_box_in_a_browser(here, tmp_path, width):
     assert got["markShown"] is True and got["bold"] == 1
     assert got["saved"] == "Saved"
     first, *rest = got["sent"]
-    assert first == {"id": passes[0], "reasons": ["wrong_fact"], "rule_parts": [],
+    assert first == {"id": item_key(passes[0]), "reasons": ["wrong_fact"], "rule_parts": [],
                      "spans": [], "note": ""}
     assert any(x["note"] == "Gives a price" for x in rest)
     assert rest[-1]["spans"] == [[0, 6]]

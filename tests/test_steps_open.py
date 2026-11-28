@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from judgekeeper import label, page
+from judgekeeper import label, page, redact
 from judgekeeper.cli import main
 from tests.page_http import retried
 
@@ -18,7 +18,8 @@ OPEN = "The marking page is open in your browser. Click the first wrong step of 
 CLICK = "Click the first wrong step of each run."
 NEXT = 'Next: mark runs on the page, then click "See the numbers so far".'
 LABEL_STUDIO = ("Label in Label Studio instead? Import .judgekeeper/steps/label-these.json with "
-                "label-config.xml, then run judgekeeper steps on its export.")
+                "label-config.xml, export the project as JSON and run "
+                "`judgekeeper steps EXPORT.json`.")
 LINK = "Open this link in your browser to mark steps:"
 
 
@@ -102,7 +103,8 @@ def test_stop_closes_the_steps_page(here, capsys, pages):
     code, out, _ = _run(capsys, "steps", "--stop")
     assert code == 0, out
     assert "Closed the marking page." in out
-    assert "Next: run `judgekeeper steps runs.jsonl` when you want to continue." in out
+    assert ("Next: run `judgekeeper steps runs.jsonl --no-browser` when you want to "
+            "continue.") in out  # as the page was opened (start.page_flags)
     assert not label.is_open(folder)
 
 
@@ -155,7 +157,7 @@ def test_a_mark_through_the_opened_page_lands_in_the_steps_marks(here, capsys, p
     _run(capsys, "steps", "runs.jsonl")
     url = no_browser[0]
     port, token = int(url.split(":")[2].split("/")[0]), url.split("token=")[1]
-    body = json.dumps({"id": "r1", "first_wrong_step": 2, "was": None,
+    body = json.dumps({"id": redact.item_key("r1"), "first_wrong_step": 2, "was": None,
                        "seconds": 2}).encode()
     request = Request(f"http://127.0.0.1:{port}/label?token={token}", data=body, method="POST",
                       headers={"Content-Type": "application/json",
@@ -225,11 +227,43 @@ def test_wait_serves_here_and_says_the_numbers_once_the_page_closes(here, capsys
     assert code == 3
 
 
+def test_wait_with_marks_says_the_numbers_once_when_the_page_closes(here, capsys, pages,
+                                                                  monkeypatch):
+    from judgekeeper import page
+
+    _mark_on_disk(here, {"r1": 2})
+
+    def serve(server):  # the person closes the page
+        server.stop()
+        server.serve()
+
+    monkeypatch.setattr(page, "serve", serve)
+    code, out, _ = _run(capsys, "steps", "runs.jsonl", "--wait", "--no-browser")
+    lines = _lines(out)
+    read = [x for x in lines if x.startswith("Read 4 runs from runs.jsonl and your marks from ")]
+    assert len(read) == 1
+    assert lines.index(read[0]) > lines.index("The page stays open while this runs. To stop it: "
+                                              "Ctrl-C.")
+    assert sum(x.startswith("Next: ") for x in lines[lines.index(read[0]):]) == 1
+    assert code == 3
+
+
+def test_the_label_studio_line_uses_the_start_command(here, capsys, pages, monkeypatch):
+    from judgekeeper import textio
+
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.setattr(textio, "started_by_uvx", lambda: True)
+    _, out, _ = _run(capsys, "steps", "runs.jsonl", "--no-browser")
+    line = next(x for x in _lines(out) if x.startswith("Label in Label Studio instead?"))
+    assert "export the project as JSON" in line
+    assert line.endswith(f"`{textio.program('steps EXPORT.json')}`.") and "`uvx " in line
+
+
 def test_plain_stop_on_a_steps_page_says_the_steps_command(here, capsys, pages):
     _run(capsys, "steps", "runs.jsonl", "--no-browser")
     code, out, _ = _run(capsys, "--stop")
     assert code == 0 and "Closed the marking page." in out
-    assert ("Next: run `judgekeeper steps runs.jsonl` when you want to continue."
+    assert ("Next: run `judgekeeper steps runs.jsonl --no-browser` when you want to continue."
             in " ".join(out.split()))
 
 
@@ -241,3 +275,10 @@ def test_steps_help_lists_the_page_flags_but_not_new(capsys):
     for flag in ("--port", "--no-browser", "--wait", "--stop"):
         assert flag in out, flag
     assert "[--wait | --stop]" in " ".join(out.split())
+
+
+@pytest.mark.parametrize("argv", [["steps", "--help"], ["--help"]])
+def test_help_says_port_0_is_any_free_port(capsys, argv):
+    assert main(argv) == 0
+    out = " ".join(capsys.readouterr().out.split())
+    assert "port on 127.0.0.1 for the page (default 8765, or 0 for any free port)" in out, out

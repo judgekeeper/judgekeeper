@@ -26,6 +26,7 @@ import pytest
 
 from judgekeeper import background, label, start_label
 from judgekeeper.cli import main
+from judgekeeper.redact import item_key
 from tests.page_http import retried
 from tests.start_projects import promptfoo_project, split
 from tests.test_mark_background import alive
@@ -147,7 +148,8 @@ def test_the_token_never_reaches_the_agents_output(here, capsys, no_browser, spa
     # The stop secret can't mark, and it closes the page.
     item = start_label.StartSession(start_label.Workspace(here)).items[0]["id"]
     for query in (f"token={lock['stop']}", f"stop={lock['stop']}"):
-        assert _status(base, f"/label?{query}", "POST", {"id": item, "label": "pass"}) == 403
+        assert _status(base, f"/label?{query}", "POST", {"id": item_key(item),
+                                                         "label": "pass"}) == 403
     assert start_label.StartSession(start_label.Workspace(here)).counts()["correct"] == 0
     code, out, _ = _run(capsys, "--stop")
     assert code == 0 and "Closed the marking page." in out
@@ -159,8 +161,9 @@ def test_the_token_never_reaches_the_agents_output(here, capsys, no_browser, spa
 
 
 def _mark(base: str, token: str, item: str) -> int:
+    """Mark the answer with this id, as the page does: by its key."""
     req = urllib.request.Request(f"{base}/label?token={token}",
-                                 data=json.dumps({"id": item, "label": "pass"}).encode(),
+                                 data=json.dumps({"id": item_key(item), "label": "pass"}).encode(),
                                  headers={"Content-Type": "application/json", "Origin": base})
 
     def send():

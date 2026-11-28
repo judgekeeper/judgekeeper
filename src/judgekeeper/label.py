@@ -38,7 +38,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 from judgekeeper.anchors import LABELS
 from judgekeeper.marks import LINKS, PRINTED
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue
-from judgekeeper.redact import visible_value
+from judgekeeper.redact import item_key, visible_value
 from judgekeeper.table import (
     TEMPLATE_COLUMNS,
     TableError,
@@ -51,7 +51,13 @@ from judgekeeper.table import (
     sheet_id,
     unguard_cell,
 )
-from judgekeeper.textio import describe_os_error, make_private, unwritable_file, write_replacing
+from judgekeeper.textio import (
+    describe_os_error,
+    make_private,
+    to_stderr,
+    unwritable_file,
+    write_replacing,
+)
 
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -75,6 +81,34 @@ RESULT_WAIT = 60
 
 class LabelError(Exception):
     """The items or the output file cannot be used: a usage error."""
+
+
+OLDER_PAGE = "this page is older than the marking page, so it loads again"
+OTHER_PAGE = "the marking page was started again for another command, so this tab loads again"
+TWO_KEYS = ("Two answers have ids judgekeeper can't tell apart on the marking page. Give each "
+            "answer its own id, then run it again.")
+
+
+def page_data(data: dict) -> dict:
+    """`data` (a session's state or summary) as a page gets it: each item's id (an answer's, a
+    run's) as its key, always. The page's text is cleaned of hidden characters (shown), so it
+    never holds an id; the POST it sends names the item by the key."""
+    out = dict(data)
+    for name in ("items", "runs"):  # the answers page, the steps page
+        if isinstance(out.get(name), list):
+            out[name] = [{**x, "id": item_key(x["id"])} for x in out[name]]
+    if isinstance(out.get("again"), dict):  # an answer to show again
+        out["again"] = {**out["again"], "id": item_key(out["again"]["id"])}
+    return out
+
+
+def item_keys(ids) -> dict[str, str]:
+    """{the page's key of each id: the id} (redact.item_key). Two ids with one key: LabelError,
+    never one answer for the other."""
+    keys = {item_key(i): i for i in ids}
+    if len(keys) < len(ids):
+        raise LabelError(TWO_KEYS)
+    return keys
 
 
 class PageBusy(LabelError):
@@ -123,6 +157,7 @@ class LabelSession:
                         note=_text(row.get("notes")))
             self.items.append(item)
         self.by_id = {i["id"]: i for i in self.items}
+        self.by_key = item_keys(self.by_id)  # what a page sends: never the id (redact.item_key)
         if self.out.is_file() and self.out.resolve() != self.items_path.resolve():
             self._resume()
 
@@ -148,6 +183,15 @@ class LabelSession:
             item = self.by_id[sheet_id(row["id"])]
             item["label"] = self._label(row.get("human_label"), item["id"])
             item["note"] = unguard_cell(_text(row.get("notes")))
+
+    # what this page's changes hold: a mark or Undo (label), Skip (deferred), a card shown
+    # again (again), a reason from the result page (reasons, note, rule_parts, spans)
+    CHANGES = ("label", "deferred", "again", "reasons", "note", "rule_parts", "spans")
+
+    def takes(self, body: dict) -> bool:
+        """Whether `body` is a change this page makes, not one from a tab of the steps page
+        (a tab left open after the page started again for the answers)."""
+        return "first_wrong_step" not in body and any(k in body for k in self.CHANGES)
 
     def update(self, body: dict) -> None:
         """Apply one change: {"id", "label"?: label | None, "deferred"?: bool, "note"?: str}.
@@ -560,11 +604,10 @@ class LabelServer:
                 break
             except PermissionError as e:
                 if tries == 1:
-                    print(f"judgekeeper: {path.name} was not removed ({e})", file=sys.stderr)
+                    to_stderr(f"judgekeeper: {path.name} was not removed ({e})")
                 time.sleep(RELEASE_PAUSE)
             except (OSError, ValueError, AttributeError) as e:
-                print(f"judgekeeper: {path.name} was not removed ({type(e).__name__}: {e})",
-                      file=sys.stderr)
+                to_stderr(f"judgekeeper: {path.name} was not removed ({type(e).__name__}: {e})")
                 break
 
     def serve(self, idle_timeout: float | None = None) -> None:
@@ -614,7 +657,7 @@ class LabelServer:
         nonce = secrets.token_urlsafe(16)
         return (self.template.replace("__NONCE__", nonce)
                 .replace("__TOKEN__", self.token)
-                .replace("__DATA__", _json_for_html(self.session.state()))), nonce
+                .replace("__DATA__", _json_for_html(page_data(self.session.state())))), nonce
 
 
 def _handler(server: LabelServer):
@@ -826,7 +869,7 @@ def _handler(server: LabelServer):
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
                            {"Content-Security-Policy": csp})
             elif url.path == "/state":
-                self._json(200, server.session.state())
+                self._json(200, page_data(server.session.state()))
             elif url.path == "/result" and server.result is not None:
                 try:
                     page = server.result(server.session, f"/?token={server.token}")
@@ -891,9 +934,18 @@ def _handler(server: LabelServer):
             except RecursionError:  # nested deeper than Python's JSON reader goes
                 self._json(400, {"error": "expected a JSON object"})
                 return
-            if body["id"] not in server.session.by_id:
+            takes = getattr(server.session, "takes", None)
+            if takes is not None and not takes(body):  # a tab of the other kind of page:
+                self._json(409, {"error": OTHER_PAGE, "stale": True, "reload": True})  # it
+                return  # loads again, so the mark is never taken as nothing and dropped
+            item_id = server.session.by_key.get(body["id"])  # the page sends a key, not the id
+            if item_id is None and body["id"] in server.session.by_id:  # an older page's id
+                self._json(409, {"error": OLDER_PAGE, "stale": True})  # it loads again
+                return
+            if item_id not in server.session.by_id:
                 self._json(404, {"error": "no item with that id"})
                 return
+            body = {**body, "id": item_id}
             try:
                 server.session.update(body)
             except StaleMark as e:  # marked in another tab since this page loaded
@@ -920,13 +972,14 @@ def _handler(server: LabelServer):
             pop_up = getattr(server.session, "pop_up", None)
             if pop_up is not None and pop_up(summary["status"]):
                 summary["popup"] = True
-            reply = {"summary": summary}
+            reply = {"summary": page_data(summary)}
             if "note" in body and hasattr(server.session, "workspace"):  # the result page's
                 # own buttons as they are now, for the other answers' boxes
                 from judgekeeper import reasons
 
                 try:
-                    reply["own"] = reasons.own_chips(server.session.workspace)
+                    reply["own"] = [{**c, "from": item_key(c["from"])} if c.get("from") else c
+                                    for c in reasons.own_chips(server.session.workspace)]
                 except (OSError, ValueError):
                     pass
             self._json(200, reply)

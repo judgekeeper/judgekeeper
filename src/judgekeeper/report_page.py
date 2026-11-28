@@ -24,6 +24,7 @@ from html import escape
 
 from judgekeeper import batches, look, reasons, targets
 from judgekeeper.judge_check import shown_reason
+from judgekeeper.redact import item_key
 from judgekeeper.start_label import (
     BEST_SO_FAR,
     EARLY,
@@ -677,6 +678,7 @@ def commands(r: dict) -> dict[str, str]:
     them: `mark` keeps every flag, as the terminal's does, `run` every flag but --port,
     `check` and `fix` the path only, `more` (start_label.mark_command) the flags that read
     results. On Windows a value no quotes keep as text shows as NAME (said by held_note)."""
+    from judgekeeper.check import given_results
     from judgekeeper.start import command_from, saved_flags
     from judgekeeper.start_label import mark_command
 
@@ -687,7 +689,8 @@ def commands(r: dict) -> dict[str, str]:
     run = command_from(flags, kept=True)
     return {"run": run, "mark": mark,
             "check": command_from(path, "check", kept=True),
-            "fix": command_from(path, "fix", kept=True), "more": mark_command(run)}
+            "fix": command_from({} if given_results(path["path"]) else path, "fix", kept=True),
+            "more": mark_command(run)}  # fix given a results file tests a new rule on it
 
 
 def held_note(r: dict, shown: str) -> list[str]:
@@ -1079,7 +1082,7 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0,
     mark = "Fail" if m["final"] == "fail" else "Pass"
     words = {c["id"]: c["text"] for c in own}
     said = _said_words(m, parts, words)
-    out = [(f'<div class="why" data-id="{_e(m["id"])}" data-answer="a-{n}" '
+    out = [(f'<div class="why" data-id="{item_key(m["id"])}" data-answer="a-{n}" '
             f'data-len="{len(m["answer"]) if m["answer"].strip() else 0}" '
             f'data-spans="{_e(json.dumps(why.get("spans") or []))}" role="group" '
             f'aria-labelledby="q-{n}">'),
@@ -1325,6 +1328,7 @@ EVERY_MARKED = "you marked every answer"
 EXACT = "You marked every answer, so these numbers are exact."  # said once, under the numbers
 NUM_HEAD = "How often your LLM-as-a-judge agrees with you"  # the numbers' heading
 CHANGE_MARK = "Change a mark"  # the result page's link to marking, every answer marked
+CHANGE_HOW = "opens the list of your answers: click one and mark it again."  # after the link
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
 
@@ -1477,8 +1481,7 @@ def _next(r: dict, back: str | None, extra: list[str]) -> str:
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
         then = ""
     elif back is not None:  # every answer marked: a mark can still be changed
-        then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
-                "it again.</p>")
+        then = f'<p><a href="{_e(back)}">{CHANGE_MARK}</a> {CHANGE_HOW}</p>'
     else:
         then = f"<p>To change a mark, run {mark} in your project folder.</p>"
     return ('<section class="sec next-box" aria-labelledby="next-h"><div class="nx">'
@@ -1682,8 +1685,7 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
             then = ""
         else:
             act = f"<p>{_path_code(_code_line(more), file)}</p>"
-            then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
-                    "it again.</p>" if live else
+            then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a> {CHANGE_HOW}</p>' if live else
                     f"<p>To change a mark, run {mark} in your project folder.</p>")
         if fixing.get("prompt"):  # the answers failed, for a coding agent, first
             saved = _path_code(_e(no_grades.FAILED_SAVED.format(file=_PATH)), fixing["failed"])

@@ -74,6 +74,35 @@ def test_every_command_the_measure_step_prints_parses(tmp_path, monkeypatch, cap
             pytest.fail(f"`{command}` does not run: {capsys.readouterr().err}")
 
 
+def test_the_fix_a_result_names_runs_the_first_fix_step(tmp_path, monkeypatch, capsys):
+    """With a results file as the path, every `fix` the result names, in the terminal and on
+    the page, is plain `fix`: given a file, fix tests a new rule on it, so it would stop at
+    "these grades match the last ones" with nothing written."""
+    table_project(tmp_path, ["good"] * 30 + ["bad"] * 30, name="evals/results.csv")
+    monkeypatch.chdir(tmp_path)
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
+    ws = Workspace(tmp_path)
+    session, flips = StartSession(ws), {"pass": 15, "fail": 5}
+    for q in ws.data()["queue"]:
+        label = q["group"]
+        if flips.get(label):
+            flips[label] -= 1
+            label = {"pass": "fail", "fail": "pass"}[label]
+        session.update({"id": q["id"], "label": label, "seconds": 7, "why": "too short"})
+    capsys.readouterr()
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
+    out = " ".join(capsys.readouterr().out.split())
+    named = {c for c in re.findall(r"`(judgekeeper fix[^`]*)`", out)}
+    assert named == {"judgekeeper fix"}, out
+    assert "`judgekeeper fix` uses your reasons" in out, out
+    assert report_page.commands(json.loads(ws.result_json.read_text(encoding="utf-8")))[
+        "fix"] == "judgekeeper fix"
+    assert main(["fix"]) == 0
+    said = " ".join(capsys.readouterr().out.split())
+    assert "testing your new rule" not in said and "match the last ones" not in said, said
+    assert (ws.dir / "fix" / "marked-answers.csv").is_file()
+
+
 def test_the_result_names_only_the_command_that_was_run(project, capsys):
     assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
     ws = Workspace(project)  # in the project, never next to the file
@@ -85,12 +114,12 @@ def test_the_result_names_only_the_command_that_was_run(project, capsys):
     assert ws.report_html.is_file(), (out, sorted(p.name for p in ws.dir.iterdir()))
     page = ws.report_html.read_text(encoding="utf-8")
     on_page = {unescape(c) for c in re.findall(r"<code[^>]*>(judgekeeper[^<]*)</code>", page)}
-    # as the terminal prints them: mark keeps every flag, check and fix the path
+    # as the terminal prints them: mark keeps every flag, check the path, fix none
     named = report_page.commands(json.loads(ws.result_json.read_text(encoding="utf-8")))
     assert {k: named[k] for k in ("mark", "check", "fix")} == {
         "mark": BASE.replace("judgekeeper", "judgekeeper mark", 1),
         "check": "judgekeeper check evals/results.csv",
-        "fix": "judgekeeper fix evals/results.csv"}
+        "fix": "judgekeeper fix"}  # given a file, fix tests a new rule on it
     assert on_page <= {named["mark"], named["fix"], named["check"]}, on_page
     for gone in GONE:
         assert gone not in page and gone not in out, gone

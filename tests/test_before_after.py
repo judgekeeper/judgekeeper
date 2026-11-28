@@ -47,6 +47,8 @@ OTHER_SETUP = ("The two results were graded by different LLM-as-a-judge setups (
 OTHER_SETUP_NEXT = "Next: compare results graded by the same LLM-as-a-judge setup."
 NO_MATCH_IDS_NEXT = ("Next: check that you compare results of the same eval: the two share no "
                      "question id.")
+NO_IDS_ONE_SIDE = ("Only one of the two results names its questions by an id, so judgekeeper "
+                   "can't tell which questions are the same, and compares nothing.")
 
 
 @pytest.fixture
@@ -950,6 +952,47 @@ def test_before_on_results_with_ids_that_share_none_says_to_check_the_eval(
     assert NO_MATCH in flat(out)
     assert next_lines(out)[-1] == NO_MATCH_IDS_NEXT
     assert "Give each question an id" not in flat(out)
+
+
+def _ids_then_none(tmp_path, monkeypatch, capsys, first_ids: bool):
+    """The same 40 questions read twice: once with an id column, once without (or the other
+    way round), as after grading marked-answers.csv again with no id column."""
+    monkeypatch.chdir(tmp_path)
+    rows = [(f"q-{i}", f"Question {i}?", f"Answer {i}.", i % 3 != 0) for i in range(40)]
+    plain = [(q, a, not v) for _, q, a, v in rows]
+
+    def write(with_ids: bool) -> None:
+        if with_ids:
+            ids_csv(tmp_path / "results.csv", rows)
+        else:
+            rows_csv(tmp_path / "results.csv", plain)
+    write(first_ids)
+    said(capsys, "results.csv", "--no-browser", "--port", "0")
+    said(capsys, "--stop")
+    write(not first_ids)
+    out = said(capsys, "results.csv", "--no-browser", "--port", "0")
+    said(capsys, "--stop")
+    return out
+
+
+@pytest.mark.parametrize("first_ids", [True, False], ids=["ids-then-none", "none-then-ids"])
+def test_results_with_ids_on_one_side_only_say_one_line_and_keep_the_runs_exit(
+        tmp_path, monkeypatch, capsys, first_ids):
+    monkeypatch.delenv("CI", raising=False)
+    code, out = _ids_then_none(tmp_path, monkeypatch, capsys, first_ids)
+    assert code == 0, out  # the run's own: its Next: line is the last thing said
+    assert NO_IDS_ONE_SIDE in flat(out), out
+    assert NO_MATCH not in flat(out) and NO_MATCH_NEXT not in flat(out), out
+    assert len(next_lines(out)) == 1, out  # the run's own, then the one line, last
+    assert flat(out).endswith(NO_IDS_ONE_SIDE), out
+    assert_one_next_at_the_end(before_comparison(out))
+
+
+def test_results_with_ids_on_one_side_only_still_stop_a_pipeline(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("CI", "true")
+    code, out = _ids_then_none(tmp_path, monkeypatch, capsys, True)
+    assert code == 3, out  # a gate never passes on nothing compared
+    assert next_lines(out)[-1] == NO_MATCH_NEXT
 
 
 # --before's grades are read with the same rules as the results' ---------------------------------

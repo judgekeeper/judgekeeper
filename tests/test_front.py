@@ -94,7 +94,8 @@ def before_comparison(out: str) -> str:
     """The usual output: what is said before the comparison with the results before
     (before_after.lines), which comes last."""
     m = re.search(r"^(On the \d+ questions? in both results:|No question is in both results|"
-                  r"No question has a Pass or Fail grade in both|Your LLM-as-a-judge setup changed "
+                  r"No question has a Pass or Fail grade in both|Only one of the two results names|"
+                  r"Your LLM-as-a-judge setup changed "
                   r"since the last results|The two results were graded by different)",
                   out, flags=re.MULTILINE)
     return out[:m.start()] if m else out

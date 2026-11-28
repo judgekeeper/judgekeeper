@@ -289,3 +289,14 @@ def test_a_mark_counts_as_changed_after_the_grades_when_it_differs_from_the_mark
     m = marks.read(path)
     assert ("a" in m.after_result) is changed
     assert marks.made(m)["after_result"] == int(changed)
+
+
+def test_a_line_with_a_bad_byte_is_one_unreadable_line_not_the_whole_file(tmp_path):
+    """The answers marks are read as the steps marks are: a line that is not UTF-8, or holds
+    a NUL, is left out and counted; the other lines are read."""
+    path = _new(tmp_path)
+    marks.append(path, marks.stamp("a1", "pass", "fail", 8.5, "s1"))
+    path.write_bytes(path.read_bytes() + b'{"id": "a2\xe9"}\n{"id": "a3\x00"}\n')
+    marks.append(path, marks.stamp("a4", "fail", "fail", 3.0, "s1"))
+    read = marks.read(path)
+    assert set(read.last) == {"a1", "a4"} and read.unreadable == 2

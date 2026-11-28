@@ -549,7 +549,12 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
         return _no_grades(talk, ws, found, wait, marking)
     # the grades compared with the last ones read (or --before's file): a file that can't be
     # read stops here, before anything is said
-    seen = None if marking else before_after.look(
+    # a plain run on the LLM-as-a-judge a check found worse: its numbers are the old one's
+    # (HELD_WORSE), so it compares nothing and keeps the grades read last
+    from judgekeeper import check
+
+    refused = talk.before is None and check.open_worse(ws, found, held=True) is not None
+    seen = None if marking or refused else before_after.look(
         talk, ws, found, talk.before, other_judge=bool(_why_start_over(talk, ws, found)))
     # with --before or in CI the comparison alone sets the exit code: a gate never stops on
     # marks no one in it can give
@@ -559,7 +564,7 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     except Stop as e:  # said why: the change is said after it, and nothing is written
         if seen is None or talk.other_eval:
             raise
-        said = _say_change(talk, ws, seen, write=False)
+        said = _say_change(talk, ws, seen, write=False, gate=gate)
         if gate and e.code in (0, EXIT_QUESTION):
             return said or 0
         if said is not None and e.code in (0, EXIT_QUESTION):
@@ -567,7 +572,7 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
         raise
     if seen is None:
         return code
-    said = _say_change(talk, ws, seen)
+    said = _say_change(talk, ws, seen, gate=gate)
     if gate and code in (0, EXIT_QUESTION):
         return said or 0
     return code if said is None else said
@@ -587,7 +592,7 @@ def _graded(talk: FrontTalk, ws: Workspace, found: start.Found, mapped, wait: bo
 
 
 def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
-                write: bool = True) -> int | None:
+                write: bool = True, gate: bool = True) -> int | None:
     """After the usual output: what the newest results did against the ones before (or why
     nothing was compared), and the results read kept for the next run (`write`: unless a
     question went unanswered, which writes nothing). The exit code it sets: 1 made it worse,
@@ -595,7 +600,7 @@ def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
     c = seen.comparison
     if c is not None and talk.before is None and seen.had and before_after.read(ws) is None:
         c = None  # started over (another LLM-as-a-judge): the last results are not its baseline
-    paragraphs, code = seen.paragraphs(c)
+    paragraphs, code = seen.paragraphs(c, gate)  # gate: --before or CI (run)
     for para in paragraphs:
         talk.say()
         for line in para:
@@ -3483,7 +3488,12 @@ def _compare_command(talk: FrontTalk, ws: Workspace) -> str:
 
 
 def _fix_command(talk: FrontTalk) -> str:
-    """`judgekeeper fix`, with the path when it is not this folder: `fix` takes no other flag."""
+    """`judgekeeper fix`, with the path when it is a folder other than this one: `fix` takes no
+    other flag, and given a results file (check.given_results) it tests a new rule on it."""
+    from judgekeeper.check import given_results
+
+    if given_results(str(talk.path)):  # the project is found from here (project.project_of)
+        return program("fix")
     return _check_command(talk).replace(program("check"), program("fix"), 1)
 
 
@@ -3947,7 +3957,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     from judgekeeper import steps, steps_page
 
     typed = steps_page.opened_with(closed["flags"]) if closed else None  # the steps page's
-    command = steps._command(*typed) if typed else _continue_command(talk, ws, closed)
+    command = (steps._command(*typed, *start.page_flags(closed["port"], closed["no_browser"]))
+               if typed else _continue_command(talk, ws, closed))
     talk.para("Next: " + NEXT_CONTINUE.format(command=command))
     return EXIT_OK
 
@@ -3956,10 +3967,10 @@ def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) 
     """The run that carries on the project after --stop: in its own folder, as the result
     was made (result.json's flags: the pass mark in use, the flags that read the results,
     how the page opens), so a scores project still reads its scores; else as typed. Either
-    way with how the `page` it closed was opened ({"port", "no_browser", "flags"}): its port,
-    but the default or any free one (0), and --no-browser when it was given it. With no
-    result yet, as the page was started (its flags: the file it was given, say)."""
-    port = page and page["port"] not in (None, 0, DEFAULT_PORT) and page["port"]
+    way with how the `page` it closed was opened ({"port", "no_browser", "flags"}), by
+    start.page_flags. With no result yet, as the page was started (its flags: the file it was
+    given, say)."""
+    port = page["port"] if page and page["port"] is not None else DEFAULT_PORT
     try:
         flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
@@ -3968,13 +3979,12 @@ def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) 
     if not isinstance(flags, dict) and page:
         flags, subcommand = page.get("flags"), talk.subcommand  # as typed: `mark --stop`
     if not isinstance(flags, dict) or Path.cwd().resolve() != ws.root.resolve():
-        typed = talk.options.get("port", DEFAULT_PORT) != DEFAULT_PORT
-        extra = ("--port", str(port)) if port and not typed else ()
-        if page and page["no_browser"] and not talk.options.get("no_browser"):
-            extra = (*extra, "--no-browser")
+        typed = talk.options.get("port", DEFAULT_PORT) != DEFAULT_PORT  # said by talk.command
+        extra = start.page_flags(DEFAULT_PORT if typed else port, bool(
+            page and page["no_browser"] and not talk.options.get("no_browser")))
         return talk.command(*extra)  # the paths it keeps are from the project folder
     if page:
-        flags = {**flags, "port": port or DEFAULT_PORT, "no_browser": page["no_browser"]}
+        flags = {**flags, "port": port, "no_browser": page["no_browser"]}
     return start.command_from(flags, subcommand)
 
 

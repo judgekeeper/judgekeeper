@@ -1,7 +1,7 @@
 [project]
 name = "judgekeeper"
 version = "1.5.0"
-description = "The keeper of human judgment for AI: Read. Measure. Fix. Re-check."
+description = "Check agents and chatbots with human judgment. Read. Measure. Fix. Re-check."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
@@ -25,7 +25,7 @@ dependencies = []
 [project.optional-dependencies]
 # build, hatchling and pyyaml: tests/test_release.py builds the wheels and reads the workflows.
 dev = ["pytest>=8", "ruff==0.17.6", "build>=1", "hatchling>=1.26", "pyyaml>=6",
-       "jsonschema>=4.18"]
+       "jsonschema>=4.18", "pytest-xdist>=3"]
 # Inspect AI 0.3.288 fails to import with agent-client-protocol 1.0.0; drop when Inspect AI fixes it.
 inspect = ["inspect-ai>=0.3", "agent-client-protocol<1"]
 mlflow = ["mlflow>=3.1"]

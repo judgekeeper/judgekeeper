@@ -219,11 +219,15 @@ def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser:
             value = quote_arg(str(values[name]), kept)
             words += ([f"{flag}={value}"] if str(values[name]).startswith("-")
                       else [flag, value])
-    if port != DEFAULT_PORT:
-        words += ["--port", str(port)]
-    if no_browser:
-        words.append("--no-browser")
-    return tuple(words)
+    return (*words, *page_flags(port, no_browser))
+
+
+def page_flags(port: int | None = DEFAULT_PORT, no_browser: bool = False) -> tuple[str, ...]:
+    """How the run opened its page, as every printed command that opens it again repeats it:
+    --port unless the default (0 too: any free port), then --no-browser when given. The one
+    rule for Next: lines, the lines after --stop and the pages' "To come back" footers."""
+    port_words = () if port is None or port == DEFAULT_PORT else ("--port", str(port))
+    return (*port_words, *(("--no-browser",) if no_browser else ()))
 
 
 def path_word(path: str | Path, kept: bool = False) -> str:

@@ -139,13 +139,13 @@ def _data(n=3, k=4, marks=None, intro=False, total=None, start=0, long=None) -> 
             "marked": sum(v is not None for v in marks.values()), "intro": intro}
 
 
-def _run(scenario: str, data: dict | None = None) -> dict:
+def _run(scenario: str, data: dict | None = None, before: str = "") -> dict:
     node = shutil.which("node")
     if node is None:
         if os.environ.get("JUDGEKEEPER_NEEDS_NODE"):
             pytest.fail("node is missing: the page's script must run here")
         pytest.skip("needs node to run the page's script")
-    code = (f"var DATA = {json.dumps(data or _data())};\n{DOM}\n" + _script()
+    code = (f"var DATA = {json.dumps(data or _data())};\n{DOM}\n" + before + _script()
             + "\n(async function () {\n" + scenario + "\n})();")
     with tempfile.TemporaryDirectory() as folder:
         script = Path(folder) / "page.js"
