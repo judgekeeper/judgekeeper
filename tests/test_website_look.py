@@ -468,10 +468,10 @@ DEMO = [["Can I return a lamp after 60 days?",
         ["Do you ship to Canada?",
          "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]
 # Each step starts with what you do, in a few plain words
-STEPS = [("find", "Read", "Read your eval results and your labels, or mark answers Pass or Fail in your browser."),
+STEPS = [("find", "Read", "Read your eval results and your labels, or mark answers Pass or Fail, or the first wrong step of agent runs, in your browser."),
          ("measure", "Measure", "See how often your agent-as-a-judge or LLM-as-a-judge agrees with you, and how much the people marking agree with each other."),
-         ("fix", "Fix", "Write a better rule for your LLM-as-a-judge, or a better prompt for your agent or chatbot, and test it on marks kept aside."),
-         ("check", "Re-check", "Change your LLM-as-a-judge, agent or chatbot, and see if it gets better or worse.")]
+         ("fix", "Fix", "Write a better prompt for your agent or chatbot, or a better rule for your LLM-as-a-judge, and test it on marks kept aside."),
+         ("check", "Re-check", "Change your agent or chatbot, or its agent-as-a-judge or LLM-as-a-judge, and see if it gets better or worse.")]
 
 
 def _main(page: Path) -> Element:
@@ -624,7 +624,7 @@ def test_the_steps_read_cleanly_as_plain_text():
     (tabs,) = _all(_main(HOME), "div", "steplist")
     texts = [" ".join(_raw(b).split()) for b in _all(tabs, "button")]
     assert texts == [f"{n}. {name}: {words}" for n, (_, name, words) in enumerate(STEPS, 1)]
-    assert texts[0] == "1. Read: Read your eval results and your labels, or mark answers Pass or Fail in your browser."
+    assert texts[0] == "1. Read: Read your eval results and your labels, or mark answers Pass or Fail, or the first wrong step of agent runs, in your browser."
     assert "data-nosnippet" in tabs.attrs  # Google leaves the step list out of its snippet
     assert "data-nosnippet" in _by_id(HOME, "demo").attrs  # and the marking demo
     for b in _all(tabs, "button"):
