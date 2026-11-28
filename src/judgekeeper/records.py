@@ -125,14 +125,68 @@ def load_json(path: str | Path, tool: str):
     return data
 
 
+TOOL_CALL_SHAPES = ("{id, name, arguments} or OpenAI's {id, type: \"function\", function: "
+                    "{name, arguments}}")
+
+
+def tool_call(call) -> tuple[object, str, object] | None:
+    """(id, name, arguments) of one tool call in an agent's steps, in either shape:
+    {id, name, arguments}, or OpenAI's {id, type: "function", function: {name, arguments}}
+    (`type` may be left out); None when it is neither. The steps reader and the records
+    reader both read calls by this rule."""
+    if not isinstance(call, dict):
+        return None
+    if isinstance(call.get("function"), dict):
+        if call.get("type", "function") != "function":
+            return None
+        name, arguments = call["function"].get("name"), call["function"].get("arguments")
+    else:
+        name, arguments = call.get("name"), call.get("arguments")
+    if not isinstance(name, str) or not name:
+        return None
+    return call.get("id"), name, arguments
+
+
+def _flat_calls(trajectory: list) -> list:
+    """`trajectory` with each OpenAI-shaped tool call as {id, name, arguments} (its arguments'
+    JSON text read as JSON), so the same call gives the same id in either shape. A call in
+    the flat shape is left exactly as it is: an id made before stays the same."""
+    out = []
+    for step in trajectory:
+        calls = step.get("tool_calls") if isinstance(step, dict) else None
+        if isinstance(calls, list) and any(
+                isinstance(c, dict) and isinstance(c.get("function"), dict) for c in calls):
+            flat = []
+            for c in calls:
+                parts = tool_call(c) if isinstance(c, dict) and isinstance(
+                    c.get("function"), dict) else None
+                if parts is None:
+                    flat.append(c)
+                    continue
+                arguments = parts[2]
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                    except (ValueError, RecursionError):
+                        pass
+                rest = {k: v for k, v in c.items() if k not in ("type", "function")}
+                flat.append({**rest, "name": parts[1], "arguments": arguments})
+            step = {**step, "tool_calls": flat}
+        out.append(step)
+    return out
+
+
 def derive_record_id(input, output, trajectory=None) -> str:
     """table.derive_id over an item's input and output, with a missing value read as "".
 
     With a trajectory (a non-empty list of steps), the id covers it too: two agent runs that
-    end in the same answer are two answers."""
+    end in the same answer are two answers. A tool call counts the same in either of its
+    shapes (_flat_calls)."""
     item = {"input": "" if input is None else input, "output": "" if output is None else output}
     if not trajectory:
         return derive_id(item)
+    if isinstance(trajectory, list):
+        trajectory = _flat_calls(trajectory)
     content = canonical_json({**item, "trajectory": trajectory})
     return hashlib.sha256(content.encode("utf-8")).hexdigest()[:ID_LENGTH]
 
@@ -202,11 +256,9 @@ def _message_problems(n: int, m) -> list[str]:
     if calls is not None and not isinstance(calls, list):
         out.append(f"{where}: tool_calls must be a list")
     for c, call in enumerate(calls if isinstance(calls, list) else [], 1):
-        if not isinstance(call, dict):
-            out.append(f"{where}, tool call {c} must be an object with a name")
+        if tool_call(call) is None:
+            out.append(f"{where}, tool call {c} must be {TOOL_CALL_SHAPES}")
             continue
-        if not isinstance(call.get("name"), str) or not call["name"]:
-            out.append(f"{where}, tool call {c} needs a name")
         if call.get("id") is not None and not isinstance(call["id"], str):
             out.append(f"{where}, tool call {c}: id must be text")
     if m.get("tool_call_id") is not None and not isinstance(m["tool_call_id"], str):
@@ -496,6 +548,7 @@ class RecordList(list):
         self.label_map = dict(label_map or {})
         self.per_metric = dict(per_metric or {})
         self.left_out: list = []
+        self.first_damage: str | None = None  # why the first row left out was: "line 3: ..."
         self.unit = unit
         self.source: str | None = None
         self.model_refused: str | None = None  # a model column that names no model
@@ -578,8 +631,9 @@ def left_out_note(records: RecordList, file: str) -> str | None:
     listed = " and ".join([", ".join(named[:-1]), named[-1]] if len(named) > 1 else named)
     one = len(rows) == 1
     name = records.source or Path(file).name
+    why = f" ({records.first_damage})" if records.first_damage else ""
     return (f"{plural(len(rows), 'answer')} in {name} {'was' if one else 'were'} "
-            f"left out: {listed} {'has' if one else 'have'} a damaged field.")
+            f"left out: {listed} {'has' if one else 'have'} a damaged field{why}.")
 
 
 def all_damaged(path: str | Path, tool: str, records: RecordList) -> None:
@@ -839,9 +893,13 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
                 records.ids_derived = True
             if bad_lines_ok:
                 check_record(rec)
-        except (RecordsError, *ROW_DAMAGE):
+        except (RecordsError, *ROW_DAMAGE) as e:
             if not bad_lines_ok:
                 raise
+            said = str(e).removeprefix(f"{path.name}: ")
+            if isinstance(e, RecordsError) and records.first_damage is None and \
+                    said.startswith(f"line {n}: trajectory "):  # names a field, never a value
+                records.first_damage = said
             records.left_out.append(n)
             continue
         n_big += size > BIG
@@ -851,7 +909,10 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
     if records.left_out and not records:
         where = (f"line {records.left_out[0]}" if len(records.left_out) == 1
                  else _each(records.left_out, "line"))
-        raise Damaged(f"{path.name} is damaged: {where} has a damaged field.",
+        why = f" ({records.first_damage})" if records.first_damage else ""
+        said = (records.first_damage if records.first_damage and len(records.left_out) == 1
+                else f"{where} has a damaged field{why}")  # line 3: why, once
+        raise Damaged(f"{path.name} is damaged: {said}.",
                       "run your eval again (it writes new records), then run `{command}`.")
     labels_take_text(records, own_ids)
     records.warnings += file_warnings(path.name, records, n_big)
