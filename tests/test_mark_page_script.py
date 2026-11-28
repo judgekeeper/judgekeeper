@@ -1693,3 +1693,41 @@ def test_two_undos_further_apart_take_back_two_marks():
       console.log(JSON.stringify({sent: sent.map(function (s) {
         return [s.body.id, s.body.label]; })}));""", data=_data(6))
     assert got["sent"][2:] == [["a1", None], ["a0", None]], got["sent"]
+
+
+@pytest.mark.parametrize("presses", [
+    'key("z"); later(120); key("z");',
+    'key("z"); later(120); ids["undo"].fire("click");',
+    'ids["undo"].fire("click"); later(120); key("z");',
+    'ids["undo"].fire("click"); later(120); ids["undo"].fire("click");',
+], ids=["Z-Z", "Z-click", "click-Z", "click-click"])
+def test_a_second_quick_undo_while_the_first_one_saves_does_nothing(presses):
+    """Every mark saved, then two Undos 120 ms apart while the first Undo's own save is slow
+    (as once a result is shown): one mark is taken back. The second waited for that save
+    and then took a second mark back, without a word."""
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await tick(1300);
+      ids["fail"].fire("click"); await tick(1300);
+      ids["pass"].fire("click"); await tick(1300); """ + presses + """ await settle();
+      await tick(5000);
+      console.log(JSON.stringify({at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(6))
+    assert got["sent"] == [["a0", "pass"], ["a1", "fail"], ["a2", "pass"], ["a2", None]]
+    assert got["at"] == "Question 2?"
+
+
+def test_two_undos_apart_while_one_saves_take_back_two_marks():
+    """The same with the second Undo 500 ms after the first, past the 400 ms that makes a
+    double press one: both are meant, and both take a mark back."""
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await tick(1300);
+      ids["fail"].fire("click"); await tick(1300);
+      ids["pass"].fire("click"); await tick(1300);
+      key("z"); await settle(); later(500); key("z"); await settle();
+      await tick(5000);
+      console.log(JSON.stringify({at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(6))
+    assert got["sent"] == [["a0", "pass"], ["a1", "fail"], ["a2", "pass"], ["a2", None],
+                           ["a1", None]], got["sent"]

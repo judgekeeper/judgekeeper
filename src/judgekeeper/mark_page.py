@@ -1004,10 +1004,11 @@ __TOP__
     return true;
   }
 
-  // An undo, by click or key, waits LOCK_MS after the one before: a double press undoes one
-  // mark, as on the steps page. A mark or skip, by click or key, does nothing within FRESH_MS
-  // of its answer showing (fresh), so a double click never marks an answer not yet read; any
-  // later click marks the answer on screen. A Pass, Fail or Skip, by click or key, made while a mark is saved waits for it
+  // An undo, by click or key, pressed within LOCK_MS of the one before does nothing, also
+  // while that one still saves: a double press undoes one mark, as on the steps page. A mark
+  // or skip, by click or key, does nothing within FRESH_MS of its answer showing (fresh), so a
+  // double click never marks an answer not yet read; any later click marks the answer on
+  // screen. A Pass, Fail or Skip, by click or key, made while a mark is saved waits for it
   // (press), for the answer on screen when it was made; an undo key waits for it too (act); a
   // key held down does nothing.
   function locked() {
@@ -1029,8 +1030,10 @@ __TOP__
   function act(f) { if (busy) { queued.push({run: f}); } else { f(); } }
 
   // While a mark saves, one undo waits to take it back: a second undo, by key or button,
-  // does nothing (each would take back another mark, without a word).
+  // does nothing (each would take back another mark, without a word). The lock is held from
+  // the press: an undo pressed while the one before saves would run after it, past LOCK_MS.
   function undoWhenSaved() {
+    if (locked()) { return; }
     if (!busy) { undo(); return; }
     if (queued.some(function (q) { return q.undo; })) { return; }
     queued.push({run: undo, undo: true});
@@ -1136,7 +1139,6 @@ __TOP__
     if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null; leaving = false; }
     if (leaving) { say(WORDS.opening, true); return; }
     if (!history.length) { say("Nothing to undo.", true); return; }
-    if (locked()) { return; }
     closeReady();  // an undo can take the result back below ready
     var back = history.pop();
     walkingSkipped = false; open(back.pos);
