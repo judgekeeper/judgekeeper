@@ -3920,6 +3920,32 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     return EXIT_OK
 
 
+def open_below(folder: Path) -> list[str]:
+    """The folders right below `folder` with a marking page open, for answers or for agent
+    runs (a steps page has no session _sessions_below sees), by name."""
+    try:
+        names = sorted(e.name for e in os.scandir(folder)
+                       if e.is_dir(follow_symlinks=False) and e.name != FOLDER)
+    except OSError:
+        return []
+    out = []
+    for name in names:
+        try:
+            if is_open(Workspace(folder / name).dir):
+                out.append(name)
+        except OSError:  # a folder that can't be read: no page there
+            continue
+    return out
+
+
+def open_below_line(folder: Path, names: list[str], command: str) -> tuple[str, str]:
+    """(what to say, the Next step) when pages are open in several of `names` below `folder`:
+    where they are, and to run `command` in one of them."""
+    shown = _from_here(folder, names)
+    return (f"Marking pages are open in {start._and([f'{n}/' for n in shown])}.",
+            _go_step(shown, command))
+
+
 def _stop(talk: FrontTalk, path: Path) -> int:
     """--stop: close the page open for this project, or, when marking never started here,
     the one opened from a folder right below it (Find looks one level down); with several
@@ -3932,14 +3958,13 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     if path.is_dir() and not is_open(ws.dir) and is_open(Workspace(path).dir):
         ws = Workspace(path)  # a page open on a session every command now passes over
     own = ws.start.is_file() or ws.labels.is_file()  # marking started in this project
-    below = [] if own or is_open(ws.dir) or not path.is_dir() else [
-        name for name, _ in _sessions_below(path) if is_open(Workspace(path / name).dir)]
+    below = [] if own or is_open(ws.dir) or not path.is_dir() else open_below(path)
     if len(below) == 1:  # opened from the folder right below
         ws = Workspace(path / below[0])
     elif below:
-        below = _from_here(path, below)
-        talk.para(f"Marking pages are open in {start._and([f'{n}/' for n in below])}.")
-        raise talk.stop(EXIT_QUESTION, _go_step(below, f"{program()} --stop"))
+        said, go = open_below_line(path, below, f"{program()} --stop")
+        talk.para(said)
+        raise talk.stop(EXIT_QUESTION, go)
     lock = read_lock(ws.dir) if is_open(ws.dir) else None
     closed = None if lock is None else {  # how the page was opened: carried on
         "port": lock["port"] if lock["asked"] is None else lock["asked"],

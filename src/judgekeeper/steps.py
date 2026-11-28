@@ -754,6 +754,15 @@ def _workspace(given: Path) -> Workspace:
     return ws
 
 
+def shown_steps(folder: Path) -> str:
+    """The steps folder `folder` as a line names it from where the command runs: SHOWN in
+    this folder's own project, else from here (textio.shown_from_here), as `a/.judgekeeper/
+    steps` for runs in `a`."""
+    if Path(folder).resolve() == (Path.cwd() / SHOWN).resolve():
+        return SHOWN
+    return textio.shown_from_here(folder)
+
+
 def marks_path(given: Path) -> Path:
     """Where the page keeps the marks for the runs at `given` (a file or its folder)."""
     return Workspace(project.project_of(given)).dir / FOLDER / MARKS_FILE
@@ -771,8 +780,9 @@ def _screen(file: Path, given: Path, reviewer: str | None = None,
     folder = ws.dir / FOLDER
     write_replacing(folder / TASKS_FILE, tasks)
     write_replacing(folder / CONFIG_FILE, config)
-    _say(f"Wrote {plural(len(runs), 'run')} for Label Studio to {SHOWN}/{TASKS_FILE} and the "
-         f"labelling setup to {SHOWN}/{CONFIG_FILE}.")
+    shown = shown_steps(folder)
+    _say(f"Wrote {plural(len(runs), 'run')} for Label Studio to {shown}/{TASKS_FILE} and the "
+         f"labelling setup to {shown}/{CONFIG_FILE}.")
     _say()
     if then is not None:
         return then()
@@ -782,8 +792,8 @@ def _screen(file: Path, given: Path, reviewer: str | None = None,
         return _report(export, *picks, str(given), reviewer, _say, runs_name=file.name,
                        folder=folder, terminal=True, again=again)
     export = program("steps EXPORT.json")
-    _say("Next: " + NEXT_LABEL.format(config=f"{SHOWN}/{CONFIG_FILE}",
-                                       tasks=f"{SHOWN}/{TASKS_FILE}", export=export))
+    _say("Next: " + NEXT_LABEL.format(config=f"{shown}/{CONFIG_FILE}",
+                                       tasks=f"{shown}/{TASKS_FILE}", export=export))
     return EXIT_OK
 
 
@@ -860,7 +870,8 @@ def _lines_of(numbers: list[int], name: str) -> str:
     return f"Lines {words} of {name} are not marks judgekeeper can read; they are left out."
 
 
-def _marks_read(stats: dict, runs_name: str, say, news_in: Path | None = None) -> None:
+def _marks_read(stats: dict, runs_name: str, say, news_in: Path | None = None,
+                shown: str = SHOWN) -> None:
     """The lines that say what was read from the page's marks, and what was left out. The
     lines on marks a program may have made are the answers page's (start_label.quick_lines and
     link_lines); the link lines always (the result page), or, for the terminal (`news_in`, the
@@ -874,7 +885,7 @@ def _marks_read(stats: dict, runs_name: str, say, news_in: Path | None = None) -
         said = "you marked it" if marked else "you have not marked it"
     else:
         said = f"you marked {marked} of them"
-    say(f"Read {plural(n, 'run')} from {runs_name} and your marks from {SHOWN}/{MARKS_FILE}: "
+    say(f"Read {plural(n, 'run')} from {runs_name} and your marks from {shown}/{MARKS_FILE}: "
         f"{said}.")
     made = stats.get("made")
     for line in start_label.quick_lines(made):
@@ -894,7 +905,7 @@ def _marks_read(stats: dict, runs_name: str, say, news_in: Path | None = None) -
     elif k:
         say(f"{k} marks are for runs that are not in {runs_name}; they are left out.")
     if stats["broken"]:
-        say(_lines_of(stats["broken"], f"{SHOWN}/{MARKS_FILE}"))
+        say(_lines_of(stats["broken"], f"{shown}/{MARKS_FILE}"))
 
 
 def _report(export: Export, guesses: dict, given: dict, names: frozenset, shown: str,
@@ -929,7 +940,7 @@ def _report(export: Export, guesses: dict, given: dict, names: frozenset, shown:
                           "unknown_fields": unknown_fields(fp.to_dict()), **numbers})
     out = _workspace(Path(shown)).dir / FOLDER if folder is None else folder
     if marks:
-        _marks_read(stats, name, say, news_in=out if terminal else None)
+        _marks_read(stats, name, say, news_in=out if terminal else None, shown=shown_steps(out))
     else:
         if stats["tasks"] == 1:
             labelled = ("the people marking labelled it" if stats["labelled"]
@@ -990,7 +1001,7 @@ def _report(export: Export, guesses: dict, given: dict, names: frozenset, shown:
     if marks_changed:
         say(MARKS_CHANGED.format(what="Your marks" if marks else "The labels"))
     say("")
-    say(f"Saved in {SHOWN}/{RESULT_FILE}.")
+    say(f"Saved in {shown_steps(out)}/{RESULT_FILE}.")
     say("")
     more = _more(reviewers, stats, command, runs_name, reviewer) if marks else NEXT_MORE.format(
         command=command)

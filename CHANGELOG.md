@@ -15,6 +15,7 @@
 - `judgekeeper --help`, the README and the PyPI summary now start with the website's headline, "Check agents and chatbots with human judgment."
 - What `judgekeeper steps` prints says "picks" where it said "guesses", as in `--reviewer PICKS.jsonl` and `NEW-PICKS.jsonl`.
 - Next lines, the lines after `--stop` and the pages' "To come back" commands repeat the `--port` and `--no-browser` you used, the same way everywhere.
+- `judgekeeper steps a` run from the folder above `a`: `judgekeeper steps --stop` and `judgekeeper --stop` from that folder close its page, as for the answers page. They said "No marking page is open." while it kept running. The Next line after `--stop` names the runs from where you are, and the lines that name the Label Studio files, the marks and result.json say `a/.judgekeeper/steps/`, where they are.
 - When the output is piped or read by a program, the "judgekeeper VERSION" line comes first, before any error.
 - `--help` says that `--port 0` means any free port.
 - On the answers result page, "Change a mark" says it opens the list of your answers.
