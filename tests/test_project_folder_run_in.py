@@ -124,8 +124,8 @@ def test_a_folder_named_from_its_parent_keeps_its_project_in_it(parent, monkeypa
 
 def test_two_folders_named_from_their_parent_never_share_or_compare(parent, monkeypatch,
                                                                      capsys):
-    """rc14: X's results were compared with Y's ("broke 10", exit 1), and judgekeeper.toml in
-    parent/ flipped from file = "Y" to "X"."""
+    """Before, X's results were compared with Y's ("broke 10", exit 1), and judgekeeper.toml
+    in parent/ flipped from file = "Y" to "X"."""
     _in(monkeypatch, parent, capsys, "Y", "--yes")
     kept = _kept(parent / "Y")
     # X's answers are other answers: every grade turned, so a comparison would say "broke"
