@@ -462,10 +462,14 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
         run = seen[(item_id, r.get("promptIdx"))]
         test_opts = _options(r.get("testCase"))
         content = {"input": _question(r), "output": _text((r.get("response") or {}).get("output"))}
-        # what else the grade follows: the prompt the vars went into, the test's own asserts
-        # (their values: references, rubrics) and metadata; not its grader (options)
+        # what else the grade follows: the response beyond its output (its tool calls, its
+        # trace, its metadata), the prompt the vars went into, the test's own asserts (their
+        # values: references, rubrics) and metadata; not its grader (options)
         test = r.get("testCase") if isinstance(r.get("testCase"), dict) else {}
-        rest = graded_sum({"prompt": (r.get("prompt") or {}).get("raw")
+        response = r.get("response") if isinstance(r.get("response"), dict) else {}
+        rest = graded_sum({"response": _kept({k: v for k, v in response.items()
+                                              if k not in ("output", "cached")}),
+                           "prompt": (r.get("prompt") or {}).get("raw")
                            if isinstance(r.get("prompt"), dict) else None,
                            "test": _kept({k: v for k, v in test.items()
                                           if k not in ("options", "provider", "description",

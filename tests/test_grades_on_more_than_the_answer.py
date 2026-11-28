@@ -52,6 +52,12 @@ def _deepeval(path, kind: str, changed: bool, agent: bool = True) -> None:
             c["retrievalContext"] = ["doc B, from the new retriever"] if new else ["doc A"]
             cases.append(c)
             continue
+        if kind == "tools":  # under Tool Correctness: the tools the agent called
+            c["metricsData"][0]["name"] = "Tool Correctness"
+            c["toolsCalled"] = [{"name": "search_web" if new else "lookup_policy",
+                                 "inputParameters": {"case": i}}]
+            cases.append(c)
+            continue
         reply = c["actualOutput"] + (" Something else entirely." if new else "")
         conv = {"name": c["name"], "scenario": c["input"], "success": c["success"],
                 "metricsData": c["metricsData"]}
@@ -59,7 +65,7 @@ def _deepeval(path, kind: str, changed: bool, agent: bool = True) -> None:
             conv["turns"] = [{"role": "user", "content": c["input"]},
                              {"role": "assistant", "content": reply}]
         cases.append(conv)
-    if kind == "rag":
+    if kind in ("rag", "tools"):
         data["testCases"] = cases
     else:
         data["conversationalTestCases"], data["testCases"] = cases, []
@@ -67,10 +73,18 @@ def _deepeval(path, kind: str, changed: bool, agent: bool = True) -> None:
 
 
 def _promptfoo(path, kind: str, changed: bool) -> None:
-    """promptfoo rows graded by `kind`, an assertion on the agent's run, which the file
-    doesn't hold; the output stays the same."""
+    """promptfoo rows graded by `kind`: an assertion on the agent's run, which the file
+    doesn't hold, or llm-rubric on a response whose tool calls and trace the file holds; the
+    output stays the same, the FLIP rows' tool calls are new."""
     data = promptfoo_data([not (changed and i in FLIP) and v for i, v in enumerate(VERDICTS)])
-    for row in data["results"]["results"]:
+    for i, row in enumerate(data["results"]["results"]):
+        tools = [{"name": "guess_answer" if changed and i in FLIP else "lookup_order",
+                  "args": {"id": i}}]
+        row["response"] |= {"metadata": {"toolCalls": tools}, "cached": changed,
+                            "tokenUsage": {"total": 40 + changed},
+                            "trace": {"spans": [{"name": t["name"], "attributes": t["args"]}
+                                                for t in tools]}}
+        row["latencyMs"] = 5 + changed
         for c in row["gradingResult"]["componentResults"]:
             c["assertion"] = {"type": kind, "value": "The agent reached the user's goal."}
     _write(path, data)
@@ -80,6 +94,8 @@ WRITE = {
     "deepeval-turns": lambda path, changed: _deepeval(path, "conv", changed),
     "deepeval-retrieval": lambda path, changed: _deepeval(path, "rag", changed),
     "deepeval-no-turns": lambda path, changed: _deepeval(path, "noturns", changed),
+    "deepeval-tools": lambda path, changed: _deepeval(path, "tools", changed),
+    "promptfoo-tool-calls": lambda path, changed: _promptfoo(path, "llm-rubric", changed),
     "promptfoo-trajectory": lambda path, changed: _promptfoo(path, "trajectory:goal-success",
                                                              changed),
     "promptfoo-agent-rubric": lambda path, changed: _promptfoo(path, "agent-rubric", changed),
@@ -106,7 +122,7 @@ def test_an_agent_change_beside_the_answer_is_compared(tmp_path, monkeypatch, ca
     assert before_after.ONLY_GRADES not in out and before_after.ONLY_GRADES_BEFORE not in out
 
 
-@pytest.mark.parametrize("kind", ["rag", "conv"])
+@pytest.mark.parametrize("kind", ["rag", "conv", "tools"])
 def test_the_same_documents_and_turns_graded_otherwise_are_only_grades(tmp_path, monkeypatch,
                                                                         capsys, kind):
     """A guard: what the grade follows is all in the results and stayed the same."""
@@ -115,6 +131,27 @@ def test_the_same_documents_and_turns_graded_otherwise_are_only_grades(tmp_path,
     _deepeval(tmp_path / NOW, kind, False)
     assert _said(capsys)[0] == 0
     _deepeval(tmp_path / NOW, kind, True, agent=False)
+    code, out = _said(capsys)
+    assert code == 0 and before_after.ONLY_GRADES in out, out
+
+
+def test_the_same_tool_calls_graded_otherwise_are_only_grades(tmp_path, monkeypatch, capsys):
+    """A guard: the same tool calls and trace; only what changes every run (cached, token
+    usage, latency) changed with the grades."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CI", "true")
+    path = tmp_path / FILES["promptfoo"][0]
+    _promptfoo(path, "llm-rubric", False)
+    assert _said(capsys)[0] == 0
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for i, row in enumerate(data["results"]["results"]):
+        row["response"] |= {"cached": True, "tokenUsage": {"total": 99}}
+        row["latencyMs"] = 77
+        if i in FLIP:
+            for c in [row["gradingResult"], *row["gradingResult"]["componentResults"]]:
+                c.update({"pass": False, "score": 0})
+            row["success"] = False
+    path.write_text(json.dumps(data), encoding="utf-8")
     code, out = _said(capsys)
     assert code == 0 and before_after.ONLY_GRADES in out, out
 
