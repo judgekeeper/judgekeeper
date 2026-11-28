@@ -73,7 +73,7 @@ def test_the_new_words():
     assert ("judgekeeper makes no AI call and needs no API key. In your project it writes only "
             "in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes.") in readme
     assert "Fix and Re-check run your eval tool" not in readme
-    assert "\nhttps://github.com/user-attachments/assets/" in readme  # the video, GitHub plays it
+    assert "VIDEO-LINK" not in readme  # a video link is a real one, never a placeholder
     ref = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     assert "What the first check found" in ref
     assert "judgekeeper makes no AI call and needs no API key." in ref

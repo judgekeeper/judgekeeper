@@ -12,8 +12,6 @@
 
 judgekeeper checks your AI agent or chatbot with human judgment. You mark what's right, and it shows how often an agent-as-a-judge or an LLM-as-a-judge (an AI model that grades another model's work) agrees with you, and where it goes wrong.
 
-https://github.com/user-attachments/assets/VIDEO-LINK-AFTER-UPLOAD
-
 ## Install
 
 In your project folder, in its virtual environment:
@@ -56,6 +54,7 @@ Each comes with a range. They are about the answers you marked, not a promise ab
 
 ## Checked on public data
 
+- [AgentProcessBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/agent-steps/report.md): an agent-as-a-judge against people's labels on 249 agent runs: 175 of 182 that went wrong caught, 47 of 67 fine ones left alone, kappa 0.71.
 - [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true values in 96 of 100 random tests.
 - [RAGTruth](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md): three LLM-as-a-judge setups, "needs work" in all 12 runs.
 - [All reports](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/)

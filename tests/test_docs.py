@@ -45,13 +45,14 @@ def test_the_readme_is_short_and_in_order():
     assert len(body.splitlines()) < 74  # the text under the header stays short
     top = text[:text.index("\n## ")]
     # the header image, dark and light, says the headline and the steps in its alt text; then
-    # the first paragraph, then the video; no sub-line paragraph
+    # the first paragraph, then the video when there is one; no sub-line paragraph
     for theme in ("dark", "light"):
         assert f"docs/assets/readme-header-{theme}.svg" in top, theme
     assert f'alt="{HEADER_ALT}"' in top
     lines = [x for x in body.split("\n## ")[0].splitlines() if x.strip()]
-    assert len(lines) == 2 and lines[0].startswith("judgekeeper checks your AI agent or chatbot")
-    assert lines[1] == next(x for x in top.splitlines() if x.startswith(VIDEO))
+    assert len(lines) in (1, 2) and lines[0].startswith("judgekeeper checks your AI agent or chatbot")
+    if len(lines) == 2:
+        assert lines[1] == next(x for x in top.splitlines() if x.startswith(VIDEO))
     assert "Human judgment decides what's right." not in text
     assert (ROOT / "docs" / "assets" / "demo.webp").stat().st_size < 1_000_000
     heads = list(_sections(text))
@@ -105,7 +106,8 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
         for figure in re.findall(r"\d+\.\d+|\d+%", line):
             assert figure in reports, (found, figure)
         linked[found[0]] = line
-    assert sorted(linked) == ["jailbreakbench/report.md", "ragtruth/report.md"]
+    assert sorted(linked) == ["agent-steps/report.md", "jailbreakbench/report.md",
+                              "ragtruth/report.md"]
     import json
 
     draws = (ROOT / "docs" / "examples" / "jailbreakbench" / "hundred-marks" / "draws.csv")
