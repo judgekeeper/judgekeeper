@@ -1932,9 +1932,7 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
         data["earlier_grades"] = earlier
     data.pop("results_left", None)  # back_to_marked's: about the judge before this one
     _marked_rule_kept(data)
-    from judgekeeper import before_after
-
-    data[before_after.REPLACED] = before_after.replaced(ws, data, found)  # before `given` moves
+    data.pop("replaced_sha256", None)  # 1.5.0's release candidates kept file sums here
     if isinstance(data.get("given"), str) and data["given"] and found.tool != "mapped" \
             and found.results and found.results[0].path.is_file():
         data["given"] = found.results[0].rel  # a file named: plain runs read the one checked
@@ -1947,6 +1945,8 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
                 checked_at=utc_now())
     _write_grades(ws, found, answers, now)
     _write_json(ws.start, data)
+    from judgekeeper import before_after
+
     before_after.restart(ws)  # grades of another LLM-as-a-judge: no change of the answers
 
 
@@ -2762,26 +2762,38 @@ def _unchanged(ws: Workspace, graded: dict) -> dict:
             and all(rows[i].get(k) == a.agent.get(k) for k in ("trajectory", "outcome"))}
 
 
-def _back_by_grades(ws: Workspace, found) -> bool:
-    """Results that don't say who graded them (no model, rule or prompt in them), after a
-    check took on another judge's grades (start.json's `picked`): back to the judge the marks
-    were made on when each marked answer whose text is unchanged has the grade it was marked
-    on, and one at least differs from the grades taken on. The same under both, or a mix of
-    the two: not back."""
+MARKED_ON, TAKEN_ON = "marked", "taken"  # judged_by: whose grades a file holds
+
+
+def judged_by(ws: Workspace, found) -> str | None:
+    """Results that don't say who graded them (no model, rule or prompt in them), while a
+    check's take-on of another judge's grades holds (start.json's `picked`): MARKED_ON when
+    each marked answer in them that is unchanged has the grade the marks were made on,
+    TAKEN_ON when each has the grade taken on, and one at least differs between the two.
+    None when that can't be told: none differs, a mix of the two, or no take-on."""
     from judgekeeper.before_after import _says_who
 
     try:
         data = ws.data()
     except (OSError, ValueError, AttributeError):
-        return False
+        return None
     picked = data.get("picked")
     if not isinstance(picked, dict) or _says_who(found):
-        return False
+        return None
     made_on = picked.get("groups") or {}
-    taken = {q["id"]: q["group"] for q in data.get("queue") or []}
+    taken = {q["id"]: q["group"] for q in data.get("queue") or [] if isinstance(q, dict)}
     graded = _unchanged(ws, lookup(found, list(marks.read(ws.marks).counted()), ws)[0])
-    return (bool(graded) and all(a.verdict == made_on.get(i) for i, a in graded.items())
-            and any(made_on.get(i) != taken.get(i) for i in graded))
+    if not any(made_on.get(i) != taken.get(i) for i in graded):
+        return None
+    for who, groups in ((MARKED_ON, made_on), (TAKEN_ON, taken)):
+        if all(a.verdict == groups.get(i) for i, a in graded.items()):
+            return who
+    return None
+
+
+def _back_by_grades(ws: Workspace, found) -> bool:
+    """Back to the judge the marks were made on, told by the grades (judged_by)."""
+    return judged_by(ws, found) == MARKED_ON
 
 
 def back_to_marked(ws: Workspace, found, say, again: int | None = None,

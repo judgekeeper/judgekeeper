@@ -2912,8 +2912,9 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     typed = Path(talk.path).is_file() or find.is_mlflow_folder(Path(talk.path))
     elsewhere = None if first or typed else _checked_file(ws, found)  # older results here
     closed: list[str] = []  # the marking page it closes: said by a plain run, not by `mark`
-    back = None if first or elsewhere else check.back_to_marked(ws, found, talk.say,
-                                                                closed=closed)
+    # only a plain run (or check) goes back to the judge marked on: never --before
+    back = None if first or elsewhere or talk.before is not None else check.back_to_marked(
+        ws, found, talk.say, closed=closed)
     marked_on = back is not None  # the judge the marks were made on ("": they never left it)
     elsewhere = elsewhere or (None if first or marked_on else _checked_file(ws, found))
     changed = [] if first or marked_on or elsewhere else _changed(ws, found)
