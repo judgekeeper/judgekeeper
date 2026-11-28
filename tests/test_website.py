@@ -283,7 +283,7 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
     assert "249 agent runs" in panels["ds-a"].text() and "on the 249 runs" in text
 
     # Chatbot answers: setup A's kappa, then setup B's, from the counts in the report's table
-    report, text = _panel_report(panels["ds-b"])
+    _, text = _panel_report(panels["ds-b"])
     kappas = [el for el in panels["ds-b"].iter() if "data-kappa" in el.attrs]
     assert [el.attrs["data-kappa"] for el in kappas] == ["Setup A", "Setup B"]
     for el in kappas:
