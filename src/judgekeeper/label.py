@@ -123,6 +123,11 @@ class StaleMark(ValueError):
     """The page's change was made on an old view of its item: nothing is written."""
 
 
+class OtherSteps(StaleMark):
+    """The page's change was made on steps its item no longer has (the runs read again under
+    the same ids): nothing is written, and the tab loads again to show the runs as they are."""
+
+
 def _text(value) -> str:
     return "" if _blank(value) else _plain(value)
 
@@ -948,6 +953,10 @@ def _handler(server: LabelServer):
             body = {**body, "id": item_id}
             try:
                 server.session.update(body)
+            except OtherSteps as e:  # the runs changed under this page: it loads them again
+                self._json(409, {"error": str(e), "stale": True, "reload": True,
+                                 "changed": True})
+                return
             except StaleMark as e:  # marked in another tab since this page loaded
                 self._json(409, {"error": str(e), "stale": True})
                 return
