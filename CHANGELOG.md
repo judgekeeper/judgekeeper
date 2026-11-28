@@ -33,6 +33,7 @@
 - If your first run named the results file and `check new-results.csv` then took the new one on, later runs read new-results.csv and compare each change.
 - On the answers page, pressing Undo twice while a mark is still saving takes back only that mark, not two without a word.
 - A key pasted as an agent-as-a-judge's name (a picks file's `model`, or a Label Studio prediction's `model_version`) is now shown as [REDACTED] in what `judgekeeper steps` prints, as it already was on the page and in result.json.
+- An agent-as-a-judge named by a key is compared on a later check with its own earlier numbers, never another's. Its numbers were kept under [REDACTED], so a second agent-as-a-judge checked with `--model` was shown them ("Since the last check (then "[REDACTED]")"), and the same one checked again said "(then "[REDACTED]")" every time. `result.json` keeps a hash of the hidden name to tell them apart, never the key.
 - Records format v2: a tool call in `trajectory` can be OpenAI's `{"id", "type": "function", "function": {"name", "arguments"}}` as well as `{"id", "name", "arguments"}`. Before, OpenAI's shape made every line of the file read as damaged. The same call gives the answer the same id in either shape, a tool call in neither shape is named by its line and step with the two shapes it can take, and `judgekeeper steps` reads tool calls by the same rule.
 
 ## 1.4.0 (2026-11-23)
