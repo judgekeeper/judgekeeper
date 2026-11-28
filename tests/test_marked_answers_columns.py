@@ -74,8 +74,10 @@ def test_marked_answers_use_the_column_names_as_the_file_writes_them(here, capsy
 def test_marked_answers_keep_the_results_own_ids_so_the_regraded_file_matches(
         here, capsys, monkeypatch):
     """Results with their own id column: marked-answers.csv keeps it, so the file graded again
-    names each question as the results do, and the plain run after Fix and Re-check compares
-    them (it found no question in both, with a second Next line and exit 3)."""
+    names each question as the results do, and the plain run after Fix and Re-check finds
+    them (it found no question in both, with a second Next line and exit 3). The check took on
+    the new LLM-as-a-judge's grades, so that run is the new starting point."""
+    from judgekeeper.before_after import NO_MATCH, RESTARTED
     from tests.test_front import assert_one_next_at_the_end, before_comparison
 
     with (here / "results.csv").open("w", encoding="utf-8", newline="") as f:
@@ -107,7 +109,8 @@ def test_marked_answers_keep_the_results_own_ids_so_the_regraded_file_matches(
     code, out = run(capsys, "--no-browser", "--port", "0")
     run(capsys, "--stop")
     assert code == 0, out
-    assert "On the 40 questions in both results:" in " ".join(out.split()), out
+    flat = " ".join(out.split())
+    assert NO_MATCH not in flat and RESTARTED in flat, out
     assert_one_next_at_the_end(before_comparison(out))  # the comparison comes last
 
 
