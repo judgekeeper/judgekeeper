@@ -19,10 +19,14 @@ def _said(capsys, *argv) -> tuple[int, str]:
     return code, _flat(out)
 
 
-@pytest.mark.parametrize("ids", [True, False], ids=["by-id", "by-text"])
+@pytest.mark.parametrize("ids,models", [(True, None), (False, None),
+                                         (True, ("judge-old", "judge-new"))],
+                         ids=["by-id", "by-text", "named-models"])
 def test_a_before_on_the_marked_judges_results_only_compares(tmp_path, monkeypatch, capsys,
-                                                             ids):
-    _checked(tmp_path, monkeypatch, capsys, ids)  # check took on new-results.csv
+                                                             ids, models):
+    """`models`: each file names its LLM-as-a-judge (judge_model): results.csv the one the
+    marks were made with, new-results.csv the one taken on."""
+    _checked(tmp_path, monkeypatch, capsys, ids, models=models)  # took on new-results.csv
     monkeypatch.setenv("CI", "true")
     main = (tmp_path / "results.csv").read_text(encoding="utf-8")
     (tmp_path / "main-results.csv").write_text(main, encoding="utf-8")
@@ -49,4 +53,9 @@ def test_a_before_on_the_marked_judges_results_only_compares(tmp_path, monkeypat
     assert code == 1 and f"fixed 0, broke {BROKE}," in out, out
     assert "wait until" not in out and "got a different grade" not in out, out
     assert "re-check your changed LLM-as-a-judge" not in out, out
+    assert "changed since your marks" not in out, out
+    assert "check results.csv" not in out, out  # its LLM-as-a-judge is the one marked with
+    # the broken answers are new: not added under the judge taken on, and said so once
+    assert out.count(f"{BROKE} new answers in results.csv are not added for marking") == 1, out
     assert "Next: nothing to do." in out, out  # the marks' result, as it was
+

@@ -2802,6 +2802,27 @@ def judged_by(ws: Workspace, found) -> str | None:
     return None
 
 
+def on_marked_judge(ws: Workspace, found) -> bool:
+    """While a check's take-on holds, whether `found` was graded by the LLM-as-a-judge the
+    marks were made on: told by the grades of the marked answers when nothing in it says who
+    graded it (judged_by), else by its setup, the one the marks were made on and not the one
+    taken on (a judge_model column naming the model marked with)."""
+    if judged_by(ws, found) == MARKED_ON:
+        return True
+    from judgekeeper.before_after import _says_who
+
+    try:
+        if not isinstance(ws.data().get("picked"), dict) or not _says_who(found):
+            return False
+    except (OSError, ValueError, AttributeError):
+        return False
+    marked, saved = _marked_setup(ws), judge_setup.read(ws)
+    if marked is None or saved is None:
+        return False
+    now = judge_setup.hash_of(judge_setup.of(found))
+    return now == judge_setup.hash_of(marked) and now != saved["setup_hash"]
+
+
 def _back_by_grades(ws: Workspace, found) -> bool:
     """Back to the judge the marks were made on, told by the grades (judged_by)."""
     return judged_by(ws, found) == MARKED_ON

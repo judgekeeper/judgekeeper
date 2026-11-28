@@ -978,6 +978,21 @@ def _marked_files(talk: FrontTalk, path: Path, saved, found: start.Found) -> sta
     return found
 
 
+NOT_ADDED = ("{n} new {answers} in {file} {are} not added for marking: {they} {were} graded by "
+             "the LLM-as-a-judge you marked with, and your marks now test the one `check` took "
+             "on. {They} {are} added once that one grades {them}.")
+
+
+def _not_added(n: int, file: str) -> str:
+    """--before on results of the LLM-as-a-judge marked with, after a take-on: their new
+    answers can't join the pool, which holds the taken-on one's grades (batches.add)."""
+    one = n == 1
+    return NOT_ADDED.format(n=n, answers="answer" if one else "answers", file=file,
+                            are="is" if one else "are", they="it" if one else "they",
+                            They="It" if one else "They", were="was" if one else "were",
+                            them="it" if one else "them")
+
+
 def _remember(ws: Workspace, found: start.Found) -> None:
     """A results file named on a plain run that went back to the LLM-as-a-judge the marks
     were made on: start.json's `given`, as the first run keeps the file it was given, with
@@ -2964,8 +2979,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         _remember(ws, found)
     # --before on results graded by the judge the marks were made on: no grade the taken-on one
     # changed, nothing for a check to take on, and nothing moves (only a comparison)
-    before_marked = not first and talk.before is not None and \
-        check.judged_by(ws, found) == check.MARKED_ON
+    before_marked = not first and talk.before is not None and check.on_marked_judge(ws, found)
     marked_on = back is not None or before_marked  # the judge marked on ("": never left it)
     elsewhere = elsewhere or (None if first or marked_on else _checked_file(ws, found))
     changed = [] if first or marked_on or elsewhere else _changed(ws, found)
@@ -3005,6 +3019,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
         head.append(back)  # the judge marked on
+    if before_marked and (n := len(batches.new_answers(ws, found))):
+        head.append(_not_added(n, _newest(found)))
         if not marking and closed:
             head.extend(["", *closed])  # a paragraph of its own
     if elsewhere:  # the result is about that file, not the one read here
@@ -3077,7 +3093,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades),
-                       elsewhere=bool(elsewhere), compare=bool(regraded),
+                       elsewhere=bool(elsewhere) or before_marked, compare=bool(regraded),
                        worse_said=any(x.startswith(HELD_WORSE[:20]) for x in head))
     if not enough and ws.result_json.is_file():  # a mark taken back since: no result now
         start_label.store_result(ws, session, _flags_of(talk, saved, ws))
