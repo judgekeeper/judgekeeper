@@ -247,7 +247,7 @@ judgekeeper steps [PATH] [--reviewer FILE] [--model NAME] [--port PORT] [--no-br
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background. When the page closes, it says the numbers from your marks |
 | `--stop` | Close the open page |
 
-`--port` and `--no-browser` are for a runs file. A Label Studio export opens no page, so with them it stops (exit 2): "`judgekeeper steps EXPORT.json` opens no page, so it takes no --port or --no-browser." `--new` is for answers only (exit 2): "--new works for answers only. To take back a step mark, use Undo on the page."
+`--port` and `--no-browser` are for a runs file. A Label Studio export opens no page, so with them it stops (exit 2): "`judgekeeper steps EXPORT.json` opens no page, so it takes no --port, --no-browser or --wait." `--new` is for answers only (exit 2): "--new works for answers only. To take back a step mark, use Undo on the page."
 
 For agents. An agent-as-a-judge is an AI that reads an agent's run and says which step went wrong first. You mark the same runs yourself, and judgekeeper says how often the agent-as-a-judge agrees with your marks, the same way it does for an LLM-as-a-judge. A mark is the run's **first wrong step**, counting from 1 (step N is the Nth step in the run's `steps` list), or **0 if all steps are fine**. judgekeeper only reads and writes files; it never calls Label Studio or an AI.
 
