@@ -116,7 +116,7 @@ def deepeval_project(root: Path, verdicts, name: str = ".deepeval/.latest_run_fu
     return _write_json(root / name, deepeval_data(verdicts, **kwargs))
 
 
-def inspect_data(verdicts, tag: str = "") -> dict:
+def inspect_data(verdicts, tag: str = "", outputs=None) -> dict:
     """An Inspect AI log: the fixture's eval with its model_graded_qa scorer, one sample per
     verdict (True is C, False is I, anything else as written)."""
     base = json.loads(INSPECT.read_text(encoding="utf-8"))
@@ -126,7 +126,7 @@ def inspect_data(verdicts, tag: str = "") -> dict:
         s = copy.deepcopy(sample0)
         value = "C" if v is True else "I" if v is False else v
         s.update(id=i, epoch=1, input=question(i, tag))
-        s["output"]["completion"] = answer(i, tag)
+        s["output"]["completion"] = answer(i, tag) if outputs is None else outputs[i]
         s["scores"] = {"model_graded_qa": {"value": value, "explanation": f"reason {i}",
                                            "history": []}}
         samples.append(s)

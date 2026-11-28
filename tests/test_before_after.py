@@ -24,8 +24,41 @@ import pytest
 from judgekeeper import no_grades
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import inspect_project, promptfoo_project, split, table_project
+from tests import start_projects as projects
+from tests.start_projects import split
 from tests.test_front import assert_one_next_at_the_end, before_comparison, flat, next_lines
+
+
+# An agent's answer decides its grade here: a grade that changes comes with an answer that
+# changed, as when the agent changes. (Grades that change on the same answers are the
+# LLM-as-a-judge's: test_grades_only_changed.py.)
+def follows(verdicts, tag: str = "") -> list[str]:
+    return [projects.answer(i, tag) + ("" if v is True or v == "pass" else " Not quite.")
+            for i, v in enumerate(verdicts)]
+
+
+def table_project(root, verdicts, tag: str = "", outputs=None, **kwargs):
+    return projects.table_project(root, verdicts, tag=tag, outputs=(
+        follows(verdicts, tag) if outputs is None else outputs), **kwargs)
+
+
+def promptfoo_data(verdicts, tag: str = "", outputs=None, **kwargs):
+    return projects.promptfoo_data(verdicts, tag=tag, outputs=(
+        follows(verdicts, tag) if outputs is None else outputs), **kwargs)
+
+
+def promptfoo_project(root, verdicts, tag: str = "", outputs=None, **kwargs):
+    return projects.promptfoo_project(root, verdicts, tag=tag, outputs=(
+        follows(verdicts, tag) if outputs is None else outputs), **kwargs)
+
+
+def inspect_data(verdicts, tag: str = "", outputs=None):
+    return projects.inspect_data(verdicts, tag=tag, outputs=(
+        follows(verdicts, tag) if outputs is None else outputs))
+
+
+def inspect_project(root, verdicts, name: str = "logs/2026-10-02_support.json", **kwargs):
+    return projects._write_json(root / name, inspect_data(verdicts, **kwargs))
 
 TAG = " SECRET-7f3a"  # put into every question and answer, so a leak shows
 BASELINE = ".judgekeeper/last-graded.json"
@@ -74,8 +107,8 @@ def rows_csv(path: Path, rows) -> Path:
     with path.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["input", "output", "verdict"])
-        for q, a, v in rows:
-            w.writerow([q, a, "pass" if v else "fail"])
+        for q, a, v in rows:  # its answer decides its grade (follows)
+            w.writerow([q, a if v else f"{a} Not quite.", "pass" if v else "fail"])
     return path
 
 
@@ -216,7 +249,6 @@ def test_fewer_than_five_in_both_never_exit_1_for_every_tool(here, capsys, tool)
 
 def _promptfoo_repeats(root, verdicts, again):
     """promptfoo with `--repeat`: each test asked again, graded `again`."""
-    from tests.start_projects import promptfoo_data
 
     data = promptfoo_data(verdicts)
     rows = data["results"]["results"]
@@ -231,7 +263,6 @@ def _promptfoo_repeats(root, verdicts, again):
 
 def _inspect_repeats(root, verdicts, again):
     """Inspect AI with `--epochs 2`: each sample again in epoch 2, graded `again`."""
-    from tests.start_projects import inspect_data
 
     data = inspect_data(verdicts)
     more = []
@@ -372,8 +403,8 @@ def ids_csv(path: Path, rows) -> Path:
     with path.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["id", "input", "output", "verdict"])
-        for i, q, a, v in rows:
-            w.writerow([i, q, a, "pass" if v else "fail"])
+        for i, q, a, v in rows:  # its answer decides its grade (follows)
+            w.writerow([i, q, a if v else f"{a} Not quite.", "pass" if v else "fail"])
     return path
 
 
@@ -466,7 +497,6 @@ def _records(root, verdicts, tag="", ids="case-"):
 
 def _inspect_named(root, verdicts, tag=""):
     """An Inspect AI log whose samples have ids of their own, not plain numbers."""
-    from tests.start_projects import inspect_data
 
     data = inspect_data(verdicts, tag=tag)
     for i, s in enumerate(data["samples"]):
@@ -498,7 +528,6 @@ def test_a_new_prompt_in_every_question_still_meets_the_same_test_cases(here, ca
 
 def test_inspect_samples_with_no_id_are_matched_by_their_text(here, capsys):
     """Inspect AI's reader writes "None" for a sample with no id: those are not one case."""
-    from tests.start_projects import inspect_data
 
     def write(verdicts):
         data = inspect_data(verdicts)
@@ -544,7 +573,6 @@ def _ids_csv(root, verdicts, tag=""):
 
 def _other_promptfoo(root, verdicts):
     """A promptfoo file of another eval: other tests, with other descriptions."""
-    from tests.start_projects import promptfoo_data
 
     data = promptfoo_data(verdicts, tag=" Other eval.")
     for i, row in enumerate(data["results"]["results"]):
@@ -660,7 +688,6 @@ def test_before_matches_numbered_ids(tmp_path, monkeypatch, capsys):
 def test_an_inspect_log_rewritten_in_place_with_other_questions_is_not_pooled(here, capsys):
     """A log given by its path in a folder below: the file read now is checked for another
     eval too, so its answers never join the marked ones."""
-    from tests.start_projects import inspect_data
 
     path = inspect_project(here, ALL_PASS, name="logs/support.json").relative_to(here).as_posix()
     said(capsys, path)
@@ -899,7 +926,8 @@ def test_before_reads_with_the_same_judge_of_these_results(tmp_path, monkeypatch
             w = csv.writer(f)
             w.writerow(["input", "output", "score"])
             for i, s in enumerate(values):
-                w.writerow([f"Question {i}?", f"Answer {i}.", s])
+                w.writerow([f"Question {i}?", f"Answer {i}." + ("" if s >= 0.5 else " Not quite."),
+                            s])
 
     scores(tmp_path / "main.csv", [0.9] * 40)
     scores(tmp_path / "results.csv", [0.3] * 12 + [0.9] * 28)
@@ -1002,7 +1030,7 @@ def _graded_csv(path: Path, grades) -> Path:
         w = csv.writer(f)
         w.writerow(["input", "output", "verdict"])
         for i, g in enumerate(grades):
-            w.writerow([f"Question {i}?", f"Answer {i}.", g])
+            w.writerow([f"Question {i}?", f"Answer {i}. {g}", g])  # its answer decides it
     return path
 
 
@@ -1202,3 +1230,25 @@ def test_a_first_run_on_graded_results_says_what_it_said_before(here, capsys):
     code, out = said(capsys, "results.csv")
     assert code == 0
     assert _normal(out) == GOLDEN.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("before", [False, True], ids=["plain", "before"])
+def test_a_verdict_flipped_on_the_same_answers_is_not_an_agent_change(here, capsys, before):
+    """The old shape of these tests: 12 verdicts flipped, every answer word for word the same,
+    and no model in the file. Since 1.5.0 that is the LLM-as-a-judge's doing, not the agent's:
+    a plain run starts again, --before does not compare them (exit 3). With a model named in
+    both files, their setups decide, as before."""
+    from judgekeeper import before_after
+
+    projects.table_project(here, ALL_PASS, name="main.csv")
+    path = projects.table_project(here, ALL_PASS, name="results.csv").name
+    said(capsys, path)
+    projects.table_project(here, MADE_WORSE, name="results.csv")
+    code, out = said(capsys, path, *(["--before", "main.csv"] if before else []))
+    assert code == (3 if before else 0), out
+    assert WORSE not in flat(out) and "questions in both results:" not in flat(out), out
+    assert (before_after.ONLY_GRADES_BEFORE if before else before_after.ONLY_GRADES) in flat(out)
+    projects.table_project(here, ALL_PASS, name="main.csv", model="judge-a")
+    projects.table_project(here, MADE_WORSE, name="results.csv", model="judge-a")
+    code, out = said(capsys, path, "--before", "main.csv")
+    assert code == 1 and counts(0, 12, 28) in flat(out), out

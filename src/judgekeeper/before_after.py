@@ -59,6 +59,12 @@ RESTARTED = ("Your LLM-as-a-judge setup changed since the last results, so there
 OTHER_SETUP = ("The two results were graded by different LLM-as-a-judge setups (the model, rule "
                "or pass mark changed), so judgekeeper does not compare them.")
 OTHER_SETUP_NEXT = "Next: compare results graded by the same LLM-as-a-judge setup."
+# Results that don't say who graded them, with only grades changed on the same answers: the
+# setup may have changed, or the same one graded otherwise (regraded_only)
+ONLY_GRADES = ("Only the grades changed since the last results, not the answers, so there is "
+               "nothing to compare. This run is the new starting point.")
+ONLY_GRADES_BEFORE = ("Only the grades changed between the two results, not the answers, so "
+                      "judgekeeper does not compare them.")
 NUMBERED_IDS = ("The questions changed and their ids are plain numbers, so judgekeeper can't tell "
                 "they are the same questions.")
 NUMBERED_IDS_NEXT = ("run `{command} --before FILE`, with your earlier results as FILE, to "
@@ -81,6 +87,7 @@ class Comparison:
     ungraded: int = 0  # in both, with no Pass or Fail grade in one of them: left out
     ids: bool = False  # both name each question by its own id
     one_side_ids: bool = False  # only one of the two does: their questions can't be matched
+    regraded: int = 0  # graded otherwise on the same answers: the LLM-as-a-judge's, left out
 
     @property
     def same(self) -> int:
@@ -106,13 +113,32 @@ def grades_of(found: start.Found, numbers: bool = False) -> dict:
     from judgekeeper.project import plain_number
 
     newest = found.used[0] if found.used else None
-    answers = [(a.case, a.input, a.verdict) for a in found.pool.answers if a.source == newest]
-    answers += [(case, found.pool.left[i][1].input, None)  # no Pass or Fail grade
-                for i, (source, case) in found.pool.left_from.items() if source == newest]
+    answers = [(a.case, a.input, a.verdict, a.output) for a in found.pool.answers
+               if a.source == newest]
+    answers += [(case, found.pool.left[i][1].input, None, found.pool.left[i][1].output)
+                for i, (source, case) in found.pool.left_from.items()
+                if source == newest]  # no Pass or Fail grade
     answers = [(c if c is not None and (numbers or not plain_number(c) or _blank(q)) else None,
-                q, v) for c, q, v in answers]
-    return {"questions": _grades(answers),
-            "ids": bool(answers) and all(case is not None for case, _, _ in answers)}
+                q, v, o) for c, q, v, o in answers]
+    return {"questions": _grades([(c, q, v) for c, q, v, _ in answers]),
+            "answers": _answer_sums(answers),
+            "ids": bool(answers) and all(case is not None for case, _, _, _ in answers)}
+
+
+BLANK = "-"  # an answer with no text: whether it changed is not known
+
+
+def _answer_sums(answers) -> dict[str, list[str]]:
+    """{question key: a hash of each of its answers}: whether the answers changed, never
+    their text."""
+    from judgekeeper.table import ID_LENGTH, canonical_json
+
+    out: dict[str, list[str]] = {}
+    for case, question, _, answer in answers:
+        data = canonical_json(["answer", answer]).encode("utf-8", errors="surrogatepass")
+        out.setdefault(_key(case, question), []).append(
+            BLANK if _blank(answer) else hashlib.sha256(data).hexdigest()[:ID_LENGTH])
+    return {k: sorted(v) for k, v in out.items()}
 
 
 def _blank(question) -> bool:
@@ -156,17 +182,28 @@ def setup_of(found: start.Found) -> str:
     return hashlib.sha256(data.encode("utf-8", errors="surrogatepass")).hexdigest()
 
 
-def compare(before: dict, now: dict) -> Comparison:
+def compare(before: dict, now: dict, answers: bool = False) -> Comparison:
     """Two sides (grades_of): a question in both is compared when each has a grade for it."""
     b, n = before["questions"], now["questions"]
     both = b.keys() & n.keys()
     graded = {k for k in both if b[k] and n[k]}
+    # the same answers graded otherwise: the LLM-as-a-judge's doing, not the agent's (when
+    # both sides keep their answers: results read before 1.5.0 don't)
+    sums = (before.get("answers"), now.get("answers")) if answers else (None, None)
+    regraded = {k for k in graded if b[k] != n[k] and None not in sums
+                and k in sums[0] and sums[0][k] == sums[1].get(k) and BLANK not in sums[0][k]}
+    graded -= regraded
     fixed = sum(no_grades._fixed(b[k], n[k]) for k in graded)
     broke = sum(no_grades._broke(b[k], n[k]) for k in graded)
     return Comparison(n=len(graded), fixed=fixed, broke=broke, only=len(b.keys() ^ n.keys()),
                       kind=no_grades.change_kind(fixed, broke, len(graded), test=1),
-                      ungraded=len(both - graded), ids=before["ids"] and now["ids"],
-                      one_side_ids=before["ids"] != now["ids"])
+                      ungraded=len(both - graded - regraded), ids=before["ids"] and now["ids"],
+                      one_side_ids=before["ids"] != now["ids"], regraded=len(regraded))
+
+
+def regraded_only(c: Comparison | None) -> bool:
+    """Only grades changed, on the same answers: nothing the agent did to compare."""
+    return c is not None and bool(c.regraded) and not (c.fixed or c.broke)
 
 
 def lines(c: Comparison) -> list[list[str]]:
@@ -203,12 +240,21 @@ def _side(x) -> dict | None:
     ["pass" or "fail", ...]}, "ids": bool} (a file with no "ids" names none)."""
     if x is None:
         return None
-    ok = isinstance(x, dict) and set(x) in ({"questions"}, {"questions", "ids"}) \
+    sums = x.get("answers", {}) if isinstance(x, dict) else None
+    ok = isinstance(x, dict) and set(x) - {"answers"} in ({"questions"}, {"questions", "ids"}) \
         and isinstance(x.get("ids", False), bool) and isinstance(x["questions"], dict) \
         and all(isinstance(k, str) and isinstance(v, list)
-                and all(g in ("pass", "fail") for g in v) for k, v in x["questions"].items())
-    return {"questions": {k: list(v) for k, v in x["questions"].items()},
-            "ids": x.get("ids", False)} if ok else False
+                and all(g in ("pass", "fail") for g in v) for k, v in x["questions"].items()) \
+        and isinstance(sums, dict) and all(
+            isinstance(k, str) and isinstance(v, list) and all(isinstance(h, str) for h in v)
+            for k, v in sums.items())
+    if not ok:
+        return False
+    side = {"questions": {k: list(v) for k, v in x["questions"].items()},
+            "ids": x.get("ids", False)}
+    if "answers" in x:  # kept since 1.5.0: which answers changed
+        side["answers"] = {k: list(v) for k, v in sums.items()}
+    return side
 
 
 def read(ws) -> dict | None:
@@ -314,6 +360,7 @@ class Look:
     had: bool  # last-graded.json was there and could be read
     restarted: bool = False  # it was, for another setup of the LLM-as-a-judge: RESTARTED
     other_setup: bool = False  # --before's file was graded by another setup: OTHER_SETUP
+    only_grades: bool = False  # restarted or other_setup since only grades changed (ONLY_GRADES)
     # a --before run on another setup than the grades read last (or than a check took on):
     # last-graded.json stays as it is, so no plain run compares grades of two setups
     keep: bool = False
@@ -325,13 +372,14 @@ class Look:
         only one of them names its questions by id (marked-answers.csv graded again without
         it, say) are one line: the run's own Next: line and exit code stand."""
         if self.other_setup:
-            return [[OTHER_SETUP], [OTHER_SETUP_NEXT]], start.EXIT_QUESTION
+            return [[ONLY_GRADES_BEFORE if self.only_grades else OTHER_SETUP],
+                    [OTHER_SETUP_NEXT]], start.EXIT_QUESTION
         c = comparison
         if c is not None and not gate and not c.n and not c.ungraded and c.one_side_ids:
             return [[NO_IDS_ONE_SIDE]], None
         if comparison is not None:
             return lines(comparison), comparison.exit_code
-        return ([[RESTARTED]] if self.restarted else []), None
+        return ([[ONLY_GRADES if self.only_grades else RESTARTED]] if self.restarted else []), None
 
 
 def look(talk, ws, found: start.Found, given: str | None = None,
@@ -354,13 +402,19 @@ def look(talk, ws, found: start.Found, given: str | None = None,
     if given is not None:
         other = file_found(talk, found, given)
         keep = raw is not None and raw["setup"] != setup
+        c = compare(grades_of(other, numbers=True), grades_of(found, numbers=True),
+                    answers=not (_says_who(found) and _says_who(other)))
         if _judged(found) and _judged(other) and setup_of(other) != setup \
-                or _one_replaced(ws, found, other):  # check replaced one of them
+                or _one_replaced(ws, found, other):  # two setups
             return Look(None, last, now, setup, state is not None, other_setup=True, keep=keep)
-        return Look(compare(grades_of(other, numbers=True), grades_of(found, numbers=True)),
-                    last, now, setup, state is not None, keep=keep)
-    return Look(compare(baseline, now) if baseline is not None else None, last, now, setup,
-                state is not None, restarted=restarted)
+        if regraded_only(c):
+            return Look(None, last, now, setup, state is not None, other_setup=True, keep=keep,
+                        only_grades=True)
+        return Look(c, last, now, setup, state is not None, keep=keep)
+    c = compare(baseline, now, answers=not _says_who(found)) if baseline is not None else None
+    if regraded_only(c):  # graded otherwise: they start again, said once
+        return Look(None, None, now, setup, state is not None, restarted=True, only_grades=True)
+    return Look(c, last, now, setup, state is not None, restarted=restarted)
 
 
 def _judged(found: start.Found) -> bool:

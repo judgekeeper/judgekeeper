@@ -32,6 +32,7 @@
 - After `judgekeeper check` takes on a new LLM-as-a-judge, the next run is the new starting point ("Your LLM-as-a-judge setup changed since the last results...") instead of comparing its grades with the old one's and saying your change made it worse, also after a `--before` run in between. After a check finds the new one worse, the next run still compares with the grades you had.
 - If your first run named the results file and `check new-results.csv` then took the new one on, later runs read new-results.csv and compare each change.
 - On the answers page, pressing Undo twice while a mark is still saving takes back only that mark, not two without a word.
+- When your results don't say which model, rule or prompt graded them, a question counts as fixed or broke only when its answers changed. When only the grades changed and every answer stayed word for word the same, a plain run says "Only the grades changed since the last results, not the answers, so there is nothing to compare." and starts again, and `--before` says it does not compare them and exits 3. A stricter LLM-as-a-judge on the same answers was "Your change made it worse" (exit 1).
 
 ## 1.4.0 (2026-11-23)
 

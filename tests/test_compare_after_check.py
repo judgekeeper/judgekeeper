@@ -137,6 +137,7 @@ def test_a_later_change_of_the_answers_compares_as_usual(tmp_path, monkeypatch, 
     passed = [row for row in rows if row["verdict"] == "pass"][:4]  # rows come in any order
     assert len(passed) == 4, rows
     for row in passed:  # the agent got 4 answers wrong that it had right: graded so
+        row["output"] += " Or not."
         row["verdict"] = "fail"
     _write(tmp_path / "new-results.csv", rows, ids)
     _, out = _run(capsys, "--no-browser", "--port", "0")
@@ -467,7 +468,8 @@ def test_before_files_of_one_setup_still_compare_after_a_check(tmp_path, monkeyp
         rows = list(csv.DictReader(f))
     passed = [r for r in rows if r["verdict"] == "pass"][:8]
     assert len(passed) == 8
-    for r in passed:
+    for r in passed:  # the agent got them wrong: new answers, graded so
+        r["output"] += " Or not."
         r["verdict"] = "fail"
     _write(tmp_path / "new-results.csv", rows, ids)
     monkeypatch.setenv("CI", "true")
