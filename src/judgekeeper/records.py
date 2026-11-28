@@ -409,8 +409,16 @@ def _words(name: str) -> list[str]:
     return [w for w in re.split(r"[-_\s.]+", snake) if w]
 
 
+# A judge's word that names nothing else: it wins over a word of the content's (judge_prompt,
+# critique_text). The rest of _JUDGE_WORDS (eval, evaluation, feedback, grade, score) can name
+# content too, and lose to one (evaluation_context, score_text)
+_STRONG_WORDS = ("judge", "grader", "scorer", "evaluator", "critique", "rationale",
+                 "explanation", "reason", "justification", "verdict", "judgment", "judgement",
+                 "assessment")
+_STRONG_JUDGE = re.compile("|".join(_STRONG_WORDS))
+_STRONG_SAID = {"explanation", "rationale", "reason", "critique"}
 # What a judge reads, not what it writes: a name with one of these words is the content's
-# (evaluation_context, user_feedback, graded_text), whatever else it holds
+# (evaluation_context, user_feedback, graded_text), unless a strong judge word is in it too
 _CONTENT_WORDS = {"context", "user", "customer", "input", "question", "query", "prompt",
                   "document", "documents", "retrieval", "source", "form", "request", "text",
                   "message", "messages", "reference", "expected"}
@@ -418,14 +426,15 @@ _CONTENT_WORDS = {"context", "user", "customer", "input", "question", "query", "
 
 def judge_said(name: str) -> bool:
     """Whether a field named `name` is what the LLM-as-a-judge wrote: its name (_JUDGE_SAID),
-    or a word of it that is the judge's (_JUDGE_WORD), and no word of the content's
-    (_CONTENT_WORDS). When in doubt, it is the content's, and compared."""
-    words = _words(name)
-    if _CONTENT_WORDS & set(words):
-        return False
+    or a word of it that is the judge's (_JUDGE_WORD). With a word of the content's too
+    (_CONTENT_WORDS), only a strong judge word (_STRONG_JUDGE) keeps it the judge's. When in
+    doubt, it is the content's, and compared."""
+    words = [w.removeprefix("llm") for w in _words(name)]  # llmJudgeScore
+    judge = [w for w in words if _JUDGE_WORD.fullmatch(w)]
     flat = re.sub(r"[-_\s]", "", name.lower())
-    return flat in _JUDGE_SAID or any(_JUDGE_WORD.fullmatch(w.removeprefix("llm"))
-                                      for w in words)  # llmJudgeScore
+    if _CONTENT_WORDS & set(words):
+        return any(_STRONG_JUDGE.search(w) for w in judge) or flat in _STRONG_SAID
+    return flat in _JUDGE_SAID or bool(judge)
 
 
 def _every_run(name: str) -> bool:

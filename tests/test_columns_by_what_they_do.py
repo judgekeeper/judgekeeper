@@ -27,7 +27,12 @@ JUDGE = ["confidence", "critique", "eval_reason", "evaluation", "explanation", "
          "reasoning_judge", "score", "judge_reasoning", "eval_comment",
          "grade_level", "llmJudgeScore", "EvalReason", "judgment", "judgement", "llm_judgment",
          "llm_explanation", "llm_feedback", "model_feedback", "rubric_feedback",
-         "assessment", "justification", "reason_for_grade", "eval_notes", "grader_feedback"]
+         "assessment", "justification", "reason_for_grade", "eval_notes", "grader_feedback",
+         # a strong judge word beside the content's: still the judge's
+         "judge_explanation_text", "llm_judge_text", "critique_text", "rationale_text",
+         "explanation_text", "reason_text", "judge_prompt", "grader_input", "assessment_text",
+         "judgment_text", "verdict_text", "justification_text", "scorer_input",
+         "evaluator_prompt"]
 TELEMETRY = ["cost", "created_at", "duration_ms", "latency", "latency_ms", "request_id",
              "run_id", "timestamp", "tokens", "total_tokens", "trace_id", "completion_tokens",
              "cost_usd", "elapsed", "elapsed_s", "eval_id",
@@ -56,8 +61,8 @@ CONTENT = ["agent_model", "category", "context", "documents", "expected_output",
            "scoreboard", "evalue", "regrade_policy", "thoughts",
            # a judge's word beside the content's: the content's
            "evaluation_context", "user_feedback", "feedback_form", "graded_text", "feedback_text",
-           "critique_text", "rationale_text", "customer_feedback", "eval_question",
-           "judge_prompt", "score_reference", "graded", "judged", "evaluated", "scored"]
+           "score_text", "eval_prompt", "customer_feedback", "eval_question", "score_reference",
+           "graded", "judged", "evaluated", "scored"]
 
 
 def _said(capsys, *argv) -> tuple[int, str]:
