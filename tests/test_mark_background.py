@@ -167,7 +167,8 @@ def test_the_page_never_imports_the_projects_modules(project):
         (project / f"{name}.py").write_text(SHADOW, encoding="utf-8")
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     # -I: judgekeeper itself as its console script starts it, without the project on its path
-    run = subprocess.run([sys.executable, "-I", "-m", "judgekeeper", "--no-browser"],
+    run = subprocess.run([sys.executable, "-I", "-m", "judgekeeper", "--no-browser",
+                          "--port", "0"],
                          cwd=project, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                          encoding="utf-8", timeout=60, env=env, check=False)
     assert run.returncode == 0, run.stdout + run.stderr + page_log(project)
