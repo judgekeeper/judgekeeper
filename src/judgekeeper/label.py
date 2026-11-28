@@ -85,6 +85,7 @@ class LabelError(Exception):
 
 OLDER_PAGE = "this page is older than the marking page, so it loads again"
 OTHER_PAGE = "the marking page was started again for another command, so this tab loads again"
+RUN_GONE = "this run is not in the runs this page has now, so this tab loads again"
 TWO_KEYS = ("Two answers have ids judgekeeper can't tell apart on the marking page. Give each "
             "answer its own id, then run it again.")
 
@@ -121,6 +122,11 @@ STALE_MARK = "this answer was already marked in another tab"
 
 class StaleMark(ValueError):
     """The page's change was made on an old view of its item: nothing is written."""
+
+
+class OtherSteps(StaleMark):
+    """The page's change was made on steps its item no longer has (the runs read again under
+    the same ids): nothing is written, and the tab loads again to show the runs as they are."""
 
 
 def _text(value) -> str:
@@ -943,11 +949,19 @@ def _handler(server: LabelServer):
                 self._json(409, {"error": OLDER_PAGE, "stale": True})  # it loads again
                 return
             if item_id not in server.session.by_id:
+                if "steps_hash" in body:  # a steps tab's run, gone since: the runs changed
+                    self._json(409, {"error": RUN_GONE, "stale": True, "reload": True,
+                                     "changed": True})
+                    return
                 self._json(404, {"error": "no item with that id"})
                 return
             body = {**body, "id": item_id}
             try:
                 server.session.update(body)
+            except OtherSteps as e:  # the runs changed under this page: it loads them again
+                self._json(409, {"error": str(e), "stale": True, "reload": True,
+                                 "changed": True})
+                return
             except StaleMark as e:  # marked in another tab since this page loaded
                 self._json(409, {"error": str(e), "stale": True})
                 return
