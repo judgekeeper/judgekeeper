@@ -109,9 +109,15 @@ def test_lines_left_out_say_why_the_first_one_is(tmp_path):
 # The answer's id --------------------------------------------------------------------------------
 
 def test_the_same_call_in_either_shape_gives_the_answer_the_same_id():
+    """With its arguments written the same way: as text (as OpenAI writes them), or as an
+    object."""
     asked, said = "Find the cheapest flight.", "F100."
-    assert (records.derive_record_id(asked, said, _trajectory(FLAT))
-            == records.derive_record_id(asked, said, _trajectory(OPENAI)))
+    flat_text = {"id": "c1", "name": "search", "arguments": "{\"city\": 0}"}
+    openai_object = {"id": "c1", "type": "function",
+                     "function": {"name": "search", "arguments": {"city": 0}}}
+    for flat, openai in ((flat_text, OPENAI), (FLAT, openai_object)):
+        assert (records.derive_record_id(asked, said, _trajectory(flat))
+                == records.derive_record_id(asked, said, _trajectory(openai)))
 
 
 def test_an_id_from_the_flat_shape_is_what_it_was():

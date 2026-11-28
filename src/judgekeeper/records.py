@@ -148,9 +148,9 @@ def tool_call(call) -> tuple[object, str, object] | None:
 
 
 def _flat_calls(trajectory: list) -> list:
-    """`trajectory` with each OpenAI-shaped tool call as {id, name, arguments} (its arguments'
-    JSON text read as JSON), so the same call gives the same id in either shape. A call in
-    the flat shape is left exactly as it is: an id made before stays the same."""
+    """`trajectory` with each OpenAI-shaped tool call as {id, name, arguments}, its arguments
+    as written (text or an object), so the same call gives the same id in either shape. A
+    call in the flat shape is left exactly as it is: an id made before stays the same."""
     out = []
     for step in trajectory:
         calls = step.get("tool_calls") if isinstance(step, dict) else None
@@ -163,15 +163,39 @@ def _flat_calls(trajectory: list) -> list:
                 if parts is None:
                     flat.append(c)
                     continue
+                rest = {k: v for k, v in c.items() if k not in ("type", "function")}
+                flat.append({**rest, "name": parts[1], "arguments": parts[2]})
+            step = {**step, "tool_calls": flat}
+        out.append(step)
+    return out
+
+
+def calls_as_read(trajectory):
+    """`trajectory` with each tool call, in either shape, as what it is (tool_call): its
+    name and its arguments (JSON text read as JSON), with the rest of it (its id). An answer
+    compared by it is the same whatever shape its calls came in (before_after)."""
+    if not isinstance(trajectory, list):
+        return trajectory
+    out = []
+    for step in trajectory:
+        calls = step.get("tool_calls") if isinstance(step, dict) else None
+        if isinstance(calls, list):
+            read = []
+            for c in calls:
+                parts = tool_call(c)
+                if parts is None:
+                    read.append(c)
+                    continue
                 arguments = parts[2]
                 if isinstance(arguments, str):
                     try:
                         arguments = json.loads(arguments)
                     except (ValueError, RecursionError):
                         pass
-                rest = {k: v for k, v in c.items() if k not in ("type", "function")}
-                flat.append({**rest, "name": parts[1], "arguments": arguments})
-            step = {**step, "tool_calls": flat}
+                rest = {k: v for k, v in c.items()
+                        if k not in ("type", "function", "name", "arguments")}
+                read.append({**rest, "name": parts[1], "arguments": arguments})
+            step = {**step, "tool_calls": read}
         out.append(step)
     return out
 

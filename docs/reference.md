@@ -486,7 +486,7 @@ judgekeeper's own format: one graded answer per JSONL line, written by you or by
 | `evaluator` | the fingerprint (what tells one LLM-as-a-judge setup from another): `provider`, `model`, `prompt` (hashed), `temperature`, `version` (rubric), `rule`, `prompt_hash`, `snapshot`, `endpoint` |
 | `created_at` | when the grade was made |
 | `metadata` | anything else; never part of the fingerprint |
-| `trajectory` | for agents: the steps to the output, as OpenAI-style messages. A tool call in `tool_calls` is `{"id", "name", "arguments"}` or OpenAI's `{"id", "type": "function", "function": {"name", "arguments"}}`; the same call gives the answer the same id in either shape |
+| `trajectory` | for agents: the steps to the output, as OpenAI-style messages. A tool call in `tool_calls` is `{"id", "name", "arguments"}` or OpenAI's `{"id", "type": "function", "function": {"name", "arguments"}}`; the same call, with its arguments written the same way (as text or as an object), gives the answer the same id in either shape, and a change of shape alone never counts as a changed answer |
 | `outcome` | for agents: an automatic check, e.g. `{"passed": true, "source": "unit tests"}` |
 | `app_version` | the version of the program or agent that answered |
 

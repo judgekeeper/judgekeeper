@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from judgekeeper import no_grades, start
-from judgekeeper.records import RecordsError
+from judgekeeper.records import RecordsError, calls_as_read
 from judgekeeper.start import StartError, Stop
 from judgekeeper.textio import loads, make_private, path_arg, plural, write_replacing
 
@@ -181,7 +181,8 @@ def _answer_sums(answers) -> tuple[dict[str, list[str]], dict[str, list]]:
     for case, question, _, (output, trajectory, outcome, mark) in answers:
         fields = [list(f) for f in mark.graded_fields or () if f not in per_run]
         every = mark.graded_fields or ()  # _noise sees them all: a field one file fills alike
-        base = ["answer", _ends(question), _ends(output), trajectory, outcome] + (
+        steps = calls_as_read(trajectory)  # a tool call the same in either shape
+        base = ["answer", _ends(question), _ends(output), steps, outcome] + (
             [mark.graded_on] if mark.graded_on else [])
         blank = mark.graded_unread or (  # empty is an answer
             output is None and trajectory is None and outcome is None)
