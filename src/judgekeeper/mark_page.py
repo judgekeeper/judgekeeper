@@ -1028,6 +1028,14 @@ __TOP__
 
   function act(f) { if (busy) { queued.push({run: f}); } else { f(); } }
 
+  // While a mark saves, one undo waits to take it back: a second undo, by key or button,
+  // does nothing (each would take back another mark, without a word).
+  function undoWhenSaved(key) {
+    if (!busy) { undo(key); return; }
+    if (queued.some(function (q) { return q.undo; })) { return; }
+    queued.push({run: function () { undo(key); }, undo: true});
+  }
+
   function fresh() { return Date.now() < freshUntil; }
 
   // The buttons stay clickable while a mark saves (a click on a disabled one is lost without a
@@ -1144,8 +1152,8 @@ __TOP__
   // press is not counted again (`pressed`); a click with no mouse events before it (a button
   // reached from the keyboard) counts.
   var DO = {fail: function () { mark("fail"); }, pass: function () { mark("pass"); },
-            skip: function () { skip(); }, undo: function () { act(function () { undo(); }); },
-            "end-undo": function () { act(function () { undo(true); }); }};
+            skip: function () { skip(); }, undo: function () { undoWhenSaved(); },
+            "end-undo": function () { undoWhenSaved(true); }};
   var down = null, pressed = false;
   Object.keys(DO).forEach(function (id) {
     var button = $(id);
@@ -1174,7 +1182,7 @@ __TOP__
     if (e.repeat) { return; }
     if (KEYS[k]) { mark(KEYS[k]); }
     else if (k === "s") { skip(); }
-    else if (k === "z" || k === "u") { act(function () { undo(true); }); }
+    else if (k === "z" || k === "u") { undoWhenSaved(true); }
     else { return; }
     e.preventDefault();
   });

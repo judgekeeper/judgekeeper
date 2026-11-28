@@ -402,3 +402,43 @@ def test_a_marked_run_shown_again_shows_its_mark():
     got = _run("""console.log(JSON.stringify({pick: picked(), next: ids["next"].disabled}));""",
                data=_data(n=2, marks={0: 3}, start=0))
     assert got == {"pick": 3, "next": False}
+
+
+# A save held open until let go (a slow judgekeeper): the page's clock keeps moving and keys
+# and clicks reach it meanwhile, as in a browser. Nothing blocks.
+HELD_SAVE = """
+  var held = [];
+  function holdNext() {
+    answer = function (body) {
+      if (body.first_wrong_step === null) { marked -= 1; }
+      else if (body.was === null) { marked += 1; }
+      return new Promise(function (ok) { held.push(function () { ok({ok: true, status: 200,
+        json: function () { return Promise.resolve({summary: {marked: marked,
+          total: DATA.total, done: false}}); }}); }); }); };
+  }
+  function letGo() { answer = null; while (held.length) { held.shift()(); } }
+"""
+
+
+@pytest.mark.parametrize("presses", [
+    'key("z"); later(100); ids["undo"].fire("click");',
+    'ids["undo"].fire("click"); later(100); ids["undo"].fire("click");',
+    'key("z"); later(100); key("z");',
+], ids=["Z-click", "click-click", "Z-Z"])
+def test_undo_while_a_mark_saves_does_nothing_and_takes_nothing_back(presses):
+    """Two runs marked, a step picked on the third and Next, its save slow: Undo at +300 ms
+    and again at +400 ms, by key or button, sends nothing. The one save goes through and
+    the page goes on; nothing is taken back (keys and the button do nothing while a mark
+    is saving)."""
+    got = _run(HELD_SAVE + """
+      later(300); key("1"); key("Enter"); await settled();
+      later(300); key("1"); key("Enter"); await settled();
+      later(300); key("2"); holdNext(); key("Enter"); await settled();
+      later(300); """ + presses + """ await settled();
+      later(1600); letGo(); await settled(); await settled();
+      later(400); await settled();
+      console.log(JSON.stringify({where: ids["where"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.first_wrong_step]; })}));""",
+               _data(n=4))
+    assert got["sent"] == [["r0", 1], ["r1", 1], ["r2", 2]]
+    assert got["where"] == "Run 4 of 4"

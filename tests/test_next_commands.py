@@ -103,6 +103,45 @@ def test_the_fix_a_result_names_runs_the_first_fix_step(tmp_path, monkeypatch, c
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
 
 
+def test_the_live_result_page_names_plain_fix_after_a_results_file(tmp_path, monkeypatch,
+                                                                   capsys):
+    """The result page the marking page serves (/result) is made by the page's own process,
+    which runs in another folder (background: the temp folder): its `fix` is plain `fix`
+    too, as the terminal and report.html say (it named `fix evals/results.csv`, which stops
+    at "these grades match the last ones")."""
+    table_project(tmp_path, ["good"] * 30 + ["bad"] * 30, name="evals/results.csv")
+    monkeypatch.chdir(tmp_path)
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
+    ws = Workspace(tmp_path)
+    session, flips = StartSession(ws), {"pass": 15, "fail": 5}
+    for q in ws.data()["queue"]:  # disagreements: the next step is Fix
+        label = q["group"]
+        if flips.get(label):
+            flips[label] -= 1
+            label = {"pass": "fail", "fail": "pass"}[label]
+        session.update({"id": q["id"], "label": label, "seconds": 7, "why": "too short"})
+    capsys.readouterr()
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)  # as the page's process runs
+    assert report_page.commands(r)["fix"] == "judgekeeper fix"
+    html = start_label.live_result(ws, StartSession(ws), r["flags"])
+    named = {unescape(c) for c in re.findall(r'aria-label="Copy command: (judgekeeper fix[^"]*)"',
+                                             html)}
+    assert named == {"judgekeeper fix"}, named
+    assert "fix evals/results.csv" not in unescape(re.sub(r"<[^>]+>", "", html))
+
+
+def test_a_folder_path_is_still_named_in_fix_wherever_the_page_is_made(tmp_path, monkeypatch):
+    """Only a results file the result read makes `fix` plain: a folder keeps its path."""
+    monkeypatch.chdir(tmp_path)
+    r = {"flags": {"path": "evals", "port": 0, "no_browser": True},
+         "judge": {"results_files": ["evals/results.csv"]}}
+    assert report_page.commands(r)["fix"] == "judgekeeper fix evals"
+
+
 def test_the_result_names_only_the_command_that_was_run(project, capsys):
     assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
     ws = Workspace(project)  # in the project, never next to the file
