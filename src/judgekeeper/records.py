@@ -304,36 +304,45 @@ class Mark:
 
 # Field names of what changes on every run, not what a grade follows: ids, times, durations,
 # costs and token counts (snake_case or camelCase)
-_EVERY_RUN = re.compile(r"(^|_)(ids?|uuid|at|time|timestamp|date|duration|latency|elapsed|cost"
-                        r"|usage|tokens?|ms|seconds|created|system_fingerprint)$"
-                        r"|[a-z0-9](Ids?|Uuid|At|Time|Timestamp|Duration|Latency|Cost|Usage"
-                        r"|Tokens?|Ms|Seconds|Created)$")
+# Telemetry only a run writes, never the agent: told by its name, in words (snake_case, camelCase,
+# "-" or spaces). Not `date`, `time`, `duration` or `seconds` on their own: an agent's answer can
+# be one (a booking's date); those count by what they do (before_after._noise).
+_TELEMETRY = {"latency", "elapsed", "timestamp", "created", "updated", "cost", "price",
+              "token", "tokens", "usage", "fingerprint", "ts"}
+_TELEMETRY_IDS = {"request", "trace", "span", "run"}  # with `id`: request_id, traceId
 
 
 # What an LLM-as-a-judge writes beside its grade: its words, a score or confidence of its own.
 # Names compared in lower case, with "-", "_" and spaces left out.
-_JUDGE_SAID = {"explanation", "rationale", "reasoning", "reason", "critique", "feedback",
-               "comment", "comments", "notes", "confidence"}
-_JUDGE_PART = ("reason", "score", "judge", "grader", "eval", "verdict", "grade", "critique",
-               "rationale")
+_JUDGE_SAID = {"explanation", "rationale", "reason", "critique", "feedback", "confidence"}
+_JUDGE_PART = ("score", "judge", "grader", "eval", "verdict", "grade", "critique", "rationale")
+# Not `notes`, `reasoning` or `comment` on their own: an agent's reasoning or a person's notes
+# are the answer's; a judge's, new on every row, is left out by what it does (before_after._noise)
 
 
 def judge_said(name: str) -> bool:
-    """Whether a field named `name` is what the LLM-as-a-judge wrote (_JUDGE_SAID)."""
+    """Whether a field named `name` is what the LLM-as-a-judge wrote (_JUDGE_SAID): its name,
+    a part of it (_JUDGE_PART), or the word `reason` in it (grade_reason, finishReason)."""
     flat = re.sub(r"[-_\s]", "", name.lower())
-    return flat in _JUDGE_SAID or any(part in flat for part in _JUDGE_PART)
+    words = re.split(r"[-_\s]+", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name.strip()).lower())
+    return (flat in _JUDGE_SAID or any(part in flat for part in _JUDGE_PART)
+            or bool({"reason", "reasons"} & set(words)))
 
 
 def _every_run(name: str) -> bool:
-    """Whether a field named `name` changes on every run (_EVERY_RUN), spelled with "-" or
-    spaces too (x-request-id, Request Id), or in camel case (systemFingerprint)."""
-    snake = re.sub(r"[-\s]+", "_", name.strip())
-    camel = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", snake).lower()
-    return any(_EVERY_RUN.search(n) for n in (snake, snake.lower(), camel))
+    """Whether a field named `name` is telemetry a run writes (_TELEMETRY): a word of it, an
+    `_ms` or `_ns` ending, or a request, trace, span or run id."""
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name.strip()).lower()
+    words = [w for w in re.split(r"[-_\s]+", words) if w]
+    if not words:
+        return False
+    return (bool(_TELEMETRY & set(words)) or words[-1] in ("ms", "ns") and len(words) > 1
+            or any(w in _TELEMETRY_IDS and nxt in ("id", "ids")
+                   for w, nxt in itertools.pairwise(words)))
 
 
 def _kept(value):
-    """`value` without the fields that change on every run (_EVERY_RUN) and the ones the
+    """`value` without the telemetry a run writes (_every_run) and the fields the
     LLM-as-a-judge writes (judge_said), at any depth."""
     if isinstance(value, dict):
         return {k: _kept(v) for k, v in value.items()
@@ -352,10 +361,32 @@ def graded_rest(item: dict, left: set, prefix: str = "") -> tuple[tuple[str, str
 
     kept = _kept({k: v for k, v in item.items() if k not in left})
     fields = tuple(sorted(
-        (prefix + str(k), hashlib.sha256(canonical_json(v).encode(
+        (prefix + path, hashlib.sha256(canonical_json(v).encode(
             "utf-8", "surrogatepass")).hexdigest()[:16])
-        for k, v in kept.items() if v not in (None, "", [], {})))
+        for path, v in _leaves(_norm(kept))))
     return fields or None
+
+
+def _leaves(value, path: str = ""):
+    """(path, value) of each field at any depth, a list as one field, empty ones left out:
+    so a field the same on every row, or new on every one, is told apart from the rest."""
+    if isinstance(value, dict):
+        for k, v in value.items():
+            yield from _leaves(v, f"{path}.{k}" if path else str(k))
+    elif value not in (None, "", [], {}):
+        yield path, value
+
+
+def _norm(value):
+    """`value` with each text as the answer's own is compared: without the spaces at its
+    ends, Windows line ends as \\n."""
+    if isinstance(value, str):
+        return value.replace("\r\n", "\n").strip()
+    if isinstance(value, dict):
+        return {k: _norm(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_norm(v) for v in value]
+    return value
 
 
 def graded_sum(parts: dict) -> str | None:
@@ -363,7 +394,7 @@ def graded_sum(parts: dict) -> str | None:
     that its grade can follow; the ones set only. None when none is."""
     from judgekeeper.anchors import canonical_json
 
-    kept = {k: v for k, v in parts.items() if v not in (None, "", [], {})}
+    kept = {k: _norm(v) for k, v in parts.items() if v not in (None, "", [], {})}
     if not kept:
         return None
     return hashlib.sha256(canonical_json(kept).encode("utf-8", "surrogatepass")).hexdigest()

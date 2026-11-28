@@ -855,7 +855,8 @@ def read_results_table(path: Path, answers: bool = False) -> RecordList:
     if "id" in columns and not own:
         records.per_metric = {v: {"warnings": [MADE_IDS]} for v in verdicts}
     # the columns that are not what a grade follows: the rest is (records.graded_rest)
-    graded = {"input", "output", "score", "reason", "app_version", model_at, human, *verdicts}
+    graded = {"id", "input", "output", "score", "reason", "app_version", model_at, human,
+              *verdicts}  # the id names the question: not what it was answered
     for n, row in enumerate(rows, 1):
         textio.reading(n)
         content = {"target_id": ids[n - 1] if own else derive_record_id(row.get("input"),

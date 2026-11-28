@@ -102,6 +102,7 @@ class Comparison:
     one_side_ids: bool = False  # only one of the two does: their questions can't be matched
     regraded: int = 0  # graded otherwise on the same answers: the LLM-as-a-judge's, left out
     changed: int = 0  # in both, with answers that changed or may have (their hashes compared)
+    left_out: tuple[str, ...] = ()  # fields new on every answer, the answers the same (_noise)
 
     @property
     def same(self) -> int:
@@ -137,9 +138,12 @@ def grades_of(found: start.Found, numbers: bool = False) -> dict:
                 for r in [found.pool.left[i][1]] if source == newest]  # no Pass or Fail grade
     answers = [(c if c is not None and (numbers or not plain_number(c) or _blank(q)) else None,
                 q, v, o) for c, q, v, o in answers]
-    return {"questions": _grades([(c, q, v) for c, q, v, _ in answers]),
-            "answers": _answer_sums(answers),
+    sums, fields = _answer_sums(answers)
+    side = {"questions": _grades([(c, q, v) for c, q, v, _ in answers]), "answers": sums,
             "ids": bool(answers) and all(case is not None for case, _, _, _ in answers)}
+    if fields:
+        side["fields"] = fields
+    return side
 
 
 BLANK = "-"  # an answer the results don't hold at all: whether it changed is not known
@@ -151,29 +155,39 @@ def _ends(text):
     return text.replace("\r\n", "\n").strip() if isinstance(text, str) else text
 
 
-def _answer_sums(answers) -> dict[str, list[str]]:
+def _answer_sums(answers) -> tuple[dict[str, list[str]], dict[str, list]]:
     """{question key: a hash of each of its answers}: whether the answers changed, never
     their text. Each hash holds the whole question (a prompt changed inside it, under the same
     id, is a change), the answer, and its steps and outcome (output, trajectory, outcome),
     their texts without the spaces at their ends (_ends), and what else of the case the grade
     follows (mark.graded_on, and mark.graded_fields but the ones the same on every answer of
     the file: a run number, a date). An answer whose grade follows something the results don't
-    hold (mark.graded_unread) is BLANK: compared, as an answer that may have changed."""
+    hold (mark.graded_unread) is BLANK: compared, as an answer that may have changed. With
+    them, for a question with one answer: [the hash of all but its fields, {field: its hash}],
+    so compare can tell a field new on every answer (_noise)."""
     from judgekeeper.table import ID_LENGTH, canonical_json
+
+    def digest(data) -> str:
+        return hashlib.sha256(canonical_json(data).encode(
+            "utf-8", errors="surrogatepass")).hexdigest()[:ID_LENGTH]
 
     per_run = _per_run([mark.graded_fields for *_, (_, _, _, mark) in answers])
     out: dict[str, list[str]] = {}
+    parts: dict[str, list] = {}
     for case, question, _, (output, trajectory, outcome, mark) in answers:
         fields = [list(f) for f in mark.graded_fields or () if f not in per_run]
-        data = canonical_json(["answer", _ends(question), _ends(output), trajectory, outcome]
-                              + ([mark.graded_on] if mark.graded_on else [])
-                              + ([fields] if fields else [])).encode(
-            "utf-8", errors="surrogatepass")
+        every = mark.graded_fields or ()  # _noise sees them all: a field one file fills alike
+        base = ["answer", _ends(question), _ends(output), trajectory, outcome] + (
+            [mark.graded_on] if mark.graded_on else [])
         blank = mark.graded_unread or (  # empty is an answer
             output is None and trajectory is None and outcome is None)
-        out.setdefault(_key(case, question), []).append(
-            BLANK if blank else hashlib.sha256(data).hexdigest()[:ID_LENGTH])
-    return {k: sorted(v) for k, v in out.items()}
+        key = _key(case, question)
+        out.setdefault(key, []).append(BLANK if blank else digest(
+            base + ([fields] if fields else [])))
+        if every and not blank:
+            parts.setdefault(key, []).append([digest(base), {f: h[:8] for f, h in every}])
+    return ({k: sorted(v) for k, v in out.items()},
+            {k: v[0] for k, v in parts.items() if len(v) == 1 and len(out[k]) == 1})
 
 
 def _per_run(fields: list) -> set:
@@ -243,6 +257,8 @@ def compare(before: dict, now: dict) -> Comparison:
     sums = (before.get("answers"), now.get("answers"))
     unchanged = {k for k in both if None not in sums and k in sums[0]
                  and sums[0][k] == sums[1].get(k) and BLANK not in sums[0][k]}
+    noise, alike = _noise(before.get("fields") or {}, now.get("fields") or {}, both)
+    unchanged |= alike
     regraded = {k for k in graded if b[k] != n[k] and k in unchanged}
     graded -= regraded
     fixed = sum(no_grades._fixed(b[k], n[k]) for k in graded)
@@ -251,7 +267,31 @@ def compare(before: dict, now: dict) -> Comparison:
                       kind=no_grades.change_kind(fixed, broke, len(graded), test=1),
                       ungraded=len(both - graded - regraded), ids=before["ids"] and now["ids"],
                       one_side_ids=before["ids"] != now["ids"], regraded=len(regraded),
-                      changed=len(both - unchanged) if None not in sums else 0)
+                      changed=len(both - unchanged) if None not in sums else 0,
+                      left_out=noise)
+
+
+EVERY_ANSWER = 5  # _noise: a field new on every answer of at least this many is per-run
+
+
+def _noise(before: dict, now: dict, both: set) -> tuple[tuple[str, ...], set]:
+    """The fields that changed on every answer compared (at least EVERY_ANSWER of them) while
+    the rest of each answer stayed the same: per-run noise (a field each run fills anew), left
+    out. A field that changed on only some is the agent's, and compared. With them, the
+    questions whose answers are then the same."""
+    rows = [k for k in both if k in before and k in now and before[k][0] == now[k][0]]
+    if len(rows) < EVERY_ANSWER:
+        return (), set()
+    names = set().union(*(set(before[k][1]) | set(now[k][1]) for k in rows))
+    noise = tuple(sorted(f for f in names
+                         if all(before[k][1].get(f) != now[k][1].get(f) for k in rows)))
+    if not noise:
+        return (), set()
+
+    def rest(fields: dict) -> dict:
+        return {f: h for f, h in fields.items() if f not in noise}
+
+    return noise, {k for k in rows if rest(before[k][1]) == rest(now[k][1])}
 
 
 def regraded_only(c: Comparison | None) -> bool:
@@ -260,6 +300,28 @@ def regraded_only(c: Comparison | None) -> bool:
     compared as usual, without them. When nothing else has a grade in both, too."""
     return c is not None and bool(c.regraded) and not (c.fixed or c.broke) and (
         not (c.changed or c.only) or not c.n)
+
+
+LEFT_OUT_EVERY = ("Left out of the comparison: {names}, which changed on every answer, like "
+                  "{like}.")
+
+
+def left_out_line(names: tuple[str, ...]) -> list[str]:
+    """The line that names the fields _noise left out; [] for none."""
+    if not names:
+        return []
+    shown = [f"`{_field_name(n)}`" for n in names]
+    joined = shown[0] if len(shown) == 1 else ", ".join(shown[:-1]) + " and " + shown[-1]
+    return [LEFT_OUT_EVERY.format(names=joined, like="a timestamp" if len(shown) == 1
+                                  else "timestamps")]
+
+
+def _field_name(path: str) -> str:
+    """A field as the person wrote it: a column's name, or its place in a record."""
+    where, _, rest = path.partition(":")
+    if not rest:
+        return path
+    return rest if where == "extra" else f"{where}.{rest}"
 
 
 def lines(c: Comparison) -> list[list[str]]:
@@ -272,6 +334,7 @@ def lines(c: Comparison) -> list[list[str]]:
     left = [LEFT_OUT[min(c.only, 2)].format(n=c.only)] if c.only else []
     left += [NO_GRADE[min(c.ungraded, 2)].format(n=c.ungraded)] if c.ungraded else []
     left += [REGRADED_LEFT[min(c.regraded, 2)].format(n=c.regraded)] if c.regraded else []
+    left += left_out_line(c.left_out)
     counted = [COMPARED.format(questions=plural(c.n, "question"), fixed=c.fixed, broke=c.broke,
                                same=c.same), COUNTED, *left]
     out = [counted, [no_grades.CHANGE[c.kind]]]
@@ -298,19 +361,28 @@ def _side(x) -> dict | None:
     if x is None:
         return None
     sums = x.get("answers", {}) if isinstance(x, dict) else None
-    ok = isinstance(x, dict) and set(x) - {"answers"} in ({"questions"}, {"questions", "ids"}) \
+    fields = x.get("fields", {}) if isinstance(x, dict) else None
+    ok = isinstance(x, dict) and set(x) - {"answers", "fields"} in (
+        {"questions"}, {"questions", "ids"}) \
         and isinstance(x.get("ids", False), bool) and isinstance(x["questions"], dict) \
         and all(isinstance(k, str) and isinstance(v, list)
                 and all(g in ("pass", "fail") for g in v) for k, v in x["questions"].items()) \
         and isinstance(sums, dict) and all(
             isinstance(k, str) and isinstance(v, list) and all(isinstance(h, str) for h in v)
-            for k, v in sums.items())
+            for k, v in sums.items()) \
+        and isinstance(fields, dict) and all(
+            isinstance(k, str) and isinstance(v, list) and len(v) == 2 and isinstance(v[0], str)
+            and isinstance(v[1], dict) and all(isinstance(f, str) and isinstance(h, str)
+                                               for f, h in v[1].items())
+            for k, v in fields.items())
     if not ok:
         return False
     side = {"questions": {k: list(v) for k, v in x["questions"].items()},
             "ids": x.get("ids", False)}
     if "answers" in x:  # kept since 1.5.0: which answers changed
         side["answers"] = {k: list(v) for k, v in sums.items()}
+    if fields:  # and the fields beside each, to tell one new on every answer (_noise)
+        side["fields"] = {k: [v[0], dict(v[1])] for k, v in fields.items()}
     return side
 
 
@@ -434,6 +506,7 @@ class Look:
     only_grades: bool = False  # restarted or other_setup since only grades changed (ONLY_GRADES)
     older: bool = False  # restarted: the last results were saved without answer hashes (OLDER)
     unsure: bool = False  # other_setup told only by the bytes a check replaced: UNSURE_SETUP
+    left_out: tuple[str, ...] = ()  # only_grades: once fields new on every answer were left out
     # a --before run on another setup than the grades read last (or than a check took on):
     # last-graded.json stays as it is, so no plain run compares grades of two setups
     keep: bool = False
@@ -447,15 +520,15 @@ class Look:
         if self.other_setup:
             if self.unsure:
                 return [[UNSURE_SETUP], [UNSURE_SETUP_NEXT]], start.EXIT_QUESTION
-            return [[ONLY_GRADES_BEFORE if self.only_grades else OTHER_SETUP],
-                    [OTHER_SETUP_NEXT]], start.EXIT_QUESTION
+            return [[ONLY_GRADES_BEFORE, *left_out_line(self.left_out)] if self.only_grades
+                    else [OTHER_SETUP], [OTHER_SETUP_NEXT]], start.EXIT_QUESTION
         c = comparison
         if c is not None and not gate and not c.n and not c.ungraded and c.one_side_ids:
             return [[NO_IDS_ONE_SIDE]], None
         if comparison is not None:
             return lines(comparison), comparison.exit_code
         said = OLDER if self.older else ONLY_GRADES if self.only_grades else RESTARTED
-        return ([[said]] if self.restarted else []), None
+        return ([[said, *left_out_line(self.left_out)]] if self.restarted else []), None
 
 
 def look(talk, ws, found: start.Found, given: str | None = None,
@@ -486,13 +559,14 @@ def look(talk, ws, found: start.Found, given: str | None = None,
                         unsure=not setups and two == UNSURE)
         if regraded_only(c):
             return Look(None, last, now, setup, state is not None, other_setup=True, keep=True,
-                        only_grades=True)
+                        only_grades=True, left_out=c.left_out)
         return Look(c, last, now, setup, state is not None, keep=keep or not c.n)
     if baseline is not None and "answers" not in baseline:  # saved by judgekeeper 1.4.0
         return Look(None, None, now, setup, state is not None, restarted=True, older=True)
     c = compare(baseline, now) if baseline is not None else None
     if regraded_only(c):  # graded otherwise: they start again, said once
-        return Look(None, None, now, setup, state is not None, restarted=True, only_grades=True)
+        return Look(None, None, now, setup, state is not None, restarted=True, only_grades=True,
+                    left_out=c.left_out)
     return Look(c, last, now, setup, state is not None, restarted=restarted)
 
 
