@@ -1935,7 +1935,9 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
         data["earlier_grades"] = earlier
     data.pop("results_left", None)  # back_to_marked's: about the judge before this one
     _marked_rule_kept(data)
-    data.pop("replaced_sha256", None)  # 1.5.0's release candidates kept file sums here
+    from judgekeeper import before_after
+
+    data[before_after.REPLACED] = before_after.replaced(ws, data, found)  # before `given` moves
     if isinstance(data.get("given"), str) and data["given"] and found.tool != "mapped" \
             and found.results and found.results[0].path.is_file():
         data["given"] = found.results[0].rel  # a file named: plain runs read the one checked

@@ -11,7 +11,7 @@ import shutil
 import pytest
 
 from judgekeeper import before_after
-from tests.test_compare_after_check import BACK_TO, WORSE, _checked, _flat, _run, _write
+from tests.test_compare_after_check import BACK_TO, _checked, _flat, _run, _write
 
 
 def _rows(path) -> list[dict]:
@@ -57,10 +57,13 @@ def test_two_files_of_the_marked_judge_compare_after_a_take_on(tmp_path, monkeyp
     assert code == 1 and "questions in both results: fixed 0, broke 8," in _flat(out), out
 
 
-def test_files_that_cannot_be_told_apart_compare(tmp_path, monkeypatch, capsys):
+def test_files_the_grades_cannot_tell_apart_are_told_by_the_replaced_bytes(tmp_path,
+                                                                             monkeypatch, capsys):
     """Every marked answer the two LLM-as-a-judges grade otherwise got new text in results.csv
-    (with its grade kept): what is left grades the same under both, so neither file can be
-    told, and they compare as usual."""
+    (with its grade kept): what is left grades the same under both, so the grades can't tell
+    which judge graded it. main-results.csv holds the bytes of the file the check replaced,
+    results.csv not: taken as two setups, not compared (as the taken-on judge's file would be,
+    test_before_against_the_replaced_file)."""
     _checked(tmp_path, monkeypatch, capsys, True, named=True)
     shutil.copy2(tmp_path / "results.csv", tmp_path / "main-results.csv")
     taken = {r["output"]: r["verdict"] for r in _rows(tmp_path / "new-results.csv")}
@@ -76,5 +79,5 @@ def test_files_that_cannot_be_told_apart_compare(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("CI", "true")
     code, out = _run(capsys, "results.csv", "--before", "main-results.csv")
     flat = _flat(out)
-    assert code == 1 and "questions in both results: fixed 0, broke 8," in flat, out
-    assert WORSE in flat and before_after.OTHER_SETUP not in flat, out
+    assert code == 3 and before_after.OTHER_SETUP in flat, out
+    assert "questions in both results:" not in flat, out

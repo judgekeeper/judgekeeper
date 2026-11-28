@@ -321,12 +321,57 @@ def _says_who(found: start.Found) -> bool:
 def _two_judges(ws, found: start.Found, other: start.Found) -> bool:
     """--before, when the two results don't say who graded them: while a check's take-on
     holds, the grades of the marked answers unchanged in each tell one LLM-as-a-judge's from
-    the other's (check.judged_by). Not when either can't be told: they compare as usual,
-    with grades changed on the same answers left out (compare)."""
+    the other's (check.judged_by). When either can't be told that way (its marked answers
+    changed, say), the bytes of the results the check replaced do (_one_replaced)."""
     from judgekeeper import check
 
     one, two = check.judged_by(ws, found), check.judged_by(ws, other)
-    return one is not None and two is not None and one != two
+    if one is not None and two is not None:
+        return one != two
+    return _one_replaced(ws, found, other)
+
+
+REPLACED = "replaced_sha256"  # start.json: the results files whose grades a check replaced
+
+
+def _file_sum(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest() if Path(path).is_file() else None
+    except OSError:
+        return None
+
+
+def replaced(ws, data: dict, found: start.Found) -> list[str]:
+    """For check._adopt, before start.json names the file it takes on: the sums of the
+    results files it replaces (start.json's results_files, where they are read), with the
+    ones kept from earlier checks. Never the file taken on (graded again in place)."""
+    base = start.results_path(ws.root, data)
+    base = base if base.is_dir() else base.parent
+    taken = {r.path.resolve() for r in found.results}
+    sums = [s for s in data.get(REPLACED) or [] if isinstance(s, str)]
+    for name in data.get("results_files") or []:
+        path = base / name if isinstance(name, str) else None
+        if path is not None and path.resolve() not in taken and (s := _file_sum(path)):
+            sums.append(s)
+    return list(dict.fromkeys(sums))
+
+
+def _one_replaced(ws, found: start.Found, other: start.Found) -> bool:
+    """Exactly one of the two results holds the bytes of results a check replaced (REPLACED),
+    so their grades come from two setups though nothing in them says so. Not when both say
+    who graded them: their setups decide."""
+    if _says_who(found) and _says_who(other):
+        return False
+    try:
+        kept = set(ws.data().get(REPLACED) or [])
+    except (OSError, ValueError, AttributeError):
+        return False
+
+    def was(f: start.Found) -> bool:
+        return len(f.results) == 1 and _file_sum(f.results[0].path) in kept
+
+    return bool(kept) and was(found) != was(other)
+
 
 def restart(ws) -> None:
     """After `check` took on another LLM-as-a-judge's grades (check._adopt): the grades a
