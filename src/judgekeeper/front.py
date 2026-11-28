@@ -977,6 +977,22 @@ def _marked_files(talk: FrontTalk, path: Path, saved, found: start.Found) -> sta
     return found
 
 
+def _remember(ws: Workspace, found: start.Found) -> None:
+    """A results file named on a plain run once marking started: start.json's `given`, as the
+    first run keeps the file it was given (_remembered reads it on later runs). Not for a
+    file read with a saved map (judgekeeper.toml names it), nor through a link."""
+    given = getattr(found, "given", None)
+    if not given or ws.start.is_symlink():
+        return
+    with page.one_at_a_time(ws.dir, lambda line: None):  # two runs at once: one writes
+        try:
+            data = ws.data()
+        except (OSError, ValueError):
+            return
+        if data.get("given") != given:
+            start_label._write_json(ws.start, {**data, "given": given})
+
+
 def _remembered(talk: FrontTalk, path: Path) -> Path:
     """The results file (or MLflow store) given by path when marking started, for a run
     with no path; else `path`. Never past a nearer project (a project file, code or its own
@@ -2916,6 +2932,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     # only a plain run (or check) goes back to the judge marked on: never --before
     back = None if first or elsewhere or talk.before is not None else check.back_to_marked(
         ws, found, talk.say, closed=closed)
+    if typed and talk.before is None and not first:
+        _remember(ws, found)  # later plain runs read the file named, as the first run's
     marked_on = back is not None  # the judge the marks were made on ("": they never left it)
     elsewhere = elsewhere or (None if first or marked_on else _checked_file(ws, found))
     changed = [] if first or marked_on or elsewhere else _changed(ws, found)
