@@ -199,14 +199,25 @@ def test_a_pipeline_right_after_the_check_does_not_fail_on_the_judge_change(
     assert before_after.RESTARTED in _flat(out) and WORSE not in _flat(out), out
 
 
-def test_before_with_the_grades_the_check_replaced_is_a_new_starting_point(
-        tmp_path, monkeypatch, capsys):
-    """--before results.csv, the old LLM-as-a-judge's grades the check replaced: comparing
-    them would be about the LLM-as-a-judge, not the answers."""
-    _checked(tmp_path, monkeypatch, capsys, False)
-    code, out = _run(capsys, "new-results.csv", "--before", "results.csv")
-    assert code == 0, out
-    assert before_after.RESTARTED in _flat(out) and WORSE not in _flat(out), out
+@pytest.mark.parametrize("ci", [False, True], ids=["run", "pipeline"])
+def test_before_right_after_a_check_compares_two_files_of_one_judge(
+        tmp_path, monkeypatch, capsys, ci):
+    """--before names the two results compared: both graded by judge-v1, they are compared
+    at once, whatever the check took on (it said the setup changed and exited 0)."""
+    _checked(tmp_path, monkeypatch, capsys, True, models=("judge-v1", "judge-v2"))
+    with (tmp_path / "results.csv").open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    _write(tmp_path / "main-results.csv", rows, True, "judge-v1")
+    passed = [r for r in rows if r["verdict"] == "pass"][:12]
+    for r in passed:
+        r["verdict"] = "fail"
+    _write(tmp_path / "results.csv", rows, True, "judge-v1")
+    if ci:
+        monkeypatch.setenv("CI", "true")
+    code, out = _run(capsys, "results.csv", "--before", "main-results.csv")
+    assert code == 1, out
+    assert "questions in both results: fixed 0, broke 12" in _flat(out), out
+    assert before_after.RESTARTED not in _flat(out), out
 
 
 def _plain(capsys) -> tuple[int, str]:
