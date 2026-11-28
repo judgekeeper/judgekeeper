@@ -32,7 +32,7 @@ def test_the_readme_shows_pip_and_uv_as_equals_pip_first():
     pip = install.index("```\npip install judgekeeper\njudgekeeper\n```")
     assert pip < install.index("`uvx judgekeeper`")
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
-        assert tool in install, tool
+        assert tool in sections["What you can check"], tool
     # the README leaves the regrade and the marks `fix` needs to the reference
     fix = " ".join(REFERENCE.read_text(encoding="utf-8").split())
     assert "marked-answers.csv" in fix and "judgekeeper fix <new results file>" in fix
@@ -60,13 +60,11 @@ def test_the_reference_explains_the_own_format():
 
 def test_the_reference_names_both_links_the_page_shows():
     """The page's link reads "See the numbers so far" from the first numbers, and "See your
-    result" once there is a result: the reference and the README say both, in the page's
-    own words."""
+    result" once there is a result: the reference says both, in the page's own words."""
     from judgekeeper.mark_page import SEE_FIRST, SEE_READY
 
     line = (f'"{SEE_FIRST}" appears with your first numbers, and "{SEE_READY}" once there is a '
             "result.")
-    for doc in (REFERENCE, ROOT / "README.md"):
-        assert line in " ".join(doc.read_text(encoding="utf-8").split()), doc.name
+    assert line in " ".join(REFERENCE.read_text(encoding="utf-8").split())
 
 

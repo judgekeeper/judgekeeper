@@ -185,7 +185,7 @@ def test_the_footer_is_the_logo_the_legal_links_and_the_copyright():
 def test_the_footer_names_match_the_licence():
     assert "Copyright 2026 Sathvik Thota" in (ROOT / "NOTICE").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "<h1>judgekeeper <sup><sup><sub>™</sub></sup></sup></h1>" in readme and readme.rstrip().endswith(TRADEMARK_NOTE)
+    assert 'alt="judgekeeper™: ' in readme and readme.rstrip().endswith(TRADEMARK_NOTE)
     assert "Apache-2.0" in (ROOT / "TRADEMARKS.md").read_text(encoding="utf-8")
     for path in ("TRADEMARKS.md", "SECURITY.md", "LICENSE", "NOTICE"):
         assert (ROOT / path).is_file(), path
@@ -816,7 +816,7 @@ def test_the_guide_is_the_install_the_four_steps_and_three_cards():
         "With pip, in your project’s virtual environment", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
-    assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
+    assert AGENT_LINE in (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")  # same words
     (rail,) = _all(_main(GUIDE), "nav")  # the one side list: the steps' rail
     assert "sp-rail" in rail.classes()
     # three plain boxes under the steps, each a heading in view, then its words and its

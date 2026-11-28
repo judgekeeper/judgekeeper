@@ -310,8 +310,8 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
             'marking stops as early as it can: 15 of your Passes, 15 of your Fails, and 20 '
             'marks on answers your LLM-as-a-judge passed and 20 on answers it failed') in _flat(
         ROOT / "docs" / "reference.md")
-    simulated = f"the ranges held the true value {pct(level['mean'])} times in 100 on average"
-    assert simulated in _flat(ROOT / "README.md")
+    simulated = f"the ranges held the true value as often as the level asks: {pct(level['mean'])}"
+    assert f"{simulated} times in 100 on average" in _flat(ROOT / "docs" / "reference.md")
     # the figures are said once, in the report the reference links
     report_md = _flat(OUT / "report.md")
     reference = _flat(ROOT / "docs" / "reference.md")

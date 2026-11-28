@@ -12,9 +12,10 @@ import pytest
 from tests.website_pages import ROOT
 
 README = ROOT / "README.md"
-STEPS = (("Read", "A page opens in your browser"),
+REFERENCE = ROOT / "docs" / "reference.md"
+STEPS = (("Read", "opens a page"),
          ("Measure", "`judgekeeper`"), ("Fix", "`judgekeeper fix`"),
-         ("Re-check", "`judgekeeper check <new results file>`"))
+         ("Re-check", "`judgekeeper check new-results.json`"))
 
 
 def _readme() -> str:
@@ -32,20 +33,53 @@ def _flat(text: str) -> str:
 
 # The README --------------------------------------------------------------------------------
 
+HEADLINE = "Check agents and chatbots with human judgment."  # the website hero's
+HEADER_ALT = f"judgekeeper™: {HEADLINE} Read. Measure. Fix. Re-check."
+VIDEO = "https://github.com/user-attachments/assets/"
+
+
 def test_the_readme_is_short_and_in_order():
     text = _readme()
-    assert text.startswith('<div align="center">\n  <img ')  # one centered header block
+    assert text.startswith('<div align="center">\n  <picture>')  # one centered header image
     body = text.split("\n</div>\n", 1)[1]
-    assert len(body.splitlines()) < 74# the text under the header stays short
+    assert len(body.splitlines()) < 74  # the text under the header stays short
     top = text[:text.index("\n## ")]
-    for needed in ("<strong>Check agents and chatbots with human judgment.</strong>",
-                   "Read. Measure. Fix. Re-check.", "docs/assets/demo.webp"):
-        assert needed in top, needed
+    # the header image, dark and light, says the headline and the steps in its alt text; then
+    # the first paragraph, then the video when there is one; no sub-line paragraph
+    for theme in ("dark", "light"):
+        assert f"docs/assets/readme-header-{theme}.svg" in top, theme
+    assert f'alt="{HEADER_ALT}"' in top
+    lines = [x for x in body.split("\n## ")[0].splitlines() if x.strip()]
+    assert len(lines) in (1, 2) and lines[0].startswith("judgekeeper checks your AI agent or chatbot")
+    if len(lines) == 2:
+        assert lines[1] == next(x for x in top.splitlines() if x.startswith(VIDEO))
+    assert "Human judgment decides what's right." not in text
     assert (ROOT / "docs" / "assets" / "demo.webp").stat().st_size < 1_000_000
     heads = list(_sections(text))
-    wanted = ["Install", "The 4 steps", "The numbers", "Checked on public data",
-              "More", "License"]
+    wanted = ["Install", "What you can check", "The 4 steps", "The numbers",
+              "Checked on public data", "More", "License"]
     assert [h for h in heads if h in wanted] == wanted
+
+
+def test_the_header_images_say_what_their_alt_text_says():
+    """Each header image's own title and label are the README's alt text: the words drawn in
+    it (outlined, so GitHub needs no font) are the headline and the four steps."""
+    for theme in ("dark", "light"):
+        svg = (ROOT / "docs" / "assets" / f"readme-header-{theme}.svg").read_text(encoding="utf-8")
+        assert f"<title>{HEADER_ALT}</title>" in svg and f'aria-label="{HEADER_ALT}"' in svg
+        assert "<text" not in svg and "@font-face" not in svg and "<script" not in svg
+
+
+def test_the_readme_names_agents_and_chatbots_before_the_llm_as_a_judge():
+    """No line opens with LLM-as-a-judge, and the table of what you can check starts with
+    agent runs, then an agent's or chatbot's answers."""
+    for line in _readme().splitlines():
+        words = re.sub(r"^[\s|>*#0-9.-]*(\*\*[^*]+\*\*\s*)?", "", line)
+        assert not words.lower().startswith(("llm-as-a-judge", "an llm-as-a-judge",
+                                             "the llm-as-a-judge")), line
+    rows = [x for x in _sections(_readme())["What you can check"].splitlines()
+            if x.startswith("| ") and not x.startswith("| You have")]
+    assert rows[0].startswith("| Agent runs |") and "chatbot" in rows[1], rows
 
 
 def test_the_readme_has_each_step_with_its_command():
@@ -72,8 +106,7 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
         for figure in re.findall(r"\d+\.\d+|\d+%", line):
             assert figure in reports, (found, figure)
         linked[found[0]] = line
-    assert sorted(linked) == ["coverage/coverage.md", "jailbreakbench-setups/report.md",
-                              "jailbreakbench/report.md", "probes/report.md", "ragtruth-qa/report.md",
+    assert sorted(linked) == ["agent-steps/report.md", "jailbreakbench/report.md",
                               "ragtruth/report.md"]
     import json
 
@@ -90,7 +123,11 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
             if re.match(r"d\d", x)]
     assert len(rows) == n == 100 and {r[4] for r in rows} == {"100"}  # marks_counted
     assert summary["rows"] == 300 and summary["every_draw_counted_its_marks_and_showed_no_text"]
-    assert "needs work" in linked["ragtruth/report.md"]
+    assert (f"the ranges held the true values in {summary['all_three_inside']} of {n} random "
+            "tests") in linked["jailbreakbench/report.md"]
+    assert '"needs work" in all 12 runs' in linked["ragtruth/report.md"]
+    assert "needs work in all 12" in _flat((ROOT / "docs" / "reference.md").read_text(
+        encoding="utf-8"))
     for gone in ("LLMBar", "MT-Bench", "real-data-check"):
         assert gone not in _readme(), gone
 
@@ -137,8 +174,8 @@ def _table(md: str, heading: str) -> list[dict[str, str]]:
     return [dict(zip(cells[0], row, strict=True)) for row in cells[2:]]
 
 
-def test_the_readme_says_where_its_coverage_figures_are():
-    """The Simulation line's average is the chosen level's "Average" in the report's first
+def test_the_reference_says_where_its_coverage_figures_are():
+    """The reference's Simulation line's average is the chosen level's "Average" in the report's first
     table, and its lowest is the lowest TPR or TNR at 15 + 15 in "The real stopping rule":
     both read from the report and from coverage.json, so they can't drift apart."""
     import json
@@ -157,9 +194,7 @@ def test_the_readme_says_where_its_coverage_figures_are():
     from_json = min(r["coverage"][k] for r in grid["accuracy"]["stopping"] if r["each"] == 15
                     for k in ("tpr", "tnr"))
     assert lowest == f"{from_json * 100:.1f}"
-    line = next(x for x in _readme().splitlines() if x.startswith("- [Simulation]"))
-    assert f"held the true value {average} times in 100 on average" in line
-    assert "never fewer" not in line
+    assert "Simulation" not in _readme()  # the README links all reports instead
     # the reference quotes the average and says where the lowest are
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     again = min(grid["batches"]["general"]["per_metric"].values())
@@ -314,28 +349,13 @@ def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
 
 # Lines the README and the Guide keep -----------------------------------------------------------
 
-def _step(n: int) -> str:
-    """Step n's line, with the short lines indented under it."""
-    lines = _sections(_readme())["The 4 steps"].splitlines()
-    at = next(i for i, x in enumerate(lines) if x.startswith(f"{n}. "))
-    under = []
-    for x in lines[at + 1:]:
-        if not x.startswith("   - "):
-            break
-        under.append(x.strip())
-    return " ".join([lines[at], *under])
-
-
-def test_the_read_step_keeps_two_sentences_and_short_lines_under_it():
+def test_the_read_step_is_one_line_and_the_reference_has_the_rest():
     lines = _sections(_readme())["The 4 steps"].splitlines()
     at = next(i for i, x in enumerate(lines) if x.startswith("1. "))
-    assert lines[at].startswith("1. **Read:** `judgekeeper` finds your eval results and reads "
-                                "them. A page opens in your browser. Mark answers Pass or "
-                                "Fail; the LLM-as-a-judge's grade stays hidden.")
-    under = lines[at + 1:at + 3]
-    assert [x[:5] for x in under] == ["   - "] * 2
-    assert NO_BROWSER in under[0] and "--labels" in under[1]
-    assert not lines[at + 3].startswith("   ")
+    assert lines[at] == ("1. **Read:** `judgekeeper` finds your results and opens a page. Mark "
+                         "each answer Pass or Fail.")
+    assert lines[at + 1].startswith("2. ")
+    assert NO_BROWSER in _flat(REFERENCE.read_text(encoding="utf-8"))
 
 
 NO_BROWSER = ("No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the "
@@ -344,15 +364,19 @@ NO_BROWSER = ("No browser here, or a coding agent runs it? `judgekeeper --no-bro
 
 def test_the_readme_says_how_to_get_the_link_and_the_result_notes_a_printed_link():
     """--no-browser prints the link; marks made through a link printed with no terminal (a
-    coding agent read it) get a note on the result. The README's agent line says no more."""
+    coding agent read it) get a note on the result. The README's agent line says no more; the
+    reference says what the agent does."""
     from judgekeeper.start_label import link_lines
 
-    assert NO_BROWSER in _step(1)
     install = _flat(_sections(_readme())["Install"])
+    reference = _flat(_sections(REFERENCE.read_text(encoding="utf-8"))["Install"])
     (note,) = link_lines({"printed": 2})
+    assert install.endswith('Using a coding agent? Give it this page and say: "Follow this to '
+                            'run judgekeeper on my project."')
     assert ('Using a coding agent? Give it this page and tell it: "Follow this to run judgekeeper '
             'on my project." It runs the steps and gives you the marking page link; you '
-            "mark, then the coding agent explains the result.") in install
+            "mark, then the coding agent explains the result.") in reference
+    assert NO_BROWSER in reference
     assert "came through a link" not in install
     assert "came through a link judgekeeper printed" in note
     assert "That's expected if you opened it yourself." in note
@@ -389,15 +413,17 @@ def test_each_recheck_step_says_new_marks_count_once_every_answer_is_graded():
     assert said in _flat((ROOT / "docs" / "eval-tools.md").read_text(encoding="utf-8"))
 
 
-def test_the_readme_says_marking_every_answer_leaves_no_range():
-    """With every answer of a group marked its share is known (the reference's maths)."""
+def test_the_readme_says_each_number_has_a_range_and_is_no_promise():
+    """The README says it in two sentences; the reference keeps the rest: with every answer of
+    a group marked its share is known, so it has no range."""
     numbers = _flat(_sections(_readme())["The numbers"])
-    assert ('TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)" '
-            "(when you mark every answer, the numbers have no range). The result says \"good "
-            'enough to use" only when a wider range (99%) starts at 80% or more for both. That '
-            "way you can look after every mark. The numbers are about the answers in your "
-            "results, worked out from the ones you marked. They are not a promise about new "
-            "answers.") in numbers  # word for word
+    assert ("Each comes with a range. They are about the answers you marked, not a promise "
+            "about new ones.") in numbers  # word for word
+    reference = _flat(REFERENCE.read_text(encoding="utf-8"))
+    assert "With every answer of a group marked, its share is known, so it has no range." in (
+        reference)
+    assert ("The numbers are about the answers in your results, worked out from the ones you "
+            "marked. They are not a promise about new answers.") in reference
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "With every answer of a group marked, its share is known, so it has no range." in reference
 
