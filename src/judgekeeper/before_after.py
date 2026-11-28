@@ -196,13 +196,15 @@ def _key(case: str | None, question) -> str:
 def setup_of(found: start.Found) -> str:
     """A hash of what decides the grades: the LLM-as-a-judge's setup as judge.json keeps it
     (judge_setup.of: model, rule, prompt, temperature, pass mark...), the metric and the label
-    map. Not the eval tool's version, which grades nothing. Never its text."""
+    map. Not the eval tool's version, which grades nothing, nor whether your own file is read
+    by its column names or with a saved map. Never its text."""
     from judgekeeper import judge_setup
     from judgekeeper.redact import scrub
     from judgekeeper.table import canonical_json
 
     setup = {k: v for k, v in judge_setup.of(found).items()
              if k not in ("tool_version", "version_from")}
+    setup["tool"] = judge_setup.grading_tool(setup.get("tool"))  # not how it is read
     data = canonical_json([setup, scrub(found.metric), found.pool.label_map])
     return hashlib.sha256(data.encode("utf-8", errors="surrogatepass")).hexdigest()
 

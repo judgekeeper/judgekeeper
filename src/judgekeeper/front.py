@@ -2785,7 +2785,8 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
         tool, metric, judge = data["tool"], data["metric"], data["judge"]
     except (OSError, ValueError, KeyError, TypeError):
         return [f"judgekeeper can't read {FOLDER}/start.json, so the marks there can't be used."]
-    if (found.tool, scrub(found.metric)) != (tool, scrub(metric)):  # start.json's, keys hidden
+    if (judge_setup.grading_tool(found.tool), scrub(found.metric)) != (
+            judge_setup.grading_tool(tool), scrub(metric)):  # start.json's, keys hidden
         return [(f"Your marks are for another LLM-as-a-judge: {judge} ({tool}). These "
                  f"results are from {found.judge}.")]
     if not _has_marks(ws) and _changed(ws, found):  # nothing marked yet: read them anew

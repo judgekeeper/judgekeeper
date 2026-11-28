@@ -371,9 +371,16 @@ def _kind(setup: dict) -> str:
     return "now a single LLM-as-a-judge"
 
 
+def grading_tool(tool):
+    """The eval tool as it grades: your own file is one, whether it is read by its column
+    names ("table") or with a map saved for it ("mapped", say after a column was renamed)."""
+    return "table" if tool == "mapped" else tool
+
+
 def _differ(old: dict, new: dict) -> set[str]:
     return {k for k in FIELDS if k not in NOT_HASHED and k in old and k in new
-            and old[k] != new[k]}
+            and (old[k] != new[k] if k != "tool"
+                 else grading_tool(old[k]) != grading_tool(new[k]))}
 
 
 def changes(old: dict, new: dict) -> list[str]:

@@ -172,12 +172,15 @@ def _records(item, side, judge, question, answer, model, m, unnamed) -> list[Sco
 
 
 def _rest(item: dict, m: dict) -> str | None:
-    """What else of the item a grade can follow (records.graded_rest): the item without every
-    judge's score and reason, the model and pass mark the map reads, or the id."""
+    """What else of the item a grade can follow (records.graded_rest): the item without the
+    question and the answers (counted on their own), every judge's score and reason, the
+    model and pass mark the map reads, the id and the app version: as a table read by its
+    column names leaves out, so a renamed column is read as the same answers."""
     import copy
 
     item = copy.deepcopy(item)
-    for key in ("score", "reason", "id", "model_key", "pass_mark_key"):
+    item.pop("app_version", None)
+    for key in ("input", "output", "score", "reason", "id", "model_key", "pass_mark_key"):
         if isinstance(m.get(key), str) and m[key]:
             try:
                 _drop(item, mapper.parse(m[key]))
