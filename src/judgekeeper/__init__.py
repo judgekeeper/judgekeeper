@@ -1,4 +1,4 @@
-"""The keeper of human judgment for AI: see how often a check agrees with human labels."""
+"""Check agents and chatbots with human judgment. See how often a check agrees with human labels."""
 
 __version__ = "1.5.0"
 

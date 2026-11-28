@@ -38,7 +38,7 @@ def test_the_readme_is_short_and_in_order():
     body = text.split("\n</div>\n", 1)[1]
     assert len(body.splitlines()) < 74# the text under the header stays short
     top = text[:text.index("\n## ")]
-    for needed in ("<strong>The keeper of human judgment for AI.</strong>",
+    for needed in ("<strong>Check agents and chatbots with human judgment.</strong>",
                    "Read. Measure. Fix. Re-check.", "docs/assets/demo.webp"):
         assert needed in top, needed
     assert (ROOT / "docs" / "assets" / "demo.webp").stat().st_size < 1_000_000

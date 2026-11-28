@@ -75,11 +75,7 @@ NEXT_BUSY = "run `{command}` again."
 NO_PAGE = "`{command}` opens no page, so it takes no --port or --no-browser."
 PAGE_FLAGS = ("--port", "--no-browser")
 
-MESSAGE = ("The keeper of human judgment for AI.\n"
-           "Human judgment decides what's right. See how often each automated check "
-           "agrees with it, from an LLM-as-a-judge grading one answer to an "
-           "agent-as-a-judge checking each step of an agent, and see if agreement goes up or "
-           "down after each change.")
+MESSAGE = "Check agents and chatbots with human judgment."
 STEPS = """\
 Read. Measure. Fix. Re-check.
 

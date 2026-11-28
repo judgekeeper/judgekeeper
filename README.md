@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/logo.png" alt="judgekeeper logo" width="80">
   <h1>judgekeeper <sup><sup><sub>™</sub></sup></sup></h1>
-  <p><strong>The keeper of human judgment for AI.</strong><br>Read. Measure. Fix. Re-check.</p>
+  <p><strong>Check agents and chatbots with human judgment.</strong><br>Read. Measure. Fix. Re-check.</p>
   <p>
     <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a>
     <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests"></a>
@@ -15,9 +15,7 @@
   </p>
 </div>
 
-Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to an agent-as-a-judge checking each step of an agent, and see if agreement goes up or down after each change.
-
-An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong. No LLM-as-a-judge? judgekeeper can also check the answers of your chatbot, agent or any AI that answers questions (see below).
+judgekeeper checks your AI agent or chatbot with human judgment. You mark what's right, and it shows how often an agent-as-a-judge or an LLM-as-a-judge (an AI model that grades another model's work) agrees with you, and where it goes wrong.
 
 ![judgekeeper finds the results, opens the marking page, and shows how often the LLM-as-a-judge agrees with you.](https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/demo.webp)
 
