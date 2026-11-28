@@ -270,6 +270,7 @@ class FrontTalk(start.Talk):
         self.kept = False  # judgekeeper.toml keeps those answers now (_save)
         self.store: str | None = None  # the MLflow store chosen at a terminal
         self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
+        self.unanswered = False  # it stopped at a question it can't ask (no terminal)
         self.step: str | None = None  # said before the first line, when there is one (go)
         self.find_said = False  # "Step 1 of 4: Read" was said in this run
         self.path_said = False  # path_lines were said in this run
@@ -349,6 +350,7 @@ class FrontTalk(start.Talk):
             self.say(f"  {start.more(left)}")
             for option in options[len(options) - keep:]:
                 self.say(f"  {option}")
+        self.unanswered = True
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
@@ -401,6 +403,7 @@ class FrontTalk(start.Talk):
                 self.say(f"  {n}. {line.lstrip()}" if i == 0 else line)
         keep = self.labels_flags()  # the answer reads the same labels
         yes, again = f"`{self.command(*keep, '--yes')}`", f"`{self.command(*keep)}`"
+        self.unanswered = True
         raise self.stop(EXIT_QUESTION, f"run {again} in a terminal to answer, or {yes} to say "
                                        f"yes{'' if one else ' to all'}.")
 
@@ -565,8 +568,10 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
         if seen is None or talk.other_eval:
             raise
         said = _say_change(talk, ws, seen, write=False, gate=gate)
-        if gate and e.code in (0, EXIT_QUESTION):
-            return said or 0
+        if gate and e.code in (0, EXIT_QUESTION):  # a question left unanswered with nothing
+            # compared is 3, as without a gate: a pipeline never passes on nothing
+            nothing = talk.unanswered and _baseline(talk, ws, seen) is None
+            return said or (EXIT_QUESTION if nothing else 0)
         if said is not None and e.code in (0, EXIT_QUESTION):
             raise Stop(said) from None
         raise
@@ -591,15 +596,21 @@ def _graded(talk: FrontTalk, ws: Workspace, found: start.Found, mapped, wait: bo
     return _go_on(talk, found, mapped, wait, marking)
 
 
+def _baseline(talk: FrontTalk, ws: Workspace, seen: before_after.Look):
+    """The comparison _say_change says, or None when nothing was compared."""
+    c = seen.comparison
+    if c is not None and talk.before is None and seen.had and before_after.read(ws) is None:
+        c = None  # started over (another LLM-as-a-judge): the last results are not its baseline
+    return c
+
+
 def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
                 write: bool = True, gate: bool = True) -> int | None:
     """After the usual output: what the newest results did against the ones before (or why
     nothing was compared), and the results read kept for the next run (`write`: unless a
     question went unanswered, which writes nothing). The exit code it sets: 1 made it worse,
     3 nothing compared, None the run's own."""
-    c = seen.comparison
-    if c is not None and talk.before is None and seen.had and before_after.read(ws) is None:
-        c = None  # started over (another LLM-as-a-judge): the last results are not its baseline
+    c = _baseline(talk, ws, seen)
     paragraphs, code = seen.paragraphs(c, gate)  # gate: --before or CI (run)
     for para in paragraphs:
         talk.say()

@@ -3,7 +3,10 @@
 holds DeepEval's saved runs under a name of its own (an app's folder, X/ beside Y/) is that
 folder's project: two such folders beside each other never share one .judgekeeper/. Only a
 results folder named as one (logs/, results/, .deepeval/...) keeps its marks in the folder
-above it, so they stay when its files are cleared."""
+above it, so they stay when its files are cleared.
+
+In CI, a run that stops at a question it can't ask exits 3, as without CI: a pipeline never
+passes on nothing."""
 
 from __future__ import annotations
 
@@ -94,3 +97,30 @@ def test_a_project_found_above_is_still_used(tmp_path, monkeypatch, capsys):
     _in(monkeypatch, app / "X", capsys, "--yes")
     assert (app / ".judgekeeper").is_dir()
     assert not (app / "X" / ".judgekeeper").exists()
+
+
+# In CI ---------------------------------------------------------------------------------------
+# From deep4/: `judgekeeper X` asks whether to save the folder in judgekeeper.toml (a yes/no
+# question), and a plain run asks which folder's results to check (a choice).
+
+@pytest.mark.parametrize("argv,asked", [
+    (("X",), "judgekeeper needs your answer to this question"),
+    ((), "DeepEval results in more than one folder"),
+])
+def test_in_ci_a_question_left_unanswered_exits_3(two_folders, monkeypatch, capsys, argv,
+                                                  asked):
+    monkeypatch.setenv("CI", "true")
+    code, out, err = _in(monkeypatch, two_folders, capsys, *argv)
+    said = " ".join((out + err).split())
+    assert asked in said, said
+    assert code == 3, said
+    assert not (two_folders / ".judgekeeper").exists()  # nothing written: asked again
+
+
+@pytest.mark.parametrize("argv", [("X",), ()])
+def test_in_ci_a_question_left_unanswered_exits_as_without_ci(two_folders, monkeypatch,
+                                                              capsys, argv):
+    without, out, err = _in(monkeypatch, two_folders, capsys, *argv)
+    assert without == 3, out + err
+    monkeypatch.setenv("CI", "true")
+    assert _in(monkeypatch, two_folders, capsys, *argv)[0] == without
