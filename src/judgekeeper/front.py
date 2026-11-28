@@ -22,6 +22,7 @@ compared), 2 usage error, 130 Ctrl-C. With --before or in CI the comparison alon
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import re
@@ -290,6 +291,7 @@ class FrontTalk(start.Talk):
         self.marking = False  # the run is `mark` (_run)
         self.before: str | None = None  # --before: the results file to compare with
         self.other_eval = False  # stopped at results of another eval: nothing is compared
+        self.went_back = False  # back to the LLM-as-a-judge marked with (_marking)
         self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
         self.left_below: list[str] = []  # projects below whose files were left out (_tool_below)
         self.refresh()
@@ -601,6 +603,8 @@ def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
     c = seen.comparison
     if c is not None and talk.before is None and seen.had and before_after.read(ws) is None:
         c = None  # started over (another LLM-as-a-judge): the last results are not its baseline
+    if talk.went_back and seen.restarted and not (seen.only_grades or seen.older):
+        seen = dataclasses.replace(seen, restarted=False)  # the back line says why: one story
     paragraphs, code = seen.paragraphs(c, gate)  # gate: --before or CI (run)
     for para in paragraphs:
         talk.say()
@@ -3018,6 +3022,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             took = check.take_new_grades(ws, found)  # grades on answers left that waited
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
+        talk.went_back = True  # its own story: never also "setup changed" (_say_change)
         head.append(back)  # the judge marked on
     if before_marked and (n := len(batches.new_answers(ws, found))):
         head.append(_not_added(n, _newest(found)))

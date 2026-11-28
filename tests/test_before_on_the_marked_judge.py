@@ -8,6 +8,7 @@ import os
 
 import pytest
 
+from judgekeeper import before_after
 from tests.test_compare_after_check import _checked, _flat, _run
 
 BROKE = 8
@@ -59,3 +60,16 @@ def test_a_before_on_the_marked_judges_results_only_compares(tmp_path, monkeypat
     assert out.count(f"{BROKE} new answers in results.csv are not added for marking") == 1, out
     assert "Next: nothing to do." in out, out  # the marks' result, as it was
 
+
+@pytest.mark.parametrize("models", [None, ("judge-old", "judge-new")], ids=["unnamed", "named"])
+def test_naming_the_marked_judges_file_right_after_a_take_on_is_one_story(
+        tmp_path, monkeypatch, capsys, models):
+    """Right after a check took on new-results.csv, `judgekeeper results.csv` goes back to the
+    LLM-as-a-judge the marks were made with: that is the story, never also "Your
+    LLM-as-a-judge setup changed since the last results"."""
+    _checked(tmp_path, monkeypatch, capsys, True, models=models)
+    monkeypatch.setenv("CI", "true")
+    code, out = _said(capsys, "results.csv")
+    assert code == 0 and "back to the one you marked with" in out, out
+    assert before_after.RESTARTED not in out, out
+    assert "changed since your marks" not in out, out
