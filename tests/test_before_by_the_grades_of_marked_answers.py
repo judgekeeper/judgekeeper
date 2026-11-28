@@ -62,8 +62,9 @@ def test_files_the_grades_cannot_tell_apart_are_told_by_the_replaced_bytes(tmp_p
     """Every marked answer the two LLM-as-a-judges grade otherwise got new text in results.csv
     (with its grade kept): what is left grades the same under both, so the grades can't tell
     which judge graded it. main-results.csv holds the bytes of the file the check replaced,
-    results.csv not: taken as two setups, not compared (as the taken-on judge's file would be,
-    test_before_against_the_replaced_file)."""
+    results.csv not: not compared (as the taken-on judge's file would be,
+    test_before_against_the_replaced_file), and it says what is true: it can't tell whether
+    the same LLM-as-a-judge graded both."""
     _checked(tmp_path, monkeypatch, capsys, True, named=True)
     shutil.copy2(tmp_path / "results.csv", tmp_path / "main-results.csv")
     taken = {r["output"]: r["verdict"] for r in _rows(tmp_path / "new-results.csv")}
@@ -79,6 +80,30 @@ def test_files_the_grades_cannot_tell_apart_are_told_by_the_replaced_bytes(tmp_p
     monkeypatch.setenv("CI", "true")
     code, out = _run(capsys, "results.csv", "--before", "main-results.csv")
     flat = _flat(out)
-    assert code == 3 and before_after.OTHER_SETUP in flat, out
-    assert before_after.OTHER_SETUP_NEXT in flat, out  # what to do: the same setup's files
-    assert "questions in both results:" not in flat, out
+    _cannot_tell(code, flat)
+
+
+def _cannot_tell(code: int, flat: str) -> None:
+    assert code == 3 and before_after.UNSURE_SETUP in flat, flat
+    assert before_after.UNSURE_SETUP_NEXT in flat, flat  # what to do: files you know
+    assert before_after.OTHER_SETUP not in flat, flat  # never "different setups": not known
+    assert "questions in both results:" not in flat, flat
+
+
+def test_the_marked_judge_on_every_answer_reworded_cannot_be_told(tmp_path, monkeypatch,
+                                                                  capsys):
+    """Both files from the LLM-as-a-judge marked with: main-results.csv the bytes the check
+    replaced, cand.csv a new version of the agent with every answer reworded and 8 right ones
+    failing. Nothing in cand.csv tells its LLM-as-a-judge: it can't tell, and says so."""
+    _checked(tmp_path, monkeypatch, capsys, True, named=True)
+    shutil.copy2(tmp_path / "results.csv", tmp_path / "main-results.csv")
+    rows = _rows(tmp_path / "results.csv")
+    passed = [r for r in rows if r["verdict"] == "pass"][:8]
+    for r in rows:
+        r["output"] += " Said another way."
+    for r in passed:
+        r["verdict"] = "fail"
+    _write(tmp_path / "cand.csv", rows, True)
+    monkeypatch.setenv("CI", "true")
+    code, out = _run(capsys, "cand.csv", "--before", "main-results.csv")
+    _cannot_tell(code, _flat(out))

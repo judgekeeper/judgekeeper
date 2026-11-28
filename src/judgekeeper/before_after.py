@@ -63,6 +63,12 @@ RESTARTED = ("Your LLM-as-a-judge setup changed since the last results, so there
 OTHER_SETUP = ("The two results were graded by different LLM-as-a-judge setups (the model, rule "
                "or pass mark changed), so judgekeeper does not compare them.")
 OTHER_SETUP_NEXT = "Next: compare results graded by the same LLM-as-a-judge setup."
+# --before on results that don't say who graded them, told apart only by the bytes of the
+# results a check replaced (_one_replaced): the same LLM-as-a-judge may have graded both
+UNSURE_SETUP = ("judgekeeper can't tell whether the same LLM-as-a-judge graded both results, "
+                "so it does not compare them.")
+UNSURE_SETUP_NEXT = "Next: compare two results you know the same LLM-as-a-judge graded."
+UNSURE = "unsure"  # _two_judges: only the replaced bytes tell the two apart
 # Results that don't say who graded them, with only grades changed on the same answers: the
 # setup may have changed, or the same one graded otherwise (regraded_only)
 ONLY_GRADES = ("Only the grades changed since the last results, not the answers, so there is "
@@ -338,17 +344,18 @@ def _says_who(found: start.Found) -> bool:
     return bool(s["rule_hash"] or s["prompt_hash"] or s["models"] and found.model_source is None)
 
 
-def _two_judges(ws, found: start.Found, other: start.Found) -> bool:
+def _two_judges(ws, found: start.Found, other: start.Found) -> bool | str:
     """--before, when the two results don't say who graded them: while a check's take-on
     holds, the grades of the marked answers unchanged in each tell one LLM-as-a-judge's from
     the other's (check.judged_by). When either can't be told that way (its marked answers
-    changed, say), the bytes of the results the check replaced do (_one_replaced)."""
+    changed, say), the bytes of the results the check replaced may (_one_replaced): UNSURE,
+    they are not compared, but nothing says another LLM-as-a-judge graded them."""
     from judgekeeper import check
 
     one, two = check.judged_by(ws, found), check.judged_by(ws, other)
     if one is not None and two is not None:
         return one != two
-    return _one_replaced(ws, found, other)
+    return UNSURE if _one_replaced(ws, found, other) else False
 
 
 REPLACED = "replaced_sha256"  # start.json: the results files whose grades a check replaced
@@ -426,6 +433,7 @@ class Look:
     other_setup: bool = False  # --before's file was graded by another setup: OTHER_SETUP
     only_grades: bool = False  # restarted or other_setup since only grades changed (ONLY_GRADES)
     older: bool = False  # restarted: the last results were saved without answer hashes (OLDER)
+    unsure: bool = False  # other_setup told only by the bytes a check replaced: UNSURE_SETUP
     # a --before run on another setup than the grades read last (or than a check took on):
     # last-graded.json stays as it is, so no plain run compares grades of two setups
     keep: bool = False
@@ -437,6 +445,8 @@ class Look:
         only one of them names its questions by id (marked-answers.csv graded again without
         it, say) are one line: the run's own Next: line and exit code stand."""
         if self.other_setup:
+            if self.unsure:
+                return [[UNSURE_SETUP], [UNSURE_SETUP_NEXT]], start.EXIT_QUESTION
             return [[ONLY_GRADES_BEFORE if self.only_grades else OTHER_SETUP],
                     [OTHER_SETUP_NEXT]], start.EXIT_QUESTION
         c = comparison
@@ -470,9 +480,10 @@ def look(talk, ws, found: start.Found, given: str | None = None,
         keep = raw is not None and raw["setup"] != setup
         c = compare(grades_of(other, numbers=True), grades_of(found, numbers=True))
         # a --before that compares nothing leaves the last grades read here as they were
-        if _judged(found) and _judged(other) and setup_of(other) != setup \
-                or _two_judges(ws, found, other):  # two setups
-            return Look(None, last, now, setup, state is not None, other_setup=True, keep=True)
+        setups = _judged(found) and _judged(other) and setup_of(other) != setup
+        if setups or (two := _two_judges(ws, found, other)):  # two setups, or maybe
+            return Look(None, last, now, setup, state is not None, other_setup=True, keep=True,
+                        unsure=not setups and two == UNSURE)
         if regraded_only(c):
             return Look(None, last, now, setup, state is not None, other_setup=True, keep=True,
                         only_grades=True)

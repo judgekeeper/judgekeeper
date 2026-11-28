@@ -2,7 +2,7 @@
 made on) and the taken-on judge's file, where the agent re-worded the marked answers the two
 judges grade otherwise (grades kept): no unchanged marked answer tells the judges apart, so
 the bytes of the replaced file do. Two LLM-as-a-judges' grades are never compared as an agent
-change."""
+change; nothing in the data says which graded which, so the run says it can't tell."""
 import csv
 import shutil
 
@@ -28,7 +28,7 @@ def test_two_judges_with_reworded_marked_answers(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("CI", "true")
     code, out = _run(capsys, "cand.csv", "--before", "main-results.csv")
     flat = _flat(out)
-    assert code == 3 and before_after.OTHER_SETUP in flat, out
+    assert code == 3 and before_after.UNSURE_SETUP in flat, out  # never compared
 
 
 def test_two_judges_with_every_answer_reworded(tmp_path, monkeypatch, capsys):
@@ -44,4 +44,4 @@ def test_two_judges_with_every_answer_reworded(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("CI", "true")
     code, out = _run(capsys, "cand.csv", "--before", "main-results.csv")
     flat = _flat(out)
-    assert code == 3 and before_after.OTHER_SETUP in flat, out
+    assert code == 3 and before_after.UNSURE_SETUP in flat, out  # never compared
