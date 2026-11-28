@@ -864,8 +864,8 @@ def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
         for up in folder.parents:
             if find.is_project(up):
                 return up
-            if up == top:
-                return folder.parent
+            if up == top:  # an app's own folder named from above: as if run in it
+                return folder.parent if _named_as_results(folder, found.tool) else None
     holder = project.project_of(folder.parent)
     if find.is_project(holder):
         return holder

@@ -99,28 +99,123 @@ def test_a_project_found_above_is_still_used(tmp_path, monkeypatch, capsys):
     assert not (app / "X" / ".judgekeeper").exists()
 
 
-# In CI ---------------------------------------------------------------------------------------
-# From deep4/: `judgekeeper X` asks whether to save the folder in judgekeeper.toml (a yes/no
-# question), and a plain run asks which folder's results to check (a choice).
+# Named from the folder above (`judgekeeper Y`): as if run in it ------------------------------
 
-@pytest.mark.parametrize("argv,asked", [
-    (("X",), "judgekeeper needs your answer to this question"),
-    ((), "DeepEval results in more than one folder"),
-])
-def test_in_ci_a_question_left_unanswered_exits_3(two_folders, monkeypatch, capsys, argv,
-                                                  asked):
-    monkeypatch.setenv("CI", "true")
-    code, out, err = _in(monkeypatch, two_folders, capsys, *argv)
+@pytest.fixture(params=[True, False], ids=["with .deepeval", "runs only"])
+def parent(request, tmp_path, monkeypatch):
+    """parent/Y with DeepEval's saved run right in it (an empty .deepeval/ beside it, or not);
+    X/ comes later."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    monkeypatch.setenv("CI", "1")
+    top = tmp_path / "parent"
+    deepeval_project(top / "Y", split(10, 10), name=RUN)
+    if request.param:
+        (top / "Y" / ".deepeval").mkdir()
+    return top
+
+
+def test_a_folder_named_from_its_parent_keeps_its_project_in_it(parent, monkeypatch, capsys):
+    code, out, err = _in(monkeypatch, parent, capsys, "Y", "--yes")
+    assert code in (0, 3), out + err
+    assert (parent / "Y" / ".judgekeeper").is_dir(), out + err
+    assert not (parent / ".judgekeeper").exists(), out + err
+    assert not (parent / "judgekeeper.toml").exists(), out + err
+
+
+def test_two_folders_named_from_their_parent_never_share_or_compare(parent, monkeypatch,
+                                                                     capsys):
+    """rc14: X's results were compared with Y's ("broke 10", exit 1), and judgekeeper.toml in
+    parent/ flipped from file = "Y" to "X"."""
+    _in(monkeypatch, parent, capsys, "Y", "--yes")
+    kept = _kept(parent / "Y")
+    # X's answers are other answers: every grade turned, so a comparison would say "broke"
+    deepeval_project(parent / "X", [not v for v in split(10, 10)], name=RUN)
+    code, out, err = _in(monkeypatch, parent, capsys, "X", "--yes")
     said = " ".join((out + err).split())
-    assert asked in said, said
+    assert code in (0, 3), said
+    assert "broke" not in said and "made it worse" not in said, said
+    assert (parent / "X" / ".judgekeeper").is_dir(), said
+    assert kept and _kept(parent / "Y") == kept  # Y's own, untouched
+    assert not (parent / ".judgekeeper").exists() and not (parent / "judgekeeper.toml").exists()
+
+
+def test_naming_the_folder_and_running_in_it_use_one_project(parent, monkeypatch, capsys):
+    _in(monkeypatch, parent, capsys, "Y", "--yes")
+    kept = _kept(parent / "Y")
+    code, out, err = _in(monkeypatch, parent / "Y", capsys, "--yes")
+    assert code in (0, 3), out + err
+    assert _kept(parent / "Y").keys() >= kept.keys()  # the same session, carried on
+    assert not (parent / ".judgekeeper").exists(), out + err
+
+
+@pytest.mark.parametrize("name", ["results", "logs"])
+def test_a_results_folder_named_from_above_keeps_its_marks_above(tmp_path, monkeypatch,
+                                                                 capsys, name):
+    """As before: `judgekeeper app/results` from the folder that holds app/."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    app = tmp_path / "top" / "app"
+    deepeval_project(app / name, split(10, 10), name=RUN)
+    _in(monkeypatch, app, capsys, name, "--yes")
+    assert (app / ".judgekeeper").is_dir()
+    assert not (app / name / ".judgekeeper").exists()
+
+
+@pytest.mark.parametrize("named", [False, True], ids=["run in it", "named from above"])
+def test_the_folder_deepeval_results_folder_names_keeps_its_marks_above(
+        tmp_path, monkeypatch, capsys, named):
+    """DEEPEVAL_RESULTS_FOLDER=evalout: a folder under any name that DeepEval saves its runs
+    in is cleared with old runs, so its marks stay in the folder that holds it."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    app = tmp_path / "app"
+    deepeval_project(app / "evalout", split(10, 10), name=RUN)
+    monkeypatch.setenv("DEEPEVAL_RESULTS_FOLDER", str(app / "evalout"))
+    if named:
+        _in(monkeypatch, app, capsys, "evalout", "--yes")
+    else:
+        _in(monkeypatch, app / "evalout", capsys, "--yes")
+    assert (app / ".judgekeeper").is_dir()
+    assert not (app / "evalout" / ".judgekeeper").exists()
+
+
+# In CI ---------------------------------------------------------------------------------------
+# Yes/no questions: a results file whose items have two answers each (nested_runs_project)
+# asks "Count each as its own answer?" and two more. A choice: from deep4/, a plain run asks
+# which folder's DeepEval results to check.
+
+def _asked(kind, tmp_path, monkeypatch):
+    """The folder to run in and the words after `judgekeeper`, for `kind` of question."""
+    if kind == "yes/no":
+        from tests.start_projects import nested_runs_project
+
+        nested_runs_project(tmp_path)
+        return tmp_path, ("--metric", "Safe wording")
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "deep4"
+    for name, start in (("X", 0), ("Y", 100)):
+        deepeval_project(top / name, split(10, 10), name=RUN, start=start)
+    return top, ()
+
+
+ASKED = {"yes/no": "judgekeeper needs your answer to these 3 questions",
+         "choice": "DeepEval results in more than one folder"}
+
+
+@pytest.mark.parametrize("kind", ASKED)
+def test_in_ci_a_question_left_unanswered_exits_3(tmp_path, monkeypatch, capsys, kind):
+    folder, argv = _asked(kind, tmp_path, monkeypatch)
+    monkeypatch.setenv("CI", "true")
+    code, out, err = _in(monkeypatch, folder, capsys, *argv)
+    said = " ".join((out + err).split())
+    assert ASKED[kind] in said, said
     assert code == 3, said
-    assert not (two_folders / ".judgekeeper").exists()  # nothing written: asked again
+    assert not (folder / ".judgekeeper" / "judge.json").exists()  # nothing kept: asked again
 
 
-@pytest.mark.parametrize("argv", [("X",), ()])
-def test_in_ci_a_question_left_unanswered_exits_as_without_ci(two_folders, monkeypatch,
-                                                              capsys, argv):
-    without, out, err = _in(monkeypatch, two_folders, capsys, *argv)
+@pytest.mark.parametrize("kind", ASKED)
+def test_in_ci_a_question_left_unanswered_exits_as_without_ci(tmp_path, monkeypatch, capsys,
+                                                              kind):
+    folder, argv = _asked(kind, tmp_path, monkeypatch)
+    without, out, err = _in(monkeypatch, folder, capsys, *argv)
     assert without == 3, out + err
     monkeypatch.setenv("CI", "true")
-    assert _in(monkeypatch, two_folders, capsys, *argv)[0] == without
+    assert _in(monkeypatch, folder, capsys, *argv)[0] == without
