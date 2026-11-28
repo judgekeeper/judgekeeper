@@ -1152,8 +1152,8 @@ mlflow.set_experiment("support")
 judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1")
 
 @mlflow.trace(name="app")
-def app(question):
-    return f"answer to {question}"
+def app(question):  # a wrong answer fails: a grade that changed is an agent change
+    return f"answer to {question}" + ("" if verdicts[int(question.split()[-1])] else ", guessed")
 
 for i, verdict in enumerate(verdicts):
     app(f"question {i}")
