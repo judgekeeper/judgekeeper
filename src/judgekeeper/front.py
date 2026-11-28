@@ -858,7 +858,21 @@ def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
     holder = project.project_of(folder.parent)
     if find.is_project(holder):
         return holder
+    if not _named_as_results(folder, found.tool):  # an app's own folder (X/ beside Y/): its
+        return None  # project is where it is run, never shared with the folders beside it
     return folder.parent if folder.parent != Path.home().resolve() else None
+
+
+def _named_as_results(folder: Path, tool: str) -> bool:
+    """Whether `folder` is named as a folder of results (find.RESULT_FOLDERS, or the folder
+    the tool's variable names, DEEPEVAL_RESULTS_FOLDER say), so cleared with old runs."""
+    if folder.name.lower() in find.RESULT_FOLDERS:
+        return True
+    named = os.environ.get(find.RESULTS_VARS.get(tool, ""), "").strip()
+    try:
+        return bool(named) and Path(named).expanduser().resolve() == folder
+    except (OSError, RuntimeError):
+        return False
 
 
 def _project_reads(path: Path, store: Path) -> Path:
