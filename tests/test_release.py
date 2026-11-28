@@ -598,7 +598,7 @@ def test_the_browser_checks_example_files_reach_the_site(tmp_path):
     assert "'assets/examples/' + file + '.js'" in script
     cards = [el.attrs["data-example-file"] for el in parse(tmp_path / "check.html").iter()
              if "data-example-file" in el.attrs]
-    assert cards == ["shop-answers.csv", "shop-answers-no-grades.csv", "agent-runs.jsonl"]
+    assert cards == ["agent-runs.jsonl", "shop-answers.csv", "shop-answers-no-grades.csv"]  # agents first
     assert {f"{file}.js" for file in cards} <= set(shipped)  # each card's file is shipped
 
 
