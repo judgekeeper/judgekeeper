@@ -5,6 +5,9 @@ only; no test calls an AI."""
 
 from __future__ import annotations
 
+import hashlib
+import json
+
 import pytest
 
 from tests.test_steps import reviewer_first
@@ -52,7 +55,7 @@ def test_a_judge_beside_a_key_judge_is_compared_with_its_own_numbers(here):
 
 
 def test_a_key_judge_checked_again_is_its_own_then(here):
-    """rc14: '(then "[REDACTED]")' on every run though nothing changed."""
+    """Checked again with nothing changed: never '(then "[REDACTED]")'."""
     marked_project(here)
     write_picks(here, "picks.jsonl", reviewer_first, model=FAKE_KEY)
     model_lines(here, "picks.jsonl")
@@ -88,3 +91,28 @@ def test_the_key_is_never_written(here, capsys):
         if path.is_file():
             text = path.read_text(encoding="utf-8", errors="replace")
             assert FAKE_KEY not in text and "QQQQQQQQ" not in text, path
+
+
+def test_no_hash_is_written_for_plain_names(here):
+    marked_project(here)
+    write_judges(here, "two.jsonl", **{"judge-A": reviewer_first, "judge-B": lambda i: 0})
+    model_lines(here, "two.jsonl")
+    write_judges(here, "two.jsonl", **{"judge-A": better, "judge-B": lambda i: 0})
+    model_lines(here, "two.jsonl", "judge-A")
+    for path in (here / ".judgekeeper").rglob("*"):
+        if path.is_file():
+            assert "name_sha256" not in path.read_text(encoding="utf-8", errors="replace"), path
+    assert not list((here / ".judgekeeper").rglob("name-salt"))
+
+
+def test_a_hidden_name_is_kept_as_a_salted_hash(here):
+    marked_project(here)
+    write_judges(here, "two.jsonl", **{FAKE_KEY: reviewer_first, OTHER_KEY: lambda i: 0})
+    lines = model_lines(here, "two.jsonl")
+    data = json.loads(next((here / ".judgekeeper").rglob("result.json")).read_text(encoding="utf-8"))
+    kept = {r["name_sha256"] for r in data["reviewers"]}
+    assert len(kept) == 2 and all(len(h) == 16 for h in kept), kept
+    plain = {hashlib.sha256(k.encode()).hexdigest()[:16] for k in (FAKE_KEY, OTHER_KEY)}
+    assert not kept & plain
+    salt = next((here / ".judgekeeper").rglob("name-salt")).read_text(encoding="utf-8").strip()
+    assert len(salt) == 64 and not any(salt in x for x in lines)

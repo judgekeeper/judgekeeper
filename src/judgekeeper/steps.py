@@ -20,9 +20,11 @@ or any other field of `completed_by`.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 import random
+import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -920,16 +922,16 @@ def _report(export: Export, guesses: dict, given: dict, names: frozenset, shown:
         people.update(changed=stats["changed"], not_in_runs=stats["not_in_runs"],
                       **{k: made.get(k, 0) for k in ("under_second", "printed", "browser_env")})
     people["marks_hash"] = labels_hash(export.tasks, marks)
+    out = _workspace(Path(shown)).dir / FOLDER if folder is None else folder
     reviewers = []
     for reviewer_name, found in guesses.items():
         numbers = compare(export.tasks, found)
         fp = _fingerprint(reviewer_name, export.created.get(reviewer_name),
                           given.get(reviewer_name, {}))
-        sha = _hidden_sha(reviewer_name)
+        sha = _hidden_sha(reviewer_name, out)
         reviewers.append({"name": reviewer_name, **({NAME_SHA: sha} if sha else {}),
                           "model": fp.model, "fingerprint": fp.to_dict(),
                           "unknown_fields": unknown_fields(fp.to_dict()), **numbers})
-    out = _workspace(Path(shown)).dir / FOLDER if folder is None else folder
     if marks:
         _marks_read(stats, name, say, news_in=out if terminal else None)
     else:
@@ -984,7 +986,7 @@ def _report(export: Export, guesses: dict, given: dict, names: frozenset, shown:
             n = left["not_in_export"]
             say(f"  Left out: {n} pick is for a run that is not in {name}." if n == 1
                 else f"  Left out: {n} picks are for runs that are not in {name}.")
-        then = _then(entry, before, names, reviewers)
+        then = _then(entry, before, names, reviewers, out)
         if then is not None and then["marks_hash"] == people["marks_hash"]:
             for line in _since_lines(entry, then, marks):
                 say(line)
@@ -1050,16 +1052,34 @@ def _read_result(folder: Path) -> dict | None:
     return data if isinstance(data, dict) and data.get("kind") == "agent-steps" else None
 
 
-NAME_SHA = "name_sha256"  # result.json: a hidden name's hash (_hidden_sha)
+NAME_SHA = "name_sha256"  # result.json: a hidden name's salted hash (_hidden_sha)
+NAME_SALT = "name-salt"  # in the steps folder: the salt of those hashes, made once, never said
 
 
-def _hidden_sha(name) -> str | None:
-    """The first 16 hex digits of the sha256 of a name result.json hides (a key pasted as an
-    agent-as-a-judge's name shows as [REDACTED]): how its earlier numbers stay its own, never
-    another's hidden the same way. None for a name kept as it is."""
+def _salt(folder: Path) -> bytes:
+    """The project's salt for hidden names (NAME_SALT), made the first time one is needed:
+    a short secret used as a name can't be found from its hash without it."""
+    path = folder / NAME_SALT
+    try:
+        salt = bytes.fromhex(path.read_text(encoding="utf-8").strip())
+        if len(salt) >= 16:
+            return salt
+    except (OSError, ValueError):
+        pass
+    salt = secrets.token_bytes(32)
+    write_replacing(path, salt.hex() + "\n")  # in the steps folder, its owner's only
+    return salt
+
+
+def _hidden_sha(name, folder: Path) -> str | None:
+    """The first 16 hex digits of the HMAC-SHA256, with the project's salt (_salt), of a name
+    result.json hides (a key pasted as an agent-as-a-judge's name shows as [REDACTED]): how
+    its earlier numbers stay its own, never another's hidden the same way. None for a name
+    kept as it is."""
     if not isinstance(name, str) or scrub(name) == name:
         return None
-    return hashlib.sha256(name.encode("utf-8", "surrogatepass")).hexdigest()[:16]
+    return hmac.new(_salt(folder), name.encode("utf-8", "surrogatepass"),
+                    hashlib.sha256).hexdigest()[:16]
 
 
 def _whose(entry: dict):
@@ -1126,14 +1146,15 @@ def _before(old: dict | None, marks_hash: str, reviewers: list) -> dict | None:
             "reviewers": list(merged.values())}
 
 
-def _then(entry: dict, before: dict | None, names: frozenset, reviewers: list) -> dict | None:
+def _then(entry: dict, before: dict | None, names: frozenset, reviewers: list,
+          folder: Path) -> dict | None:
     """The earlier numbers `entry` is compared with: its own name's (_whose: a hidden name by
     its hash). Else, when the picks hold a name no more (a rename), the newest of those, as
     long as one agent-as-a-judge now has no numbers of its own; else none."""
     entries = _entries(before)
     if _whose(entry) in entries:
         return entries[_whose(entry)]
-    named = {_hidden_sha(name) or name for name in names}
+    named = {_hidden_sha(name, folder) or name for name in names}
     gone = [e for who, e in entries.items() if who not in named]
     if not gone or sum(_whose(r) not in entries for r in reviewers) != 1:
         return None
