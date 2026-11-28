@@ -393,9 +393,9 @@ _TELEMETRY_IDS = {"request", "trace", "span", "run"}  # with `id`: request_id, t
 _JUDGE_SAID = {"explanation", "rationale", "reason", "critique", "feedback", "confidence"}
 # A word of the name, whole (judge_reason, llmJudgeScore, EvalReason, grade_level), never
 # inside another word: retrieval_context, upgrade_path and scoreboard are the agent's.
-_JUDGE_WORDS = ("judge", "judged", "judging", "judgment", "judgement", "grader", "grade",
-                "graded", "grading", "eval", "evals", "evaluation", "evaluator", "evaluated",
-                "score", "scores", "scorer", "scored", "verdict", "critique", "rationale",
+_JUDGE_WORDS = ("judge", "judging", "judgment", "judgement", "grader", "grade", "grading",
+                "eval", "evals", "evaluation", "evaluator", "score", "scores", "scorer",
+                "verdict", "critique", "rationale",
                 "reason", "reasons", "explanation", "explanations", "feedback", "assessment",
                 "assessments", "justification", "justifications")
 _JUDGE_WORD = re.compile("(?:" + "|".join(_JUDGE_WORDS) + ")+")  # one or more: judgescore
@@ -409,12 +409,23 @@ def _words(name: str) -> list[str]:
     return [w for w in re.split(r"[-_\s.]+", snake) if w]
 
 
+# What a judge reads, not what it writes: a name with one of these words is the content's
+# (evaluation_context, user_feedback, graded_text), whatever else it holds
+_CONTENT_WORDS = {"context", "user", "customer", "input", "question", "query", "prompt",
+                  "document", "documents", "retrieval", "source", "form", "request", "text",
+                  "message", "messages", "reference", "expected"}
+
+
 def judge_said(name: str) -> bool:
     """Whether a field named `name` is what the LLM-as-a-judge wrote: its name (_JUDGE_SAID),
-    or a word of it that is the judge's (_JUDGE_WORD)."""
+    or a word of it that is the judge's (_JUDGE_WORD), and no word of the content's
+    (_CONTENT_WORDS). When in doubt, it is the content's, and compared."""
+    words = _words(name)
+    if _CONTENT_WORDS & set(words):
+        return False
     flat = re.sub(r"[-_\s]", "", name.lower())
     return flat in _JUDGE_SAID or any(_JUDGE_WORD.fullmatch(w.removeprefix("llm"))
-                                      for w in _words(name))  # llmJudgeScore
+                                      for w in words)  # llmJudgeScore
 
 
 def _every_run(name: str) -> bool:

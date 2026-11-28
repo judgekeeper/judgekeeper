@@ -24,13 +24,13 @@ BROKE_10 = f"On the {N} questions in both results: fixed 0, broke 10,"
 JUDGE = ["confidence", "critique", "eval_reason", "evaluation", "explanation", "feedback",
          "grade_reason", "grader_notes", "judge_cost", "judge_explanation", "judge_latency_ms",
          "judge_output", "judge_reason", "judge_score", "rationale", "reason",
-         "reasoning_judge", "score", "graded_at", "judge_reasoning", "eval_comment",
+         "reasoning_judge", "score", "judge_reasoning", "eval_comment",
          "grade_level", "llmJudgeScore", "EvalReason", "judgment", "judgement", "llm_judgment",
-         "llm_explanation", "feedback_text", "llm_feedback", "model_feedback", "rubric_feedback",
-         "assessment", "justification", "critique_text", "rationale_text", "reason_for_grade"]
+         "llm_explanation", "llm_feedback", "model_feedback", "rubric_feedback",
+         "assessment", "justification", "reason_for_grade", "eval_notes", "grader_feedback"]
 TELEMETRY = ["cost", "created_at", "duration_ms", "latency", "latency_ms", "request_id",
              "run_id", "timestamp", "tokens", "total_tokens", "trace_id", "completion_tokens",
-             "cost_usd", "elapsed", "elapsed_s", "eval_id", "evaluated_at",
+             "cost_usd", "elapsed", "elapsed_s", "eval_id",
              "grader_model_version", "input_tokens", "judge_tokens", "output_tokens", "price",
              "prompt_tokens", "timestamp_utc", "ts", "updated_at"]
 # A run's stamp, new on every row: told by what it does, and only when it looks like one
@@ -43,6 +43,9 @@ EVERY_ROW = {
     "seconds": lambda i, side: f"{12.25 * i + side:.3f}",
     "session": lambda i, side: str(uuid.UUID(int=i * 7 + side)),
     "build": lambda i, side: hashlib.sha1(f"{i} {side}".encode()).hexdigest(),
+    # "graded", "evaluated": not the judge's words; their stamps are left out as stamps
+    "graded_at": lambda i, side: f"2026-12-{i % 28 + 1:02}T09:{i % 60:02}:{side:02}Z",
+    "evaluated_at": lambda i, side: f"2026-12-{i % 28 + 1:02}T11:{i % 60:02}:{side:02}Z",
 }
 CONTENT = ["agent_model", "category", "context", "documents", "expected_output", "messages",
            "metadata", "plan", "reference", "retrieved_docs", "sources", "sql", "steps",
@@ -50,7 +53,11 @@ CONTENT = ["agent_model", "category", "context", "documents", "expected_output",
            "duration", "seconds", "time", "notes", "reasoning", "comments",
            # a judge's word inside another word is not the judge's
            "retrieval_context", "retrievalContext", "retrieval", "upgrade_path", "downgrade",
-           "scoreboard", "evalue", "regrade_policy", "thoughts"]
+           "scoreboard", "evalue", "regrade_policy", "thoughts",
+           # a judge's word beside the content's: the content's
+           "evaluation_context", "user_feedback", "feedback_form", "graded_text", "feedback_text",
+           "critique_text", "rationale_text", "customer_feedback", "eval_question",
+           "judge_prompt", "score_reference", "graded", "judged", "evaluated", "scored"]
 
 
 def _said(capsys, *argv) -> tuple[int, str]:
