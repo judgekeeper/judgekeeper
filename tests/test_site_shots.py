@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import TAKES_OWN_PORT
 from tests.start_projects import unwrapped
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32",
@@ -39,6 +40,7 @@ def test_the_judge_and_the_person_split_clearly(shots):
 
 def test_the_pages_are_a_persons_and_the_judge_needs_work(shots, tmp_path, monkeypatch):
     monkeypatch.delenv("BROWSER", raising=False)
+    monkeypatch.setenv(TAKES_OWN_PORT, "1")  # the pictures show judgekeeper's own port
     folder = tmp_path / "support-bot"
     folder.mkdir()
     shots.make_project(folder)
