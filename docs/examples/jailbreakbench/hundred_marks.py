@@ -156,6 +156,20 @@ def inside(value: float, interval) -> bool:
     return bool(interval) and interval[0] <= value <= interval[1]
 
 
+KEYS = ("import json, sys; from judgekeeper.label import item_keys; "
+        "print(json.dumps(item_keys(json.load(sys.stdin))))")
+
+
+def rows_by_key(python: str, pool: list[dict], by_text: dict, env: dict) -> dict:
+    """{the page's key of each answer: its row id}. The page names an answer by a key, not by
+    its id, and shows its text without hidden characters, so the row is found by the text
+    judgekeeper read (pool.jsonl) and the key by judgekeeper itself."""
+    keys = json.loads(subprocess.run([python, "-c", KEYS], input=json.dumps([q["id"] for q in pool]),
+                                     env=env, text=True, capture_output=True, check=True).stdout)
+    row = {q["id"]: by_text[(q["input"], q["output"])] for q in pool}
+    return {key: row[i] for key, i in keys.items()}
+
+
 def one_draw(d: int, a, results: Path, expert: dict, by_text: dict, texts: list[str],
              true: dict, env: dict) -> tuple[dict, str]:
     name = f"d{d:03d}"
@@ -174,7 +188,7 @@ def one_draw(d: int, a, results: Path, expert: dict, by_text: dict, texts: list[
         raise SystemExit(f"{name}: no marking page:\n" + "\n".join(page.said[-15:]))
     with (jkdir / "pool.jsonl").open(encoding="utf-8") as f:
         pool = [json.loads(x) for x in f if x.strip()]
-    page_to_row = {q["id"]: by_text[(q["input"], q["output"])] for q in pool}
+    page_to_row = rows_by_key(a.python, pool, by_text, env)
     items = page.call("/state")["items"]
     todo = [it["id"] for it in items if not it.get("label")][:a.marks]
     for k, pid in enumerate(todo):

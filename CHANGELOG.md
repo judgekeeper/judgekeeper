@@ -32,6 +32,7 @@
 - After `judgekeeper check` takes on a new LLM-as-a-judge, the next run is the new starting point ("Your LLM-as-a-judge setup changed since the last results...") instead of comparing its grades with the old one's and saying your change made it worse, also after a `--before` run in between. After a check finds the new one worse, the next run still compares with the grades you had.
 - If your first run named the results file and `check new-results.csv` then took the new one on, later runs read new-results.csv and compare each change.
 - On the answers page, pressing Undo twice while a mark is still saving takes back only that mark, not two without a word.
+- A key pasted as an agent-as-a-judge's name (a picks file's `model`, or a Label Studio prediction's `model_version`) is now shown as [REDACTED] in what `judgekeeper steps` prints, as it already was on the page and in result.json.
 
 ## 1.4.0 (2026-11-23)
 

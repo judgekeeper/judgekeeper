@@ -10,6 +10,19 @@ import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 NO_BROWSER = "a test tried to open a real browser"
+# judgekeeper's own port (label.DEFAULT_PORT): a person's page, another checkout's tests or a
+# test running alongside may hold it, so no test takes it (tests/test_default_port.py)
+OWN_PORT = "a test took judgekeeper's own port 8765"
+TAKES_OWN_PORT = "JUDGEKEEPER_TEST_TAKES_8765"  # set only by a test that must show that port
+
+
+def _guard(event, args):
+    """No test binds port 8765 unless it says it must: run its page with --port 0."""
+    if event != "socket.bind" or os.environ.get(TAKES_OWN_PORT):
+        return
+    address = args[1] if len(args) > 1 else None
+    if isinstance(address, tuple) and len(address) > 1 and address[1] == 8765:
+        raise RuntimeError(f"{OWN_PORT}: run its page with --port 0")
 
 
 def _stop_browser(event, args):
@@ -17,7 +30,8 @@ def _stop_browser(event, args):
         raise RuntimeError(f"{NO_BROWSER}: {args[0]}")
 
 
-STOP_BROWSER = f"""import sys
+STOP_BROWSER = f"""import os
+import sys
 
 
 def _stop_browser(event, args):
@@ -26,6 +40,17 @@ def _stop_browser(event, args):
 
 
 sys.addaudithook(_stop_browser)
+
+
+def _guard(event, args):
+    if event != "socket.bind" or os.environ.get("{TAKES_OWN_PORT}"):
+        return
+    address = args[1] if len(args) > 1 else None
+    if isinstance(address, tuple) and len(address) > 1 and address[1] == 8765:
+        raise RuntimeError("{OWN_PORT}: run its page with --port 0")
+
+
+sys.addaudithook(_guard)
 """  # the same, as the sitecustomize of a Python a test starts
 
 
@@ -106,6 +131,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "real_page: the marking page runs as its own process, "
                                        "as it does for a person")
     sys.addaudithook(_stop_browser)
+    sys.addaudithook(_guard)
     config._stop_browser = tempfile.mkdtemp(prefix="jk-no-browser-")
     Path(config._stop_browser, "sitecustomize.py").write_text(STOP_BROWSER, encoding="utf-8")
     os.environ["PYTHONPATH"] = os.pathsep.join(
@@ -132,6 +158,13 @@ def pages(request, monkeypatch):
 
     started, servers = [], []
     state = {"fail": False}
+
+    # judgekeeper's own port is free for these tests, whatever holds it on this machine, and
+    # a page served in this process (--wait) gets another: these tests never depend on it
+    port_free, page_server = page.port_free, page.page_server
+    monkeypatch.setattr(page, "port_free", lambda port: port == 8765 or port_free(port))
+    monkeypatch.setattr(page, "page_server", lambda ws, port, *a, **k: page_server(
+        ws, 0 if port == 8765 else port, *a, **k))
 
     def fake_start(folder, settings, token, timeout=background.WAIT, code=None):
         started.append(dict(settings))

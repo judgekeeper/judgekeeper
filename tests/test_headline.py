@@ -1,6 +1,6 @@
 """The headline, as the website says it: "Check agents and chatbots with human judgment."
-The README, `judgekeeper --help`, the PyPI summary, CITATION.cff, the reference and the
-package's docstring open with it, the README says it once, and none still says the sub-line it
+The README (its header image), `judgekeeper --help`, the PyPI summary, CITATION.cff, the
+reference and the package's docstring open with it, the README says it once, and none still says the sub-line it
 replaced. The README's first paragraph names agents and chatbots, not an LLM-as-a-judge, first."""
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def _abstract() -> str:
 def test_the_readme_opens_with_the_headline_once():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     header, rest = readme.split("</div>", 1)
-    assert f"<p><strong>{HEADLINE}</strong><br>Read. Measure. Fix. Re-check.</p>" in header
+    assert f'alt="judgekeeper™: {HEADLINE} Read. Measure. Fix. Re-check."' in header  # the image
     assert readme.count(HEADLINE) == 1 and OLD not in readme
     first = rest.strip().split("\n\n", 1)[0]
     assert not first.startswith(("LLM-as-a-judge", "An LLM-as-a-judge"))

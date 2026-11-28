@@ -113,15 +113,14 @@ def test_the_numbers_on_screen_are_in_the_committed_grid():
     # the reference says: in about 1 check in 10 at most, coincidence flags one of two groups
     assert 2 * max(row["exit_1"] for row in acc["false_worse"]) <= 0.11
     md = (folder / "coverage.md").read_text(encoding="utf-8")
-    readme = (root / "README.md").read_text(encoding="utf-8")
+    reference = (root / "docs" / "reference.md").read_text(encoding="utf-8")
     level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]
-    # the coverage report holds the lowest anywhere and the main grid's average; the README
+    # the coverage report holds the lowest anywhere and the main grid's average; the reference
     # says the average
     for figure in (lowest_tpr_tnr_coverage(grid), level["mean"]):
         assert f"{figure * 100:.1f}" in md, figure
-    assert f"{level['mean'] * 100:.1f}" in readme
-    for page in (readme, (root / "docs" / "reference.md").read_text(encoding="utf-8")):
-        assert "examples/coverage" in page
+    assert f"{level['mean'] * 100:.1f}" in reference
+    assert "examples/coverage" in reference
 
 
 def test_the_batch_grid_is_committed_and_holds_the_bar():
