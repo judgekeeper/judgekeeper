@@ -2934,7 +2934,11 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         ws, found, talk.say, closed=closed)
     if typed and talk.before is None and not first:
         _remember(ws, found)  # later plain runs read the file named, as the first run's
-    marked_on = back is not None  # the judge the marks were made on ("": they never left it)
+    # --before on results graded by the judge the marks were made on: no grade the taken-on one
+    # changed, nothing for a check to take on, and nothing moves (only a comparison)
+    before_marked = not first and talk.before is not None and \
+        check.judged_by(ws, found) == check.MARKED_ON
+    marked_on = back is not None or before_marked  # the judge marked on ("": never left it)
     elsewhere = elsewhere or (None if first or marked_on else _checked_file(ws, found))
     changed = [] if first or marked_on or elsewhere else _changed(ws, found)
     held = not (first or changed or marked_on or elsewhere) and found.rule is not None and \
@@ -2965,7 +2969,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
                 file=textio.line_path(read)))
         raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
             file=textio.line_path(read), program=project.program_anywhere() + talk.away))
-    if not (first or changed or grades or elsewhere) or noisy:  # back on the marked judge too
+    if not (first or changed or grades or elsewhere or before_marked) or noisy:  # back too
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
         if not noisy:
