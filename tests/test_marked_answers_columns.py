@@ -71,6 +71,46 @@ def test_marked_answers_use_the_column_names_as_the_file_writes_them(here, capsy
         assert "can't read" not in " ".join(out.split()), out
 
 
+def test_marked_answers_keep_the_results_own_ids_so_the_regraded_file_matches(
+        here, capsys, monkeypatch):
+    """Results with their own id column: marked-answers.csv keeps it, so the file graded again
+    names each question as the results do, and the plain run after Fix and Re-check compares
+    them (it found no question in both, with a second Next line and exit 3)."""
+    from tests.test_front import assert_one_next_at_the_end, before_comparison
+
+    with (here / "results.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["id", "input", "output", "verdict"])
+        for i in range(40):
+            w.writerow([f"q-{i:02}", question(i), answer(i), "pass" if judge(i) else "fail"])
+    with only_reads(monkeypatch):
+        assert main(["--no-browser"]) == 0
+    ws = Workspace(here)
+    mark_all(ws)
+    with only_reads(monkeypatch):
+        closed(ws)
+    capsys.readouterr()
+    code, out = run(capsys, "fix")
+    assert code == 0, out
+    rows = _rows(ws.dir / "fix" / "marked-answers.csv")
+    assert rows[0] == ["input", "output", "id"]  # last: a script reading two columns works
+    index = {answer(i): i for i in range(40)}
+    assert rows[1:] and all(case == f"q-{index[a]:02}" for _q, a, case in rows[1:]), rows
+    with (here / "new-results.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow([*rows[0], "verdict"])
+        for q, a, case in rows[1:]:
+            w.writerow([q, a, case, "pass" if person(index[a]) else "fail"])
+    for command in ("fix", "check"):
+        code, out = run(capsys, command, "new-results.csv")
+        assert code == 0, out
+    code, out = run(capsys, "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 0, out
+    assert "On the 40 questions in both results:" in " ".join(out.split()), out
+    assert_one_next_at_the_end(before_comparison(out))  # the comparison comes last
+
+
 def test_a_grader_reading_input_runs_on_the_file_and_fix_reads_its_grades(here, capsys,
                                                                           monkeypatch):
     """A grader written for the results file (it reads `input` and `output`) on

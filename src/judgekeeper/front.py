@@ -559,7 +559,7 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     except Stop as e:  # said why: the change is said after it, and nothing is written
         if seen is None or talk.other_eval:
             raise
-        said = _say_change(talk, ws, seen, write=False)
+        said = _say_change(talk, ws, seen, write=False, gate=gate)
         if gate and e.code in (0, EXIT_QUESTION):
             return said or 0
         if said is not None and e.code in (0, EXIT_QUESTION):
@@ -567,7 +567,7 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
         raise
     if seen is None:
         return code
-    said = _say_change(talk, ws, seen)
+    said = _say_change(talk, ws, seen, gate=gate)
     if gate and code in (0, EXIT_QUESTION):
         return said or 0
     return code if said is None else said
@@ -587,7 +587,7 @@ def _graded(talk: FrontTalk, ws: Workspace, found: start.Found, mapped, wait: bo
 
 
 def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
-                write: bool = True) -> int | None:
+                write: bool = True, gate: bool = True) -> int | None:
     """After the usual output: what the newest results did against the ones before (or why
     nothing was compared), and the results read kept for the next run (`write`: unless a
     question went unanswered, which writes nothing). The exit code it sets: 1 made it worse,
@@ -595,7 +595,7 @@ def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
     c = seen.comparison
     if c is not None and talk.before is None and seen.had and before_after.read(ws) is None:
         c = None  # started over (another LLM-as-a-judge): the last results are not its baseline
-    paragraphs, code = seen.paragraphs(c)
+    paragraphs, code = seen.paragraphs(c, gate)  # gate: --before or CI (run)
     for para in paragraphs:
         talk.say()
         for line in para:
@@ -3483,7 +3483,12 @@ def _compare_command(talk: FrontTalk, ws: Workspace) -> str:
 
 
 def _fix_command(talk: FrontTalk) -> str:
-    """`judgekeeper fix`, with the path when it is not this folder: `fix` takes no other flag."""
+    """`judgekeeper fix`, with the path when it is a folder other than this one: `fix` takes no
+    other flag, and given a results file (check.given_results) it tests a new rule on it."""
+    from judgekeeper.check import given_results
+
+    if given_results(str(talk.path)):  # the project is found from here (project.project_of)
+        return program("fix")
     return _check_command(talk).replace(program("check"), program("fix"), 1)
 
 
