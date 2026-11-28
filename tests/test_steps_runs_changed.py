@@ -1,8 +1,8 @@
-"""A steps tab left open while the runs change under the same ids (the runs file rewritten, or
-another runs file, then `judgekeeper steps` again on the same link) never saves a mark for
-steps the person did not see: each run the page gets carries its steps' hash, the page sends
-it back with each mark and Undo, and a hash that is not the run's now is refused with a 409
-that loads the tab again. The page that opens then says so until a mark is saved."""
+"""A steps tab left open while the runs change (the runs file rewritten, or another runs file,
+then `judgekeeper steps` again on the same link) never saves a mark for steps the person did
+not see: each run the page gets carries its steps' hash, the page sends it back with each mark
+and Undo, and a hash that is not the run's now, or a run the page no longer has, is refused
+with a 409 that loads the tab again. The page that opens then says so until a mark is saved."""
 
 from __future__ import annotations
 
@@ -139,3 +139,40 @@ def test_the_steps_page_opened_so_says_the_runs_changed_until_a_mark_is_saved():
       window.history = {replaceState: function (s, t, u) { replaced.push(u); }};
     """)
     assert got == {"first": CHANGED_LINE, "replaced": ["/?token=t0k"], "after": ""}
+
+
+# Runs under other ids: the page's key names no run the page has now ------------------------
+OTHER_IDS = [f"b-{i}" for i in range(1, 7)]
+
+
+def _other_runs() -> str:
+    return "".join(json.dumps({"id": i, "task": f"BRAVO task {i}", "steps": [
+        {"role": "user", "content": f"BRAVO q {i}"},
+        {"role": "assistant", "content": f"BRAVO a {i}"},
+        {"role": "assistant", "content": f"BRAVO b {i}"}]}) + "\n" for i in OTHER_IDS)
+
+
+@pytest.mark.parametrize("undo", [False, True], ids=["mark", "undo"])
+def test_a_step_mark_for_a_run_the_page_no_longer_has_loads_the_tab_again(
+        here, capsys, pages, undo):
+    (here / "runsC.jsonl").write_text(_other_runs(), encoding="utf-8")
+    link = _open(capsys, "steps", "runs.jsonl")
+    seen = _shown(link, "r4")
+    if undo:
+        assert _post(link, {"id": seen["id"], "first_wrong_step": 2, "was": None,
+                            "seconds": 2, "steps_hash": seen["steps_hash"]})[0] == 200
+    link = _open(capsys, "steps", "runsC.jsonl")  # other ids, the same page
+    status, body = _post(link, {"id": seen["id"], "first_wrong_step": None if undo else 3,
+                                "was": 2 if undo else None, "seconds": 2,
+                                "steps_hash": seen["steps_hash"]})
+    main(["steps", "--stop"])
+    assert status == 409 and body.get("reload") is True and body.get("changed") is True, body
+    assert [x["first_wrong_step"] for x in _r4_lines(here)] == ([2] if undo else [])
+
+
+def test_an_id_sent_without_the_steps_hash_is_still_not_found(here, capsys, pages):
+    link = _open(capsys, "steps", "runs.jsonl")
+    status, body = _post(link, {"id": "nope", "first_wrong_step": 1, "was": None,
+                                "seconds": 2})
+    main(["steps", "--stop"])
+    assert status == 404 and body == {"error": "no item with that id"}

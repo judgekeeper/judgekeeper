@@ -22,7 +22,7 @@
 - A run id that is not text or a whole number (such as 1.5 or true) is now named as such, not as missing.
 - A tab left open on the steps page after `judgekeeper` started the answers page (or the other way round) loads again at its next mark, instead of looking saved while nothing was saved.
 - The page that opens then says, until your next mark is saved: "Your last mark was not saved: this link now opens the page for answers." (or "... for agent runs.").
-- A steps tab left open while `judgekeeper steps` runs again on changed runs with the same ids (the runs file rewritten, or another runs file) no longer saves a mark for steps you did not see. That tab loads again and says: "Your last mark was not saved: the runs changed, so this page loaded them again."
+- A steps tab left open while `judgekeeper steps` runs again on changed runs (the runs file rewritten, or another runs file, under the same ids or other ones) no longer saves a mark for steps you did not see, or stays stuck on "no item with that id". That tab loads again and says: "Your last mark was not saved: the runs changed, so this page loaded them again."
 - `judgekeeper steps export.json` stops when a run is in more than one task of the export (`label-these.json` imported twice into the same project), instead of counting its labels more than once. It says how many runs and the first one's task ids, and to export from a project where `label-these.json` was imported once.
 - One damaged line in a marks file (a byte that is not UTF-8, or a NUL) is left out and said by its number; the other marks are read. It no longer says the whole file is not UTF-8.
 
