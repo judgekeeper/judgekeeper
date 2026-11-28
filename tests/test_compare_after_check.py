@@ -8,8 +8,10 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import shutil
 import time
+from html import unescape
 
 import pytest
 
@@ -341,3 +343,26 @@ def test_a_before_run_on_another_judge_leaves_the_last_grades_alone(tmp_path, mo
     code, out = _run(capsys, "other.csv")
     assert code == 0, out
     assert "questions in both results:" not in _flat(out) and WORSE not in _flat(out), out
+
+
+@pytest.mark.parametrize("ids", [False, True], ids=["by-text", "by-id"])
+def test_after_a_check_takes_on_a_file_every_next_line_names_it(tmp_path, monkeypatch, capsys,
+                                                                 ids):
+    """The first runs named results.csv; `check new-results.csv` took on judge-new. The
+    commands --stop, fix and the result name to carry on read new-results.csv (they named
+    results.csv, which brings judge-old back: "back to the one you marked with")."""
+    _checked(tmp_path, monkeypatch, capsys, ids, named=True, models=("judge-old", "judge-new"))
+    saved = json.loads((tmp_path / ".judgekeeper" / "result.json").read_text(encoding="utf-8"))
+    assert saved["flags"]["path"] == "new-results.csv"
+    _, out = _run(capsys, "--stop")
+    nexts = [line for line in _flat(out).split("Next: ")[1:]]
+    assert nexts and "`judgekeeper new-results.csv" in nexts[-1], out
+    _, out = _run(capsys, "fix")
+    named = re.findall(r"`(judgekeeper [^`]*)`", _flat(out))
+    assert named and not [c for c in named if "results.csv" in c and "new-results.csv" not in c], (
+        named)
+    report = (tmp_path / ".judgekeeper" / "report.html").read_text(encoding="utf-8")
+    assert not re.search(r"judgekeeper( mark)? results\.csv", unescape(re.sub(r"<[^>]+>", "", report)))
+    code, out = _run(capsys, "new-results.csv", "--port", "0", "--no-browser")  # as --stop says
+    _run(capsys, "--stop")
+    assert code == 0 and "back to the one you marked with" not in _flat(out), out
