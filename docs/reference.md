@@ -321,7 +321,7 @@ A number needs at least 15 runs of its kind (15 you say went wrong for TPR, 15 y
 
 **Marks a program may have made** are said as on the answers page, right after the "Read N runs ..." line. When more than a quarter of the marks that count took under a second: "12 of your marks took under a second each.", and past half it adds "That is faster than a person reads, so a program may have made them." Marks made through a printed link or a page the program in `BROWSER` opened get the answers page's lines ("40 of your marks came through a link judgekeeper printed. That's expected if you opened it yourself."). The result page always shows these link lines; the terminal says them only when a count changed since it last said them (kept in `.judgekeeper/steps/link-said.json`).
 
-**What changed since the last check.** Run it again with new picks and, on the same marks, it says after the numbers how they moved, each `old -> new`:
+**What changed since the last check.** Run it again with new picks and, on the same marks, it says after the numbers how they moved, each `old -> new`. For example (made-up numbers, not from a run):
 
 ```
 Since the last check, on the same marks:
