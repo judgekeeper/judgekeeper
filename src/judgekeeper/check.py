@@ -1931,6 +1931,9 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
         data["earlier_grades"] = earlier
     data.pop("results_left", None)  # back_to_marked's: about the judge before this one
     _marked_rule_kept(data)
+    if isinstance(data.get("given"), str) and data["given"] and found.tool != "mapped" \
+            and found.results and found.results[0].path.is_file():
+        data["given"] = found.results[0].rel  # a file named: plain runs read the one checked
     data.update(picked=picked, queue=queue, rule=found.rule, one_rule=found.one_rule,
                 judge=found.judge, fingerprint=scrub_fingerprint(found.fingerprint),
                 pass_mark=found.pass_mark, results_files=list(found.used),
