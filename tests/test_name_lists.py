@@ -11,11 +11,11 @@ import copy
 import json
 import subprocess
 import sys
-import time
 
 import pytest
 
 from judgekeeper.cli import main
+from tests.speed import assert_grows_at_most
 from tests.start_projects import inspect_data, promptfoo_data, split
 from tests.test_front import next_lines
 
@@ -80,16 +80,23 @@ def test_an_unknown_metric_lists_at_most_20_names(tmp_path, monkeypatch, capsys)
 
 
 def test_10000_inspect_score_keys_are_quick_and_short(tmp_path, monkeypatch, capsys):
-    """One sample: reading each sample's keys takes its own time, which this doesn't test."""
-    data = inspect_data([True])
-    for sample in data["samples"]:
-        sample["scores"]["model_graded_qa"]["value"] = {f"k{i}": "C" for i in range(10_000)}
-    (tmp_path / "logs").mkdir()
-    (tmp_path / "logs" / "a.json").write_text(json.dumps(data), encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
-    started = time.monotonic()
-    code, out = _run(capsys)
-    assert time.monotonic() - started < 2
+    """One sample: reading each sample's keys takes its own time, which this doesn't test.
+    Ten times the keys take at most 12 times as long (tests/speed.py); a list look-up for
+    each key once made it about 40 times."""
+    runs = iter(range(1_000))
+
+    def read(keys: int) -> tuple[int, str]:
+        here = tmp_path / f"run-{next(runs)}"
+        (here / "logs").mkdir(parents=True)
+        data = inspect_data([True])
+        for sample in data["samples"]:
+            sample["scores"]["model_graded_qa"]["value"] = {f"k{i}": "C" for i in range(keys)}
+        (here / "logs" / "a.json").write_text(json.dumps(data), encoding="utf-8")
+        monkeypatch.chdir(here)
+        return _run(capsys)
+
+    assert_grows_at_most(read, 2_000, 20_000, most=12)
+    code, out = read(10_000)
     assert code == 3
     assert len(out.splitlines()) <= 40, out
     assert "and 9,980 more" in out

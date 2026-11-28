@@ -1011,7 +1011,8 @@ def _read(path: Path, data, samples, with_errors: bool) -> RecordList:
     format_1 = _format_1(data, scorer_options)
 
     records = RecordList(version=data.get("version"), label_map=DEFAULT_LABELS)
-    keys: dict[str, list[str]] = {}  # each scorer's judges, as its scores name them
+    # each scorer's judges, as its scores name them, in order (a dict: each look-up is quick)
+    keys: dict[str, dict[str, None]] = {}
     seen, errored = 0, Counter()  # samples, and the types of the errors they stopped on
     # The records of samples that errored before they were scored, one per scorer: each
     # stands for every judge of its scorer, known only once all samples are seen
@@ -1029,9 +1030,7 @@ def _read(path: Path, data, samples, with_errors: bool) -> RecordList:
                 for name, score in (scores if isinstance(scores, dict) else {}).items():
                     if isinstance(score, dict):
                         for key, _ in _verdicts(name, score.get("value")):
-                            keys.setdefault(name, [])
-                            if key not in keys[name]:
-                                keys[name].append(key)
+                            keys.setdefault(name, {})[key] = None
             yield n, sample
 
     def read_sample(sample: dict) -> None:

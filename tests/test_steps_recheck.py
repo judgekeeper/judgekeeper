@@ -383,7 +383,7 @@ def test_only_the_marks_that_count_are_counted(here):
     assert (saved["under_second"], saved["printed"], saved["browser_env"]) == (0, 0, 0)
 
 
-# rc2: each agent-as-a-judge is compared only with its own earlier numbers --------------------
+# Each agent-as-a-judge is compared only with its own earlier numbers -------------------------
 
 def write_judges(here: Path, name: str, **picks) -> Path:
     """One picks file holding several agent-as-a-judges: model name -> its pick for run i."""
