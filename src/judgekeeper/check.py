@@ -125,7 +125,8 @@ MOVED = {
     "worse": ("Your LLM-as-a-judge moved: on the {n} answers labelled by the people marking, it "
               "agrees with them less than before."),
     "no_drop": ("Your LLM-as-a-judge did not get worse on the {n} answers labelled by the "
-                "people marking. If your scores changed, look at your app's answers first."),
+                "people marking. If your scores changed, look at the answers of your agent or "
+                "chatbot first."),
     "better": ("Your LLM-as-a-judge now agrees with the people marking more than before, on the "
                "{n} answers they labelled."),
     "not_sure": ("Too early to tell whether your LLM-as-a-judge moved. These {n} labels can't "
