@@ -102,6 +102,7 @@ class Comparison:
     one_side_ids: bool = False  # only one of the two does: their questions can't be matched
     regraded: int = 0  # graded otherwise on the same answers: the LLM-as-a-judge's, left out
     changed: int = 0  # in both, with answers that changed or may have (their hashes compared)
+    unread: int = 0  # compared, graded otherwise, on parts the results don't keep (NOT_KEPT)
     left_out: tuple[str, ...] = ()  # fields new on every answer, the answers the same (_noise)
 
     @property
@@ -147,6 +148,9 @@ def grades_of(found: start.Found, numbers: bool = False) -> dict:
 
 
 BLANK = "-"  # an answer the results don't hold at all: whether it changed is not known
+NOT_KEPT = "?"  # an answer graded on parts of the run the results don't keep (graded_unread)
+GRADED_UNREAD = ("These grades depend on parts of the run your results file doesn't keep, so "
+                 "a changed grade counts as a changed answer.")
 
 
 def _ends(text):
@@ -182,8 +186,9 @@ def _answer_sums(answers) -> tuple[dict[str, list[str]], dict[str, list]]:
         blank = mark.graded_unread or (  # empty is an answer
             output is None and trajectory is None and outcome is None)
         key = _key(case, question)
-        out.setdefault(key, []).append(BLANK if blank else digest(
-            base + ([fields] if fields else [])))
+        sum_ = NOT_KEPT if mark.graded_unread else BLANK if blank else digest(
+            base + ([fields] if fields else []))
+        out.setdefault(key, []).append(sum_)
         if every and not blank:
             parts.setdefault(key, []).append([digest(base), {f: _short(h) for f, h in every}])
     return ({k: sorted(v) for k, v in out.items()},
@@ -259,11 +264,13 @@ def compare(before: dict, now: dict) -> Comparison:
     # both sides keep their answers: results read before 1.5.0 don't)
     sums = (before.get("answers"), now.get("answers"))
     unchanged = {k for k in both if None not in sums and k in sums[0]
-                 and sums[0][k] == sums[1].get(k) and BLANK not in sums[0][k]}
+                 and sums[0][k] == sums[1].get(k) and not {BLANK, NOT_KEPT} & set(sums[0][k])}
     noise, alike = _noise(before.get("fields") or {}, now.get("fields") or {}, both)
     unchanged |= alike
     regraded = {k for k in graded if b[k] != n[k] and k in unchanged}
     graded -= regraded
+    unread = {k for k in graded if b[k] != n[k] and None not in sums
+              and NOT_KEPT in [*sums[0].get(k, []), *sums[1].get(k, [])]}
     fixed = sum(no_grades._fixed(b[k], n[k]) for k in graded)
     broke = sum(no_grades._broke(b[k], n[k]) for k in graded)
     return Comparison(n=len(graded), fixed=fixed, broke=broke, only=len(b.keys() ^ n.keys()),
@@ -271,7 +278,7 @@ def compare(before: dict, now: dict) -> Comparison:
                       ungraded=len(both - graded - regraded), ids=before["ids"] and now["ids"],
                       one_side_ids=before["ids"] != now["ids"], regraded=len(regraded),
                       changed=len(both - unchanged) if None not in sums else 0,
-                      left_out=noise)
+                      left_out=noise, unread=len(unread))
 
 
 EVERY_ANSWER = 5  # _noise: a field new on every answer of at least this many is per-run
@@ -353,6 +360,7 @@ def lines(c: Comparison) -> list[list[str]]:
     left += [NO_GRADE[min(c.ungraded, 2)].format(n=c.ungraded)] if c.ungraded else []
     left += [REGRADED_LEFT[min(c.regraded, 2)].format(n=c.regraded)] if c.regraded else []
     left += left_out_line(c.left_out)
+    left += [GRADED_UNREAD] if c.unread else []  # just before what the counts say
     counted = [COMPARED.format(questions=plural(c.n, "question"), fixed=c.fixed, broke=c.broke,
                                same=c.same), COUNTED, *left]
     out = [counted, [no_grades.CHANGE[c.kind]]]

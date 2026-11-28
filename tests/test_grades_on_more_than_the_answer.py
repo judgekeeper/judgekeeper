@@ -72,13 +72,14 @@ def _deepeval(path, kind: str, changed: bool, agent: bool = True) -> None:
     _write(path, data)
 
 
-def _promptfoo(path, kind: str, changed: bool) -> None:
+def _promptfoo(path, kind: str, changed: bool, agent: bool = True) -> None:
     """promptfoo rows graded by `kind`: an assertion on the agent's run, which the file
     doesn't hold, or llm-rubric on a response whose tool calls and trace the file holds; the
-    output stays the same, the FLIP rows' tool calls are new."""
+    output stays the same, the FLIP rows' tool calls are new (with `agent`; else only their
+    grades)."""
     data = promptfoo_data([not (changed and i in FLIP) and v for i, v in enumerate(VERDICTS)])
     for i, row in enumerate(data["results"]["results"]):
-        tools = [{"name": "guess_answer" if changed and i in FLIP else "lookup_order",
+        tools = [{"name": "guess_answer" if changed and agent and i in FLIP else "lookup_order",
                   "args": {"id": i}}]
         row["response"] |= {"metadata": {"toolCalls": tools}, "cached": changed,
                             "tokenUsage": {"total": 40 + changed},
@@ -222,3 +223,119 @@ def test_an_mlflow_judge_on_the_same_steps_graded_otherwise_is_only_grades(tmp_p
     monkeypatch.chdir(tmp_path / "new")
     code, out = _said(capsys, "mlruns", "--before", str(tmp_path / "old" / "mlruns"))
     assert code == 3 and before_after.ONLY_GRADES_BEFORE in out, out
+
+
+# A grade on parts of the run the results don't keep: a changed grade counts as a changed
+# answer, and the run says so ------------------------------------------------------------------
+UNREAD = ("These grades depend on parts of the run your results file doesn't keep, so a "
+          "changed grade counts as a changed answer.")
+REGRADE = {
+    "promptfoo-trajectory": lambda path, changed: _promptfoo(path, "trajectory:goal-success",
+                                                             changed, agent=False),
+    "promptfoo-agent-rubric": lambda path, changed: _promptfoo(path, "agent-rubric", changed,
+                                                               agent=False),
+    "deepeval-no-turns": lambda path, changed: _deepeval(path, "noturns", changed,
+                                                         agent=False),
+}
+
+
+@pytest.mark.parametrize("before", [False, True], ids=["plain", "before"])
+@pytest.mark.parametrize("kind", REGRADE)
+def test_a_grade_on_parts_the_file_doesnt_keep_says_so(tmp_path, monkeypatch, capsys, kind,
+                                                       before):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CI", "true")
+    now, old = FILES[kind.split("-")[0]]
+    if before:
+        REGRADE[kind](tmp_path / old, False)
+        REGRADE[kind](tmp_path / now, True)
+        code, out = _said(capsys, "results", "--before", old)
+    else:
+        REGRADE[kind](tmp_path / now, False)
+        assert _said(capsys)[0] == 0
+        REGRADE[kind](tmp_path / now, True)
+        code, out = _said(capsys)
+    assert code == 1 and BROKE_10 in out, out
+    assert out.count(UNREAD) == 1 and out.index(UNREAD) < out.index("Your change made it worse")
+
+
+def test_a_grade_on_parts_the_file_keeps_says_nothing_of_them(tmp_path, monkeypatch, capsys):
+    """A guard: llm-rubric graded on the tool calls the file holds, graded otherwise."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CI", "true")
+    now = tmp_path / FILES["promptfoo"][0]
+    _promptfoo(now, "llm-rubric", False)
+    assert _said(capsys)[0] == 0
+    _promptfoo(now, "llm-rubric", True, agent=False)
+    code, out = _said(capsys)
+    assert code == 0 and before_after.ONLY_GRADES in out and UNREAD not in out, out
+
+
+def test_an_agent_change_on_parts_the_file_keeps_says_nothing_of_them(tmp_path, monkeypatch,
+                                                                      capsys):
+    """Tool calls changed and graded by llm-rubric: compared, all of it in the file."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CI", "true")
+    now = tmp_path / FILES["promptfoo"][0]
+    _promptfoo(now, "llm-rubric", False)
+    assert _said(capsys)[0] == 0
+    _promptfoo(now, "llm-rubric", True)
+    code, out = _said(capsys)
+    assert code == 1 and BROKE_10 in out and UNREAD not in out, out
+
+
+DB_STORE = r"""
+import json, os, sys
+os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
+os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
+import mlflow
+from mlflow.entities import AssessmentSource
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("qa")
+judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1-mini")
+for i, verdict in enumerate(json.loads(sys.argv[1])):
+    with mlflow.start_span(name="app") as span:
+        span.set_inputs({"question": f"Question {i}?"})
+        span.set_outputs({"answer": f"Answer {i}."})
+        trace_id = span.trace_id
+    mlflow.flush_trace_async_logging()
+    mlflow.log_feedback(trace_id=trace_id, name="correctness", value=verdict, source=judge)
+mlflow.flush_trace_async_logging()
+"""
+
+
+def _store_without_spans(folder, changed: bool) -> None:
+    """mlflow.db with 20 judged traces, 8 passing ones failing when `changed`, the answers
+    the same; then its spans deleted, as a store whose spans are kept on another server."""
+    import sqlite3
+    import subprocess
+    import sys
+    from contextlib import closing
+
+    pytest.importorskip("mlflow")
+    folder.mkdir(parents=True)
+    (folder / "make.py").write_text(DB_STORE, encoding="utf-8")
+    verdicts = [not (changed and i < 8) for i in range(20)]
+    subprocess.run([sys.executable, "make.py", json.dumps(verdicts)], check=True, cwd=folder,
+                   capture_output=True)
+    (folder / "make.py").unlink()
+    with closing(sqlite3.connect(folder / "mlflow.db")) as con:
+        con.execute("delete from spans")
+        con.execute("delete from trace_tags where key = 'mlflow.trace.spansLocation'")
+        con.execute("update trace_tags set value = ? || request_id where key = "
+                    "'mlflow.artifactLocation'",
+                    ("https://store.invalid/api/2.0/mlflow-artifacts/artifacts/x/",))
+        con.commit()
+
+
+def test_an_mlflow_judge_on_traces_without_their_spans_says_so(tmp_path, monkeypatch, capsys):
+    """The traces' spans not in the store: the judge may have graded steps judgekeeper can't
+    read."""
+    monkeypatch.setenv("CI", "true")
+    _store_without_spans(tmp_path / "old", False)
+    _store_without_spans(tmp_path / "new", True)
+    monkeypatch.chdir(tmp_path / "new")
+    code, out = _said(capsys, "mlflow.db", "--before", str(tmp_path / "old" / "mlflow.db"))
+    assert code == 1 and "On the 20 questions in both results: fixed 0, broke 8," in out, out
+    assert out.count(UNREAD) == 1, out
