@@ -8,6 +8,8 @@ When an AI model grades your eval's answers by a rule you wrote, it is called an
 
 In your project folder, in its virtual environment, `pip install judgekeeper`, then `judgekeeper`. Or with [uv](https://docs.astral.sh/uv/), which needs no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14 is supported. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[inspect]" judgekeeper` or `uvx --from "judgekeeper[mlflow]" judgekeeper`). With uv, type `uvx judgekeeper` wherever these pages say `judgekeeper`.
 
+Using a coding agent? Give it this page and tell it: "Follow this to run judgekeeper on my project." It runs the steps and gives you the marking page link; you mark, then the coding agent explains the result. No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the link to open instead.
+
 ## judgekeeper: read and measure
 
 ```
@@ -259,7 +261,7 @@ A plain `judgekeeper` in a folder with agent runs and no eval results says where
 | Key | What it holds |
 |---|---|
 | `id` | The run's id (text or a whole number), different for every run. Needed |
-| `steps` | A list of steps, each `{"role": ..., "content": ...}` (`name` works in place of `role`). The content is text, or a list of blocks (`{"type": "text", "text": ...}`, `{"type": "tool_use", "name": ..., "input": ...}`, `{"type": "tool_result", "content": ...}`); anything else is written as JSON. A step may also have OpenAI-style `tool_calls`. A step is written as its text, then one line for each tool call (`Tool call: search({"q": "x"})`) and `Tool result: ...` for a result, so the person marking can see which tool was called; no other key of the step is written. Needed |
+| `steps` | A list of steps, each `{"role": ..., "content": ...}` (`name` works in place of `role`). The content is text, or a list of blocks (`{"type": "text", "text": ...}`, `{"type": "tool_use", "name": ..., "input": ...}`, `{"type": "tool_result", "content": ...}`); anything else is written as JSON. A step may also have `tool_calls`, each `{"id": ..., "name": ..., "arguments": ...}` or OpenAI's `{"id": ..., "type": "function", "function": {"name": ..., "arguments": ...}}`. A step is written as its text, then one line for each tool call (`Tool call: search({"q": "x"})`) and `Tool result: ...` for a result, so the person marking can see which tool was called; no other key of the step is written. Needed |
 | `task` or `input` | What the agent was asked to do. Shown above the steps |
 | `outcome` | Allowed and not used |
 
@@ -322,7 +324,7 @@ A number needs at least 15 runs of its kind (15 you say went wrong for TPR, 15 y
 
 **Marks a program may have made** are said as on the answers page, right after the "Read N runs ..." line. When more than a quarter of the marks that count took under a second: "12 of your marks took under a second each.", and past half it adds "That is faster than a person reads, so a program may have made them." Marks made through a printed link or a page the program in `BROWSER` opened get the answers page's lines ("40 of your marks came through a link judgekeeper printed. That's expected if you opened it yourself."). The result page always shows these link lines; the terminal says them only when a count changed since it last said them (kept in `.judgekeeper/steps/link-said.json`).
 
-**What changed since the last check.** Run it again with new picks and, on the same marks, it says after the numbers how they moved, each `old -> new`:
+**What changed since the last check.** Run it again with new picks and, on the same marks, it says after the numbers how they moved, each `old -> new`. For example (made-up numbers, not from a run):
 
 ```
 Since the last check, on the same marks:
@@ -389,7 +391,7 @@ With no reason on any failed answer yet, its first line ends at "Fail": "Read .j
 
 **Which answers you mark:** every answer in the newest results with a clear Pass or Fail, counted once: the first 15 of each (fewer when one kind has 15 or fewer) in blocks of 5 your LLM-as-a-judge passed and 5 it failed, then the rest by each group's share. **Batches:** new answers join as the next batch, offered first. A later batch counts once each of its groups has marks in proportion to its size: 5 for a group as big as the first batch's, at least 1 and at most 15, or every answer of a smaller group. When a new batch is much bigger than the earlier ones, the ranges can get wider once it counts: they now speak for many more answers. Marking more of the new batch narrows them.
 
-**The result** shows **TPR** (of the answers you passed, how many your LLM-as-a-judge passed) and **TNR** (of the answers you failed, how many it failed). `result.json` also holds **the real pass rate** of your answers. Each is weighted back by group size, since the page shows its two grades in other shares than your results hold. Each has a range, the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it stands apart from them: on its own line in the terminal, and as the third number on the result page and in report.html. It never decides the result: TPR and TNR do. When your LLM-as-a-judge gave every answer one grade, its TPR and TNR on your answers are 1 and 0, or 0 and 1, with no range; kappa is `null` in result.json, and the terminal and the page show n/a.
+**The result** shows **TPR** (of the answers you passed, how many your LLM-as-a-judge passed; the result page calls it "When you say Pass, your LLM-as-a-judge also says Pass") and **TNR** (of the answers you failed, how many it failed; "When you say Fail, your LLM-as-a-judge also says Fail"). `result.json` also holds **the real pass rate** of your answers. Each is weighted back by group size, since the page shows its two grades in other shares than your results hold. The numbers are about the answers in your results, worked out from the ones you marked. They are not a promise about new answers. Each has a range, such as "about 90% (between 85% and 93%)": the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it stands apart from them: on its own line in the terminal, and as the third number on the result page and in report.html. It never decides the result: TPR and TNR do. When your LLM-as-a-judge gave every answer one grade, its TPR and TNR on your answers are 1 and 0, or 0 and 1, with no range; kappa is `null` in result.json, and the terminal and the page show n/a.
 
 **Labels you brought** with `--labels` count like marks made on the page, in the same groups with the same weights. The result then says once: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
@@ -485,7 +487,7 @@ judgekeeper's own format: one graded answer per JSONL line, written by you or by
 | `evaluator` | the fingerprint (what tells one LLM-as-a-judge setup from another): `provider`, `model`, `prompt` (hashed), `temperature`, `version` (rubric), `rule`, `prompt_hash`, `snapshot`, `endpoint` |
 | `created_at` | when the grade was made |
 | `metadata` | anything else; never part of the fingerprint |
-| `trajectory` | for agents: the steps to the output, as OpenAI-style messages |
+| `trajectory` | for agents: the steps to the output, as OpenAI-style messages. A tool call in `tool_calls` is `{"id", "name", "arguments"}` or OpenAI's `{"id", "type": "function", "function": {"name", "arguments"}}`; the same call gives the answer the same id in either shape |
 | `outcome` | for agents: an automatic check, e.g. `{"passed": true, "source": "unit tests"}` |
 | `app_version` | the version of the program or agent that answered |
 

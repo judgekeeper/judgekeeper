@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = Path(__file__).parent / "fixtures" / "records" / "target-id-only-labels.jsonl"
 EXAMPLE = ROOT / "docs" / "examples" / "records" / "with-human-labels.jsonl"
 SCHEMA = ROOT / "src" / "judgekeeper" / "schemas" / "records.schema.json"
-SCHEMA_SHA256 = "e19088cae95ddddf264cb4d941a333a83321659dfe7e863697ae752d6d1109c5"
+SCHEMA_SHA256 = "189ae87365d85ffe72b22be49e6a31066c7f7831f878f46fc3cd68ca1eb9a290"
 PAGE = ("--no-browser", "--port", "0", "--yes")
 
 

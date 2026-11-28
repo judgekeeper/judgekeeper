@@ -33,6 +33,7 @@
 - If your first run named the results file and `check new-results.csv` then took the new one on, later runs read new-results.csv and compare each change.
 - On the answers page, pressing Undo twice while a mark is still saving takes back only that mark, not two without a word.
 - A key pasted as an agent-as-a-judge's name (a picks file's `model`, or a Label Studio prediction's `model_version`) is now shown as [REDACTED] in what `judgekeeper steps` prints, as it already was on the page and in result.json.
+- Records format v2: a tool call in `trajectory` can be OpenAI's `{"id", "type": "function", "function": {"name", "arguments"}}` as well as `{"id", "name", "arguments"}`. Before, OpenAI's shape made every line of the file read as damaged. The same call gives the answer the same id in either shape, a tool call in neither shape is named by its line and step with the two shapes it can take, and `judgekeeper steps` reads tool calls by the same rule.
 - A folder with DeepEval's saved runs right in it, under a name of its own, keeps its `.judgekeeper/` and `judgekeeper.toml` in that folder, as the reference says. Before, they went in the folder above it, so two such folders beside each other shared one and `--yes` in one moved the other's away. A results folder named as one (`results/`, `logs/`...) still keeps its marks in the folder that holds it.
 - In CI, a run that stops at a question it cannot ask, with nothing compared, exits 3 as it does without CI, so a pipeline never passes on nothing. Before, it exited 0.
 

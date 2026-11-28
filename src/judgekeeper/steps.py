@@ -26,7 +26,7 @@ import random
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper import __version__, metrics, project, redact, targets, textio, weighted
+from judgekeeper import __version__, metrics, project, records, redact, targets, textio, weighted
 from judgekeeper.fingerprint import JudgeFingerprint, unknown_fields, utc_now
 from judgekeeper.redact import scrub, scrub_value, visible
 from judgekeeper.start import StartError, page_flags, path_word
@@ -176,9 +176,9 @@ def step_text(step: dict) -> str:
     lines = ([x for b in content for x in _block_lines(b)] if isinstance(content, list)
              else [_text(content)] if _text(content) else [])
     for call in step.get("tool_calls") or []:
-        if isinstance(call, dict):
-            fn = call.get("function") if isinstance(call.get("function"), dict) else call
-            lines.append(_call_line(fn.get("name"), fn.get("arguments")))
+        parts = records.tool_call(call)  # either shape, by the records reader's rule
+        if parts is not None:
+            lines.append(_call_line(parts[1], parts[2]))
     return "\n".join(lines)
 
 
@@ -224,6 +224,11 @@ def read_runs(path: Path) -> list[Run]:
             if not isinstance(role, str) or not role.strip():
                 raise StepsError(f"Step {k} on line {number} of {path.name} has no role or "
                                  "name.")
+            calls = step.get("tool_calls")
+            for c, call in enumerate(calls if isinstance(calls, list) else [], 1):
+                if records.tool_call(call) is None:
+                    raise StepsError(f"Step {k} on line {number} of {path.name}: tool call {c} "
+                                     f"must be {records.TOOL_CALL_SHAPES}.")
             out.append({"role": f"{k}. {role}", "content": step_text(step)})
         asked = next((row[k] for k in ("task", "input") if row.get(k) not in (None, "")), None)
         runs.append(Run(run_id, out, None if asked is None else _text(asked),
