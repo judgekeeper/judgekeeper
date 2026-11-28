@@ -340,7 +340,7 @@ def test_check_says_the_check_did_not_get_worse(here, capsys):
     code, out = run(capsys, "check", "new.json")
     assert code == 0, out
     assert ("Your check did not get worse on the 60 answers labelled by the people marking. If "
-            "your scores changed, look at your app's answers first.") in flat(out)
+            "your scores changed, look at the answers of your agent or chatbot first.") in flat(out)
 
 
 def _g(n: int, old: int, new: int) -> dict:

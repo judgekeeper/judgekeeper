@@ -125,7 +125,8 @@ MOVED = {
     "worse": ("Your LLM-as-a-judge moved: on the {n} answers labelled by the people marking, it "
               "agrees with them less than before."),
     "no_drop": ("Your LLM-as-a-judge did not get worse on the {n} answers labelled by the "
-                "people marking. If your scores changed, look at your app's answers first."),
+                "people marking. If your scores changed, look at the answers of your agent or "
+                "chatbot first."),
     "better": ("Your LLM-as-a-judge now agrees with the people marking more than before, on the "
                "{n} answers they labelled."),
     "not_sure": ("Too early to tell whether your LLM-as-a-judge moved. These {n} labels can't "
@@ -2980,6 +2981,22 @@ def _refresh_mistakes(ws: Workspace) -> None:
         pass  # the next `fix` writes it
 
 
+def _in_use(ws: Workspace, flags):
+    """The result's flags (start.run_flags) with the file in use now: when they name a
+    results file and the marks test the one start.json's `given` names (a check took it on,
+    _adopt), that one. So every command made from them (--stop, fix, the result pages) reads
+    the LLM-as-a-judge the marks test, never the one before it."""
+    try:
+        given = ws.data().get("given")
+    except (OSError, ValueError, AttributeError):
+        return flags
+    path = flags.get("path") if isinstance(flags, dict) else None
+    if isinstance(given, str) and given and isinstance(path, str) and path != given \
+            and given_results(path):
+        return {**flags, "path": given}
+    return flags
+
+
 def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> None:
     """report.html again (when there is a result). `adopted`: the marks test the new judge
     now, so the result is made again from its grades (start_label.store_result): the report's
@@ -2993,7 +3010,7 @@ def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> N
         return
     try:
         if adopted and isinstance(saved, dict):
-            flags = saved.get("flags")
+            flags = _in_use(ws, saved.get("flags"))
             pm = ws.data().get("pass_mark") or {}
             if isinstance(flags, dict) and flags.get("pass_if") and pm.get("source") == "pass_if":
                 flags = {**flags, "pass_if": pm.get("rule")}  # its commands read with that mark
