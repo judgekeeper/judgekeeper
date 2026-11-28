@@ -372,7 +372,8 @@ _JUDGE_SAID = {"explanation", "rationale", "reason", "critique", "feedback", "co
 _JUDGE_WORDS = ("judge", "judged", "judging", "judgment", "judgement", "grader", "grade",
                 "graded", "grading", "eval", "evals", "evaluation", "evaluator", "evaluated",
                 "score", "scores", "scorer", "scored", "verdict", "critique", "rationale",
-                "reason", "reasons")
+                "reason", "reasons", "explanation", "explanations", "feedback", "assessment",
+                "assessments", "justification", "justifications")
 _JUDGE_WORD = re.compile("(?:" + "|".join(_JUDGE_WORDS) + ")+")  # one or more: judgescore
 # Not `notes`, `reasoning` or `comment` on their own: an agent's reasoning or a person's notes
 # are the answer's; a judge's, new on every row, is left out by what it does (before_after._noise)

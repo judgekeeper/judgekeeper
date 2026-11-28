@@ -25,7 +25,9 @@ JUDGE = ["confidence", "critique", "eval_reason", "evaluation", "explanation", "
          "grade_reason", "grader_notes", "judge_cost", "judge_explanation", "judge_latency_ms",
          "judge_output", "judge_reason", "judge_score", "rationale", "reason",
          "reasoning_judge", "score", "graded_at", "judge_reasoning", "eval_comment",
-         "grade_level", "llmJudgeScore", "EvalReason"]
+         "grade_level", "llmJudgeScore", "EvalReason", "judgment", "judgement", "llm_judgment",
+         "llm_explanation", "feedback_text", "llm_feedback", "model_feedback", "rubric_feedback",
+         "assessment", "justification", "critique_text", "rationale_text", "reason_for_grade"]
 TELEMETRY = ["cost", "created_at", "duration_ms", "latency", "latency_ms", "request_id",
              "run_id", "timestamp", "tokens", "total_tokens", "trace_id", "completion_tokens",
              "cost_usd", "elapsed", "elapsed_s", "eval_id", "evaluated_at",
@@ -48,7 +50,7 @@ CONTENT = ["agent_model", "category", "context", "documents", "expected_output",
            "duration", "seconds", "time", "notes", "reasoning", "comments",
            # a judge's word inside another word is not the judge's
            "retrieval_context", "retrievalContext", "retrieval", "upgrade_path", "downgrade",
-           "scoreboard", "evalue", "regrade_policy"]
+           "scoreboard", "evalue", "regrade_policy", "thoughts"]
 
 
 def _said(capsys, *argv) -> tuple[int, str]:
@@ -121,6 +123,16 @@ def test_a_column_the_judge_or_the_run_writes_is_left_out(tmp_path, monkeypatch,
     plain, before = _both_ways(tmp_path, monkeypatch, capsys, write, "results.csv")
     _only_grades(plain, before)
     assert not _left_out(plain[1], column), plain[1]  # known by its name: nothing to say
+
+
+@pytest.mark.parametrize("column", JUDGE)
+def test_what_the_judge_wrote_on_the_regraded_answers_is_left_out(tmp_path, monkeypatch,
+                                                                  capsys, column):
+    """A re-grade: the judge's words new on just the 10 answers it now fails."""
+    def write(path, side):
+        _table(path, column, "content" if side == "new" else "base")
+
+    _only_grades(*_both_ways(tmp_path, monkeypatch, capsys, write, "results.csv"))
 
 
 @pytest.mark.parametrize("column", EVERY_ROW)
