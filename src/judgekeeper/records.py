@@ -367,25 +367,35 @@ _TELEMETRY_IDS = {"request", "trace", "span", "run"}  # with `id`: request_id, t
 # What an LLM-as-a-judge writes beside its grade: its words, a score or confidence of its own.
 # Names compared in lower case, with "-", "_" and spaces left out.
 _JUDGE_SAID = {"explanation", "rationale", "reason", "critique", "feedback", "confidence"}
-_JUDGE_PART = ("score", "judge", "grader", "eval", "verdict", "grade", "critique", "rationale")
+# A word of the name, whole (judge_reason, llmJudgeScore, EvalReason, grade_level), never
+# inside another word: retrieval_context, upgrade_path and scoreboard are the agent's.
+_JUDGE_WORDS = ("judge", "judged", "judging", "judgment", "judgement", "grader", "grade",
+                "graded", "grading", "eval", "evals", "evaluation", "evaluator", "evaluated",
+                "score", "scores", "scorer", "scored", "verdict", "critique", "rationale",
+                "reason", "reasons")
+_JUDGE_WORD = re.compile("(?:" + "|".join(_JUDGE_WORDS) + ")+")  # one or more: judgescore
 # Not `notes`, `reasoning` or `comment` on their own: an agent's reasoning or a person's notes
 # are the answer's; a judge's, new on every row, is left out by what it does (before_after._noise)
 
 
+def _words(name: str) -> list[str]:
+    """The words of a name in snake_case, camelCase or with "-" or spaces, in lower case."""
+    snake = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name.strip()).lower()
+    return [w for w in re.split(r"[-_\s.]+", snake) if w]
+
+
 def judge_said(name: str) -> bool:
-    """Whether a field named `name` is what the LLM-as-a-judge wrote (_JUDGE_SAID): its name,
-    a part of it (_JUDGE_PART), or the word `reason` in it (grade_reason, finishReason)."""
+    """Whether a field named `name` is what the LLM-as-a-judge wrote: its name (_JUDGE_SAID),
+    or a word of it that is the judge's (_JUDGE_WORD)."""
     flat = re.sub(r"[-_\s]", "", name.lower())
-    words = re.split(r"[-_\s]+", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name.strip()).lower())
-    return (flat in _JUDGE_SAID or any(part in flat for part in _JUDGE_PART)
-            or bool({"reason", "reasons"} & set(words)))
+    return flat in _JUDGE_SAID or any(_JUDGE_WORD.fullmatch(w.removeprefix("llm"))
+                                      for w in _words(name))  # llmJudgeScore
 
 
 def _every_run(name: str) -> bool:
     """Whether a field named `name` is telemetry a run writes (_TELEMETRY): a word of it, an
     `_ms` or `_ns` ending, or a request, trace, span or run id."""
-    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name.strip()).lower()
-    words = [w for w in re.split(r"[-_\s]+", words) if w]
+    words = _words(name)
     if not words:
         return False
     return (bool(_TELEMETRY & set(words)) or words[-1] in ("ms", "ns") and len(words) > 1

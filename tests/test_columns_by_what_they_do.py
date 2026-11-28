@@ -22,7 +22,8 @@ BROKE_10 = f"On the {N} questions in both results: fixed 0, broke 10,"
 JUDGE = ["confidence", "critique", "eval_reason", "evaluation", "explanation", "feedback",
          "grade_reason", "grader_notes", "judge_cost", "judge_explanation", "judge_latency_ms",
          "judge_output", "judge_reason", "judge_score", "rationale", "reason",
-         "reasoning_judge", "score", "graded_at", "judge_reasoning", "eval_comment"]
+         "reasoning_judge", "score", "graded_at", "judge_reasoning", "eval_comment",
+         "grade_level", "llmJudgeScore", "EvalReason"]
 TELEMETRY = ["cost", "created_at", "duration_ms", "latency", "latency_ms", "request_id",
              "run_id", "timestamp", "tokens", "total_tokens", "trace_id", "completion_tokens",
              "cost_usd", "elapsed", "elapsed_s", "eval_id", "evaluated_at",
@@ -33,7 +34,10 @@ EVERY_ROW = ["date", "duration", "seconds", "time", "session",  # told by what t
 CONTENT = ["agent_model", "category", "context", "documents", "expected_output", "messages",
            "metadata", "plan", "reference", "retrieved_docs", "sources", "sql", "steps",
            "system_prompt", "tags", "tool_calls", "tools_used", "trajectory", "date",
-           "duration", "seconds", "time", "notes", "reasoning", "comments"]
+           "duration", "seconds", "time", "notes", "reasoning", "comments",
+           # a judge's word inside another word is not the judge's
+           "retrieval_context", "retrievalContext", "retrieval", "upgrade_path", "downgrade",
+           "scoreboard", "evalue", "regrade_policy"]
 
 
 def _said(capsys, *argv) -> tuple[int, str]:
@@ -218,3 +222,23 @@ def test_promptfoo_response_metadata_a_run_writes_is_left_out(tmp_path, monkeypa
         path.write_text(json.dumps(data), encoding="utf-8")
 
     _only_grades(*_both_ways(tmp_path, monkeypatch, capsys, write, "output.json"))
+
+
+@pytest.mark.parametrize("var", ["retrieval_context", "retrievalContext"])
+def test_promptfoo_vars_changed_on_some_answers_are_compared(tmp_path, monkeypatch, capsys,
+                                                             var):
+    """The documents a RAG test retrieved, new on the 10 rows that now fail."""
+    verdicts = [i % 3 != 0 for i in range(N)]
+    flip = [i for i, v in enumerate(verdicts) if v][:10]
+
+    def write(path, side):
+        new = side == "new"
+        data = promptfoo_data([v and not (new and i in flip) for i, v in enumerate(verdicts)])
+        for i, row in enumerate(data["results"]["results"]):
+            docs = f"Doc {i}: {'other' if new and i in flip else 'policy'} text."
+            for at in (row["vars"], row["testCase"]["vars"]):
+                at[var] = docs
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+    _broke_10(*_both_ways(tmp_path, monkeypatch, capsys, write, "output.json"))
+
