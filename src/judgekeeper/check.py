@@ -1932,6 +1932,9 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
         data["earlier_grades"] = earlier
     data.pop("results_left", None)  # back_to_marked's: about the judge before this one
     _marked_rule_kept(data)
+    from judgekeeper import before_after
+
+    data[before_after.REPLACED] = before_after.replaced(ws, data, found)  # before `given` moves
     if isinstance(data.get("given"), str) and data["given"] and found.tool != "mapped" \
             and found.results and found.results[0].path.is_file():
         data["given"] = found.results[0].rel  # a file named: plain runs read the one checked
@@ -1944,8 +1947,6 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
                 checked_at=utc_now())
     _write_grades(ws, found, answers, now)
     _write_json(ws.start, data)
-    from judgekeeper import before_after
-
     before_after.restart(ws)  # grades of another LLM-as-a-judge: no change of the answers
 
 

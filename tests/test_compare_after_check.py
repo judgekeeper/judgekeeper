@@ -430,3 +430,52 @@ def test_check_of_the_kept_judge_after_a_refused_check_says_no_back(tmp_path, mo
     assert code == 0, out
     assert BACK_TO not in _flat(out), out
     assert "\n\n\n" not in out, out  # no empty paragraph where it was
+
+
+@pytest.mark.parametrize("ids", [False, True], ids=["by-text", "by-id"])
+@pytest.mark.parametrize("how", ["named", "copy", "judge-model"])
+def test_before_the_file_a_check_replaced_is_another_setup(tmp_path, monkeypatch, capsys, ids,
+                                                           how):
+    """No judge_model column. `check new-results.csv` took on the new LLM-as-a-judge's grades
+    of the same answers, replacing results.csv's. `--before results.csv` (or a copy of it)
+    compares two setups: judgekeeper knows it, so it says so (exit 3), as with a model
+    column. It said "broke ... Your change made it worse" (exit 1) on answers word for word
+    the same."""
+    _checked(tmp_path, monkeypatch, capsys, ids, named=True)
+    other = "results.csv"
+    if how == "copy":
+        shutil.copy2(tmp_path / "results.csv", tmp_path / "old.csv")
+        other = "old.csv"
+    flags = ["--judge-model", "judge-new"] if how == "judge-model" else []
+    monkeypatch.setenv("CI", "true")
+    code, out = _run(capsys, "new-results.csv", "--before", other, *flags)
+    flat = _flat(out)
+    assert code == 3, out
+    assert before_after.OTHER_SETUP in flat, out
+    assert WORSE not in flat and "questions in both results:" not in flat, out
+
+
+@pytest.mark.parametrize("ids", [False, True], ids=["by-text", "by-id"])
+def test_before_files_of_one_setup_still_compare_after_a_check(tmp_path, monkeypatch, capsys,
+                                                               ids):
+    """Two files without a judge_model column, both from the setup the check took on, still
+    compare, and a real change for the worse fails (exit 1). results.csv graded again after
+    the check is no longer the file it replaced: it compares as documented."""
+    _checked(tmp_path, monkeypatch, capsys, ids, named=True)
+    shutil.copy2(tmp_path / "new-results.csv", tmp_path / "base.csv")
+    with (tmp_path / "new-results.csv").open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    passed = [r for r in rows if r["verdict"] == "pass"][:8]
+    assert len(passed) == 8
+    for r in passed:
+        r["verdict"] = "fail"
+    _write(tmp_path / "new-results.csv", rows, ids)
+    monkeypatch.setenv("CI", "true")
+    code, out = _run(capsys, "new-results.csv", "--before", "base.csv")
+    assert code == 1, out
+    assert "questions in both results: fixed 0, broke 8" in _flat(out), out
+    with (tmp_path / "base.csv").open(encoding="utf-8", newline="") as f:
+        _write(tmp_path / "results.csv", list(csv.DictReader(f)), ids)  # graded again
+    code, out = _run(capsys, "new-results.csv", "--before", "results.csv")
+    assert code == 1, out
+    assert "questions in both results: fixed 0, broke 8" in _flat(out), out
