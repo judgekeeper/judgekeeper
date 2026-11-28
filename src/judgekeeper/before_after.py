@@ -132,7 +132,7 @@ def grades_of(found: start.Found, numbers: bool = False) -> dict:
             "ids": bool(answers) and all(case is not None for case, _, _, _ in answers)}
 
 
-BLANK = "-"  # an answer with no text: whether it changed is not known
+BLANK = "-"  # an answer the results don't hold at all: whether it changed is not known
 
 
 def _answer_sums(answers) -> dict[str, list[str]]:
@@ -145,7 +145,7 @@ def _answer_sums(answers) -> dict[str, list[str]]:
     for case, question, _, (output, trajectory, outcome) in answers:
         data = canonical_json(["answer", question, output, trajectory, outcome]).encode(
             "utf-8", errors="surrogatepass")
-        blank = _blank(output) and trajectory is None and outcome is None
+        blank = output is None and trajectory is None and outcome is None  # empty is an answer
         out.setdefault(_key(case, question), []).append(
             BLANK if blank else hashlib.sha256(data).hexdigest()[:ID_LENGTH])
     return {k: sorted(v) for k, v in out.items()}
