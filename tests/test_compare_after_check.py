@@ -111,9 +111,10 @@ def test_a_later_change_of_the_answers_compares_as_usual(tmp_path, monkeypatch, 
     assert before_after.RESTARTED not in _flat(out), out
     with (tmp_path / "new-results.csv").open(encoding="utf-8", newline="") as f:
         rows = list(csv.DictReader(f))
-    for row in rows[:4]:  # the agent got 4 answers wrong that it had right: graded so
-        if row["verdict"] == "pass":
-            row["verdict"] = "fail"
+    passed = [row for row in rows if row["verdict"] == "pass"][:4]  # rows come in any order
+    assert len(passed) == 4, rows
+    for row in passed:  # the agent got 4 answers wrong that it had right: graded so
+        row["verdict"] = "fail"
     _write(tmp_path / "new-results.csv", rows, ids)
     _, out = _run(capsys, "--no-browser", "--port", "0")
     _run(capsys, "--stop")
