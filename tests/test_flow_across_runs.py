@@ -857,7 +857,8 @@ def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
 # Back to the marked judge ---------------------------------------------------------------------
 
 def test_back_to_the_marked_judge_after_a_worse_check(here, capsys):
-    """A check on another model said "Worse"; the eval runs with the old LLM-as-a-judge again."""
+    """A check on another model said "Worse"; the eval runs with the old LLM-as-a-judge again:
+    the marks never left it, so nothing says it is "back"."""
     from tests.test_check import LENIENT, MARKED, _results
 
     ws = _marked(here)
@@ -865,12 +866,11 @@ def test_back_to_the_marked_judge_after_a_worse_check(here, capsys):
     assert _check(capsys)[0] == 1  # Worse
     _results(here, MARKED)  # back to the judge the marks were made on
     out = _jk(capsys)[1]
-    assert "Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini)." in flat(out), out
+    assert "back to the one you marked with" not in flat(out), out
     assert "go back to" not in out and "go back to" not in _report(here).lower()
     code, out = _check(capsys)
     assert code == 0, out
-    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). The result from your "
-            "marks still stands.") in flat(out)
+    assert "back to the one you marked with" not in flat(out), out
     assert "has not changed since your last check" not in out
     assert judge_models(ws) == [MODEL]
 

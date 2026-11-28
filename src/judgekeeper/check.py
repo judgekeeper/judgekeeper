@@ -2095,8 +2095,9 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     closed: list[str] = []  # the marking page's line, said after the "back" one
     back = (back_to_marked(state.ws, found, said.say, again=len(state.marks), closed=closed)
             if found is not None else None)
-    if back:
-        said.say(back)
+    if back is not None:  # "" when the marks never left this judge: nothing to say of it
+        if back:
+            said.say(back)
         for line in closed:  # a paragraph of its own
             said.say()
             said.say(line)
@@ -2108,7 +2109,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
                 "marks": len(state.marks),
                 "free": 0, "groups": {}}))
         _report(state.ws)  # no "Worse" from the other judge on it
-        said.say()
+        if back or closed:
+            said.say()
         said.say(_next_same(state))
         return EXIT_OK
     changed = judge_setup.changes(old, new)
@@ -2743,10 +2745,19 @@ def _marked_setup(ws: Workspace) -> dict | None:
                 None)
 
 
+def _held(checks: list[dict]) -> bool:
+    """The last check (not a "back" one) kept the marks on the judge before it: "Worse", or
+    "Not sure" with a big drop (exit_worse). Then they never left it."""
+    last = next((c for c in reversed(checks) if c.get("trigger") != "back"), {})
+    return any(isinstance(g, dict) and g.get("exit_worse")
+               for g in (last.get("groups") or {}).values())
+
+
 def back_to_marked(ws: Workspace, found, say, again: int | None = None,
                    closed: list[str] | None = None) -> str | None:
     """The judge in the newest results (`found`) is the one the marks were made on, and the
-    last check was of another judge: the line that says so, else None. When that check moved
+    last check was of another judge: the line that says so ("" when that check kept the
+    marks on this judge, _held: they never left it, so there is nothing to say), else None. When that check moved
     the marks to the other judge, they test the judge they were made on again, with the grades
     they were made on (no AI call, _restore); after a "Worse", nothing was moved, and that
     "Worse" no longer applies (open_worse). Only for a judge that gives the marked answers the
@@ -2786,6 +2797,8 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None,
         _save_verdicts(ws, now, found, {i: a.verdict for i, a in graded.items()})
     if restored:
         _close_page(ws, closed.append if closed is not None else (lambda line: None), file=new)
+    elif not left and _held(checks):
+        return ""  # a check refused the other judge: the marks never left this one
     names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
     back = BACK.format(model=", ".join(names) or "model not named")
     if left:
