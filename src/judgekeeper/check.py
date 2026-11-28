@@ -186,6 +186,9 @@ NEXT_WORSE_SAME = ("the same model and rule gave different grades, so make your 
                    "Grade your marked answers again, then run `{command}`.")
 # A judge whose results hold no rule (a table): it changes only where the eval keeps it
 NEXT_WORSE_TABLE = "go back to your old LLM-as-a-judge or change its rule, {regrade}"
+# ...and no model named either: the grades may have changed with the same one
+NEXT_WORSE_UNNAMED = "change your LLM-as-a-judge's rule, or {regrade}"
+MARKED_WITH = "the LLM-as-a-judge you marked with"
 # A pass mark tried with --pass-if alone came out worse: the old one stays, nothing to grade
 NEXT_MARK_STAYS = ("nothing to do. Your pass mark stays {rule}. To try another, run "
                    "`{check} --pass-if {other}`.")  # other: quoted (quote_arg)
@@ -2670,6 +2673,12 @@ def worse_step(old: dict, new: dict, command: str, ws: Workspace, kept: bool = F
 
         folder = FOLDER if kept else fix.shown_folder(ws)
         answers = f"{folder}/{fix.FOLDER}/{fix.ANSWERS}"  # plain: report.html too
+        if not (old.get("models") or new.get("models")):
+            regrade = _regrade_answers(ws, answers, MARKED_WITH, kept=kept)
+            if (fix._folder(ws) / fix.ANSWERS).is_file():
+                regrade = (f"grade {answers} again with {MARKED_WITH}, then "
+                           f"{_run_in(ws, fix.NEW_RESULTS, not kept and _away(ws))}.")
+            return NEXT_WORSE_UNNAMED.format(regrade=regrade)
         return NEXT_WORSE_TABLE.format(regrade=_regrade_answers(ws, answers, "it", kept=kept))
     if not judge_setup.changes(old, new):  # the same model and rule, other grades
         return NEXT_WORSE_SAME.format(command=command)

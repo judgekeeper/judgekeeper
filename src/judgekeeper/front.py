@@ -2925,6 +2925,11 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     regraded = (check.grades_changed(ws, found, ruled=True)
                 if not (first or changed or marked_on or elsewhere or grades)
                 and found.rule is not None and found.results else 0)
+    # results that don't say who graded them: grades that changed on the same answers don't
+    # show another LLM-as-a-judge (the same one may grade otherwise), and marks don't depend
+    # on it, so new answers are added for marking all the same
+    noisy = bool(grades) and not (first or changed or elsewhere) and \
+        not before_after._says_who(found) and "picked" not in ws.data()  # no take-on: judged_by
     if regraded:  # the grades the numbers use are not the ones read: which, and the check
         head[:] = [x for x in head if x != newest]  # that compares them, as Next gives it
         head.append(_regraded_line(talk, ws, found, regraded))
@@ -2941,10 +2946,11 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
                 file=textio.line_path(read)))
         raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
             file=textio.line_path(read), program=project.program_anywhere() + talk.away))
-    if not (first or changed or grades or elsewhere):  # back on the marked judge too
+    if not (first or changed or grades or elsewhere) or noisy:  # back on the marked judge too
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
-        took = check.take_new_grades(ws, found)  # grades on answers left that waited
+        if not noisy:
+            took = check.take_new_grades(ws, found)  # grades on answers left that waited
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
         head.append(back)  # the judge marked on
@@ -2968,7 +2974,13 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             head.append(_sentence(_graded_in(ws, found)) + ".")
         else:  # a table graded again
             head.append(_regraded_line(talk, ws, found, grades))
-        then = _waiting(talk, ws, found, head, bool(changed))
+        if noisy and added:
+            added_at = len(head)
+            head.append(batches.added_line(added))
+            if is_open(ws.dir):  # the page open shows the pool without the new batch
+                background.stop(ws.dir)
+        elif not noisy:
+            then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         added_at = len(head)
         head.append(batches.added_line(added))

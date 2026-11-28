@@ -605,9 +605,10 @@ def test_later_batch_in_two_sittings_same_share_kept_aside(here):
 
 # after "Worse", a waiting batch keeps one way out ----------------------------------------
 
-NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge or change its rule, run "
+NEXT_WORSE_TABLE = ("Next: change your LLM-as-a-judge's rule, or run "  # no model named
                     "`judgekeeper fix` to write the answers you marked to "
-                    ".judgekeeper/fix/marked-answers.csv, grade them again with it, then run "
+                    ".judgekeeper/fix/marked-answers.csv, grade them again with the "
+                    "LLM-as-a-judge you marked with, then run "
                     "`judgekeeper check <new results file>`.")
 
 
@@ -638,13 +639,14 @@ def test_after_worse_a_waiting_batch_does_not_bring_back_the_loop(here, capsys, 
 # new answers that came with changed grades wait ------------------------------------------
 
 def test_new_answers_with_changed_grades_wait_and_the_screen_says_so(here, capsys, pages):
-    table_project(here, split(20, 16))
+    """With a model named (without one, they are added: test_new_answers_never_wait_...)."""
+    table_project(here, split(20, 16), model="judge-a")
     assert run(capsys, "--no-browser")[0] == 0
     ws = Workspace(here)
     _mark(ws)
     run(capsys, "--no-browser")
     regraded = [(not v) if i % 6 == 0 else v for i, v in enumerate(split(20, 16))]
-    table_project(here, regraded + split(10, 10))  # 20 new answers, and grades changed
+    table_project(here, regraded + split(10, 10), model="judge-a")  # 20 new, grades changed
     line = ("20 new answers came with changed grades, so they wait until your changed LLM-as-a-judge "
             "is checked.")
     for argv in (("mark", "--no-browser"), ("--no-browser",)):

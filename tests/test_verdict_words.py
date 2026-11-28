@@ -245,11 +245,12 @@ def test_after_worse_a_table_judge_is_told_to_grade_the_marked_answers_again(her
     assert code == 1 and "Worse" in out, out
     nxt = out[out.rindex("Next: "):]
     assert "run your eval" not in nxt
-    assert ("Next: go back to your old LLM-as-a-judge or change its rule, run `judgekeeper "
+    assert ("Next: change your LLM-as-a-judge's rule, or run `judgekeeper "  # no model named
             "fix` to write the answers you marked to .judgekeeper/fix/marked-answers.csv, "
-            "grade them again with it, then run `judgekeeper check <new results file>`.") in nxt
+            "grade them again with the LLM-as-a-judge you marked with, then run `judgekeeper "
+            "check <new results file>`.") in nxt
     run(capsys, "fix")
     code, out = run(capsys, "check")
-    assert ("Next: go back to your old LLM-as-a-judge or change its rule, grade the answers in "
-            ".judgekeeper/fix/marked-answers.csv again with it, then run `judgekeeper check "
-            "<new results file>`.") in out
+    assert ("Next: change your LLM-as-a-judge's rule, or grade "
+            ".judgekeeper/fix/marked-answers.csv again with the LLM-as-a-judge you marked "
+            "with, then run `judgekeeper check <new results file>`.") in out

@@ -35,6 +35,7 @@
 - When your results don't say which model, rule or prompt graded them, a question counts as fixed or broke only when its answers changed (the question, the answer, or its steps or outcome). When only the grades changed and every question and answer stayed word for word the same, a plain run says "Only the grades changed since the last results, not the answers, so there is nothing to compare." and starts again, and `--before` says it does not compare them and exits 3. A stricter LLM-as-a-judge on the same answers was "Your change made it worse" (exit 1).
 - When your results don't say which model, rule or prompt graded them, reading the results your marks were made on again after `check` took on another LLM-as-a-judge is now going back to the one you marked with, told by the grades of the marked answers whose text is unchanged. Their new answers are added for marking; before, they were never added and `check` said worse.
 - On such results, `--before` while that take-on holds tells the two files apart the same way, by the grades of the unchanged marked answers in each, so two files of the LLM-as-a-judge you marked with compare (a copy of the file `check` replaced was refused). A `--before` run never goes back to the one you marked with.
+- On such results, new answers are added for marking also when some of your marked answers got other grades: that alone doesn't show another LLM-as-a-judge, and your marks don't depend on it. They waited until a check.
 
 ## 1.4.0 (2026-11-23)
 
