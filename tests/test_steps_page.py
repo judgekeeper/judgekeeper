@@ -558,7 +558,7 @@ def test_the_marking_page_holds_none_of_the_picks(serve, tmp_path):
     assert "zeta-judge" not in page and "PICK-REASON" not in page
     data = json.loads(unescape(page.split('id="data">')[1].split("</script>")[0]))
     assert set(data) == {"runs", "start", "total", "marked", "intro"}
-    assert all(set(r) == {"id", "n", "task", "steps", "mark"} for r in data["runs"])
+    assert all(set(r) == {"id", "n", "task", "steps", "mark", "steps_hash"} for r in data["runs"])
 
 
 @pytest.mark.parametrize(("gone", "said"), [
