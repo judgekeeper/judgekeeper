@@ -33,14 +33,16 @@ Using a coding agent? Give it this page and say: "Follow this to run judgekeeper
 | Your agent's or chatbot's answers, no grades | `judgekeeper` | How many pass, with a range |
 | Grades from an LLM-as-a-judge | `judgekeeper` | How often it agrees with your marks |
 
-It reads promptfoo, DeepEval, Inspect AI, MLflow, Label Studio exports, or your own CSV, TSV or JSONL file. [Formats](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#what-it-reads)
+It reads promptfoo, DeepEval, Inspect AI, MLflow, Label Studio exports, or your own CSV, TSV or JSONL file. [Formats](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#what-it-reads) · [Agent runs and picks](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#steps-mark-an-agent-runs-first-wrong-step-then-check-an-agent-as-a-judge)
 
 ## The 4 steps
 
 1. **Read:** `judgekeeper` finds your results and opens a page. Mark each answer Pass or Fail.
 2. **Measure:** run `judgekeeper` again to see how often the LLM-as-a-judge agrees with you.
-3. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
-4. **Re-check:** grade the marked answers again, then run `judgekeeper check new-results.json`.
+3. **Fix:** `judgekeeper fix` shows where the LLM-as-a-judge goes wrong. Change its rule, grade `.judgekeeper/fix/marked-answers.csv` again, then `judgekeeper fix new-results.json` tests it on marks kept aside.
+4. **Re-check:** `judgekeeper check new-results.json` re-checks it on all your marks.
+
+A result needs at least 15 Pass and 15 Fail marks (10 marks with no grades); for agent runs, 15 that went wrong and 15 that were fine. [More](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#judgekeeper-read-and-measure)
 
 judgekeeper makes no AI call and needs no API key. In your project it writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. [Security](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md)
 
