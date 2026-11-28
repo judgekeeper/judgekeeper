@@ -505,7 +505,9 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 evaluator["prompt"] = prompt
             problem = MODEL_FAILED if failed else grader_problem(c, metadata)
             counted = "fail" if failed else label
-            mark = Mark(problem=problem, tool_counted_as=counted if problem else None)
+            # an agent assertion grades the agent's run, which the results don't hold
+            mark = Mark(problem=problem, tool_counted_as=counted if problem else None,
+                        graded_unread=judge_type(kind) in AGENT_GRADED)
             kept = {"reference": True} if kind in REFERENCE_TYPES else {}
             threshold = a.get("threshold")  # a score under it fails: part of the judge
             if isinstance(threshold, int | float) and not isinstance(threshold, bool):

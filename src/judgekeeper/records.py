@@ -285,11 +285,29 @@ class Mark:
     so there was no answer to judge). `tool_counted_as`: what the eval tool counted such a
     verdict as ("pass", "fail" or "left out"); None when it does not say. `output_elsewhere`:
     the answer is not in `output` (a DeepEval conversation's turns).
+
+    For before_after, whether an answer stayed the same: `graded_on`, a hash (graded_sum) of
+    what else of the case the grade can follow that the file holds (a DeepEval case's
+    retrievalContext, a conversation's turns, an MLflow trace's spans); `graded_unread`, the
+    grade follows something the file doesn't hold (a promptfoo agent assertion's run).
     """
 
     problem: str | None = None
     tool_counted_as: str | None = None
     output_elsewhere: bool = False
+    graded_on: str | None = None
+    graded_unread: bool = False
+
+
+def graded_sum(parts: dict) -> str | None:
+    """For Mark.graded_on: a hash of the parts of a case, besides its question and answer,
+    that its grade can follow; the ones set only. None when none is."""
+    from judgekeeper.anchors import canonical_json
+
+    kept = {k: v for k, v in parts.items() if v not in (None, "", [], {})}
+    if not kept:
+        return None
+    return hashlib.sha256(canonical_json(kept).encode("utf-8", "surrogatepass")).hexdigest()
 
 
 NO_MARK = Mark()

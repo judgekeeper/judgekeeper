@@ -29,6 +29,7 @@ from judgekeeper.records import (
     all_damaged,
     damaged,
     derive_record_id,
+    graded_sum,
     load_json,
     read_rows,
 )
@@ -85,7 +86,21 @@ def failed(md: dict) -> bool:
 EMPTY_REFUSED = "'actual_output' cannot be empty"
 
 
-def _mark(md: dict, label, conversational: bool) -> Mark:
+# what a case's grade can follow besides its input and actualOutput (DeepEval's LLMTestCase
+# and ConversationalTestCase fields, as its results file names them)
+CASE_GRADED = ("expectedOutput", "context", "retrievalContext", "toolsCalled", "expectedTools")
+CONVERSATION_GRADED = ("turns", "expectedOutcome", "chatbotRole", "userDescription", "context")
+
+
+def _graded(case: dict, conversational: bool) -> dict:
+    """Mark's graded_on and graded_unread for a case: a conversation saved without its turns
+    was graded on turns the file doesn't hold."""
+    fields = CONVERSATION_GRADED if conversational else CASE_GRADED
+    return {"graded_on": graded_sum({k: case.get(k) for k in fields}),
+            "graded_unread": conversational and not case.get("turns")}
+
+
+def _mark(md: dict, label, conversational: bool, graded: dict) -> Mark:
     problem = None
     if failed(md):
         refused = str(md.get("error") or "").startswith(EMPTY_REFUSED)
@@ -93,7 +108,7 @@ def _mark(md: dict, label, conversational: bool) -> Mark:
     elif checked_nothing(md):
         problem = "nothing_checked"
     return Mark(problem=problem, tool_counted_as=label if problem else None,
-                output_elsewhere=conversational)
+                output_elsewhere=conversational, **graded)
 
 
 LINK_ONLY = "{file} only links to Confident AI; your results aren't saved on this computer."
@@ -158,6 +173,7 @@ def read_deepeval(path: str | Path) -> RecordList:
             records.ids_derived = True
         else:
             item_id = str(name)
+        graded = _graded(case, conversational)
         for md in case.get("metricsData") or []:
             success = md.get("success")
             evaluator = {}
@@ -179,7 +195,7 @@ def read_deepeval(path: str | Path) -> RecordList:
                 score=md.get("score"), explanation=md.get("reason") or (error_type(md["error"]) if md.get("error")
                                                  else None),
                 input=item_input, output=output, evaluator=evaluator, created_at=created_at,
-                mark=_mark(md, label, conversational)))
+                mark=_mark(md, label, conversational, graded)))
 
     read_rows(records, enumerate(cases, 1), read_case)
     all_damaged(path, "DeepEval", records)

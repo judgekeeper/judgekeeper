@@ -46,7 +46,6 @@ from judgekeeper.records import (
     CODE,
     HUMAN,
     LLM,
-    NO_MARK,
     Damaged,
     Mark,
     RecordList,
@@ -54,6 +53,7 @@ from judgekeeper.records import (
     ScoreRecord,
     check_record,
     derive_record_id,
+    graded_sum,
 )
 from judgekeeper.textio import get_extra, quoted_name, reading
 
@@ -1039,6 +1039,27 @@ def _content(trace) -> tuple:
     return _json(request), _json(response)
 
 
+def _graded(trace, root: str | None, no_spans: bool) -> dict:
+    """Mark's graded_on and graded_unread for a trace's judgments: a judge on the trace can
+    grade its steps (the spans under the root, their inputs and outputs) and the expected
+    answers given (expectation assessments). With no spans to read, the grade may follow
+    steps judgekeeper can't see."""
+    spans = getattr(getattr(trace, "data", None), "spans", None) or []
+    steps = [[getattr(s, "name", None), str(getattr(s, "span_type", None)),
+              getattr(s, "inputs", None), getattr(s, "outputs", None)]
+             for s in spans if s.span_id != root]
+    expected = {}
+    for a in trace.info.assessments or []:
+        d = a.to_dictionary()
+        if isinstance(d.get("expectation"), dict) and d.get("valid") is not False:
+            expected[str(d.get("assessment_name"))] = d["expectation"].get("value")
+    try:
+        return {"graded_on": graded_sum({"steps": steps, "expected": expected}),
+                "graded_unread": no_spans}
+    except (TypeError, ValueError):  # a step's data that isn't JSON: it can't be told
+        return {"graded_unread": True}
+
+
 def _root_span(trace) -> str | None:
     """The id of the trace's root span (the one with no parent), or None."""
     spans = getattr(getattr(trace, "data", None), "spans", None) or []
@@ -1354,6 +1375,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
             root = _root_span(trace)
             # no spans at all (their files are on a server): every assessment is on the answer
             no_spans = not (getattr(getattr(trace, "data", None), "spans", None) or [])
+            graded = _graded(trace, root, no_spans)
             for a in trace.info.assessments or []:
                 d = a.to_dictionary()
                 feedback = d.get("feedback")
@@ -1404,7 +1426,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                 explanation = error or d.get("rationale") or None
                 record = ScoreRecord(annotator_kind=LLM, explanation=explanation,
                                      evaluator=evaluator, **common,
-                                     mark=Mark(problem="error") if error else NO_MARK)
+                                     mark=Mark(problem="error" if error else None, **graded))
                 if span:
                     on_spans.append((run, record))
                 else:

@@ -122,10 +122,11 @@ def grades_of(found: start.Found, numbers: bool = False) -> dict:
 
     newest = found.used[0] if found.used else None
     # the answer as the agent gave it: its text and its steps and outcome (records, Inspect AI)
+    # and what else of it the grade follows (records.Mark's graded_on and graded_unread)
     answers = [(a.case, a.input, a.verdict, (a.output, a.agent.get("trajectory"),
-                                             a.agent.get("outcome")))
+                                             a.agent.get("outcome"), a.mark))
                for a in found.pool.answers if a.source == newest]
-    answers += [(case, r.input, None, (r.output, r.trajectory, r.outcome))
+    answers += [(case, r.input, None, (r.output, r.trajectory, r.outcome, r.mark))
                 for i, (source, case) in found.pool.left_from.items()
                 for r in [found.pool.left[i][1]] if source == newest]  # no Pass or Fail grade
     answers = [(c if c is not None and (numbers or not plain_number(c) or _blank(q)) else None,
@@ -148,15 +149,18 @@ def _answer_sums(answers) -> dict[str, list[str]]:
     """{question key: a hash of each of its answers}: whether the answers changed, never
     their text. Each hash holds the whole question (a prompt changed inside it, under the same
     id, is a change), the answer, and its steps and outcome (output, trajectory, outcome),
-    their texts without the spaces at their ends (_ends)."""
+    their texts without the spaces at their ends (_ends), and what else of the case the grade
+    follows (mark.graded_on). An answer whose grade follows something the results don't hold
+    (mark.graded_unread) is BLANK: compared, as an answer that may have changed."""
     from judgekeeper.table import ID_LENGTH, canonical_json
 
     out: dict[str, list[str]] = {}
-    for case, question, _, (output, trajectory, outcome) in answers:
-        data = canonical_json(["answer", _ends(question), _ends(output), trajectory,
-                               outcome]).encode(
+    for case, question, _, (output, trajectory, outcome, mark) in answers:
+        data = canonical_json(["answer", _ends(question), _ends(output), trajectory, outcome]
+                              + ([mark.graded_on] if mark.graded_on else [])).encode(
             "utf-8", errors="surrogatepass")
-        blank = output is None and trajectory is None and outcome is None  # empty is an answer
+        blank = mark.graded_unread or (  # empty is an answer
+            output is None and trajectory is None and outcome is None)
         out.setdefault(_key(case, question), []).append(
             BLANK if blank else hashlib.sha256(data).hexdigest()[:ID_LENGTH])
     return {k: sorted(v) for k, v in out.items()}
