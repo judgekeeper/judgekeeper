@@ -1,6 +1,6 @@
 # judgekeeper
 
-> The keeper of human judgment for AI. Human judgment decides what's right. See how often each automated check agrees with it, from an LLM-as-a-judge grading one answer to an agent-as-a-judge checking each step of an agent, and see if agreement goes up or down after each change. Read. Measure. Fix. Re-check. An LLM-as-a-judge is an AI model that grades the answers of another AI model, Pass or Fail, with a rule. judgekeeper shows how often it agrees with you. It is an open-source command-line tool that runs on your own computer.
+> Check agents and chatbots with human judgment. Read. Measure. Fix. Re-check. judgekeeper checks your AI agent or chatbot with human judgment. You mark what's right, and it shows how often an agent-as-a-judge or an LLM-as-a-judge (an AI model that grades another model's work) agrees with you, and where it goes wrong. It is an open-source command-line tool that runs on your own computer.
 
 - Label Studio: judgekeeper reads a Label Studio export as your labels, and with too few labels it writes a Label Studio import file with the few answers to label next.
 - People agreement: with two or more people on the same answers, judgekeeper also says how much they agree with each other (kappa, or Krippendorff's alpha for three or more people).

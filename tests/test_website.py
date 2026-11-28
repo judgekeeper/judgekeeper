@@ -441,10 +441,10 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("The judgekeeper logo and the words: The keeper of human judgment for AI. "
              "Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
-HOME_DESCRIPTION = ("Human judgment decides what's right. See how often each automated check "
-                    "agrees with it, from an LLM-as-a-judge grading one answer to an "
-                    "agent-as-a-judge checking each step of an agent, and see if agreement goes up "
-                    "or down after each change.")
+HOME_DESCRIPTION = ("judgekeeper checks your AI agent or chatbot with human judgment. You mark "
+                    "what's right, and it shows how often an agent-as-a-judge or an "
+                    "LLM-as-a-judge (an AI model that grades another model's work) agrees with "
+                    "you, and where it goes wrong.")
 HOME_MORE = (" Read. Measure. Fix. Re-check. Open source; it reads the results "
              "your eval tool saved.")
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}

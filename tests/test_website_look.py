@@ -864,8 +864,8 @@ GUIDE_TABS = [("results", "Eval results", "graded by an LLM-as-a-judge"),
 GUIDE_STEPS = {
     "results": [
         ("Read.", ("Run it in your project folder. It finds your results and opens the marking "
-                   "page. Mark each answer Pass or Fail. Your LLM-as-a-judge’s grade stays hidden "
-                   "while you mark."), ["judgekeeper"]),
+                   "page. Mark each answer Pass or Fail. While you mark, the grade from your "
+                   "LLM-as-a-judge stays hidden."), ["judgekeeper"]),
         ("Measure.", ("See how often your LLM-as-a-judge agrees with you, and the answers where "
                       "you disagree. Too early to tell? Mark more."), ["judgekeeper mark"]),
         ("Fix.", ("Get the answers it got wrong and write a better rule. Grade the marked answers "
@@ -1576,9 +1576,9 @@ def test_testing_a_new_rule_is_said_for_every_eval_tool():
     meta = [el.attrs["content"] for el in parse(HOME).iter()
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
-    short = ("Human judgment decides what's right. See how often each automated check agrees "
-             "with it, from an LLM-as-a-judge grading one answer to an agent-as-a-judge checking "
-             "each step of an agent, and see if agreement goes up or down after each change.")
+    short = ("judgekeeper checks your AI agent or chatbot with human judgment. You mark what's "
+             "right, and it shows how often an agent-as-a-judge or an LLM-as-a-judge (an AI "
+             "model that grades another model's work) agrees with you, and where it goes wrong.")
     assert meta == [short + (" Read. Measure. Fix. Re-check. Open source; it reads "
                              "the results your eval tool saved."), short, short]
     for json_ld in (el for el in _els(HOME) if el.attrs.get("type") == "application/ld+json"):
