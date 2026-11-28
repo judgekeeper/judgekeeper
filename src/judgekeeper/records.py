@@ -299,6 +299,30 @@ class Mark:
     graded_unread: bool = False
 
 
+# Field names of what changes on every run, not what a grade follows: ids, times, durations,
+# costs and token counts (snake_case or camelCase)
+_EVERY_RUN = re.compile(r"(^|_)(ids?|uuid|at|time|timestamp|date|duration|latency|elapsed|cost"
+                        r"|usage|tokens?|ms|seconds)$|[a-z0-9](Ids?|Uuid|At|Time|Timestamp"
+                        r"|Duration|Latency|Cost|Usage|Tokens?|Ms|Seconds)$")
+
+
+def _kept(value):
+    """`value` without the fields that change on every run (_EVERY_RUN), at any depth."""
+    if isinstance(value, dict):
+        return {k: _kept(v) for k, v in value.items()
+                if not (isinstance(k, str) and _EVERY_RUN.search(k))}
+    if isinstance(value, list):
+        return [_kept(v) for v in value]
+    return value
+
+
+def graded_rest(item: dict, left: set) -> str | None:
+    """For Mark.graded_on: every field of `item` but the ones in `left` (the question, the
+    answer, the grade, its score and reason, the LLM-as-a-judge's setup) and the ones that
+    change on every run. Erring toward a field kept: a changed answer is compared."""
+    return graded_sum({"rest": _kept({k: v for k, v in item.items() if k not in left})})
+
+
 def graded_sum(parts: dict) -> str | None:
     """For Mark.graded_on: a hash of the parts of a case, besides its question and answer,
     that its grade can follow; the ones set only. None when none is."""
@@ -356,6 +380,12 @@ class ScoreRecord:
         if found:
             raise RecordsError(found[0])
         version = d.get("schema_version")
+        extra = {k: v for k, v in d.items() if k not in ALL_FIELDS}
+        metadata = dict(d.get("metadata") or {})
+        setup = ("pass_mark", "pass_op")  # how the score is held: the LLM-as-a-judge's
+        graded = graded_sum({"extra": _kept(extra),
+                             "metadata": _kept({k: v for k, v in metadata.items()
+                                                if k not in setup})})
         return cls(
             target_id=None if _blank(d.get("target_id")) else str(d["target_id"]).strip(),
             name=_name(d.get("name")),
@@ -368,12 +398,13 @@ class ScoreRecord:
             output=_content(d.get("output")),
             evaluator=_evaluator(d.get("evaluator")),
             created_at=None if _blank(d.get("created_at")) else str(d["created_at"]),
-            metadata=dict(d.get("metadata") or {}),
+            metadata=metadata,
             trajectory=d.get("trajectory") or None,
             outcome=d.get("outcome"),
             app_version=None if _blank(d.get("app_version")) else str(d["app_version"]),
             schema_version=1 if version is None else int(version),
-            extra={k: v for k, v in d.items() if k not in ALL_FIELDS},
+            extra=extra,
+            mark=Mark(graded_on=graded) if graded else NO_MARK,
         )
 
 

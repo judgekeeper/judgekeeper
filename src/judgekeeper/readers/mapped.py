@@ -21,10 +21,12 @@ from pathlib import Path
 from judgekeeper import mapper
 from judgekeeper.records import (
     LLM,
+    Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
     derive_record_id,
+    graded_rest,
     read_rows,
 )
 
@@ -160,12 +162,44 @@ def _records(item, side, judge, question, answer, model, m, unnamed) -> list[Sco
     if m.get("id") and item_id is None:
         metadata["no_id"] = True  # its id is blank: _own_ids
     return [ScoreRecord(
+        mark=Mark(graded_on=_rest(item, m)),
         target_id=item_id or derive_record_id(question, answer),
         name=judge if judge is not None else unnamed, annotator_kind=LLM, label=verdict,
         score=float(score) if score is not None else None,
         explanation=None if reason is None else str(reason), input=question, output=answer,
         evaluator={"model": model} if model else {},
         metadata=metadata)]
+
+
+def _rest(item: dict, m: dict) -> str | None:
+    """What else of the item a grade can follow (records.graded_rest): the item without every
+    judge's score and reason, the model and pass mark the map reads, or the id."""
+    import copy
+
+    item = copy.deepcopy(item)
+    for key in ("score", "reason", "id", "model_key", "pass_mark_key"):
+        if isinstance(m.get(key), str) and m[key]:
+            try:
+                _drop(item, mapper.parse(m[key]))
+            except mapper.MapError:
+                pass
+    return graded_rest(item, set())
+
+
+def _drop(obj, path: list) -> None:
+    """Remove the field at `path` (mapper.parse) from `obj`; at a side or judge placeholder,
+    every one's."""
+    if not path or not isinstance(obj, dict):
+        return
+    (key, many), rest = path[0], path[1:]
+    for k in list(obj) if key in (mapper.SIDE, mapper.JUDGE) else [key]:
+        if k not in obj:
+            continue
+        if not rest:
+            del obj[k]
+            continue
+        for x in obj[k] if many and isinstance(obj[k], list) else [obj[k]]:
+            _drop(x, rest)
 
 
 def _model(item: dict, up: list, m: dict) -> str | None:

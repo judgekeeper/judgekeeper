@@ -38,8 +38,10 @@ from judgekeeper.records import (
     RecordList,
     RecordsError,
     ScoreRecord,
+    _kept,
     all_damaged,
     derive_record_id,
+    graded_sum,
     load_json,
     read_rows,
 )
@@ -460,6 +462,14 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
         run = seen[(item_id, r.get("promptIdx"))]
         test_opts = _options(r.get("testCase"))
         content = {"input": _question(r), "output": _text((r.get("response") or {}).get("output"))}
+        # what else the grade follows: the prompt the vars went into, the test's own asserts
+        # (their values: references, rubrics) and metadata; not its grader (options)
+        test = r.get("testCase") if isinstance(r.get("testCase"), dict) else {}
+        rest = graded_sum({"prompt": (r.get("prompt") or {}).get("raw")
+                           if isinstance(r.get("prompt"), dict) else None,
+                           "test": _kept({k: v for k, v in test.items()
+                                          if k not in ("options", "provider", "description",
+                                                       "threshold")})})
         per_row = defaultdict(int)
         components = _components(r.get("gradingResult"))
         failed = id(r) in no_details and _provider_failed(r)
@@ -507,7 +517,7 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
             counted = "fail" if failed else label
             # an agent assertion grades the agent's run, which the results don't hold
             mark = Mark(problem=problem, tool_counted_as=counted if problem else None,
-                        graded_unread=judge_type(kind) in AGENT_GRADED)
+                        graded_on=rest, graded_unread=judge_type(kind) in AGENT_GRADED)
             kept = {"reference": True} if kind in REFERENCE_TYPES else {}
             threshold = a.get("threshold")  # a score under it fails: part of the judge
             if isinstance(threshold, int | float) and not isinstance(threshold, bool):

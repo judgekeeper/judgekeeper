@@ -27,11 +27,13 @@ from judgekeeper.records import (
     CODE,
     HUMAN,
     Damaged,
+    Mark,
     RecordList,
     RecordsError,
     ScoreRecord,
     all_damaged,
     damaged,
+    graded_rest,
     load_json,
     read_rows,
 )
@@ -223,7 +225,8 @@ def _read_task(records: RecordList, t: dict, control: str | None, keys, version:
     if target_id is None:
         raise TypeError("a task with no id")
     common = {"target_id": target_id, "name": control or "verdict", "input": question,
-              "output": output}
+              "output": output,
+              "mark": Mark(graded_on=graded_rest(data, {ask, answer}))}  # the task's other data
 
     for kind, label in _predictions(t, control, version):
         records.append(ScoreRecord(
