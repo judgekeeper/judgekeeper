@@ -71,7 +71,7 @@ def _flat(text: str) -> str:
 
 def _checked(here, monkeypatch, capsys, ids: bool, grade=None, named: bool = False,
              models: tuple[str, str] | None = None, check: bool = True):
-    """The tester's lenient/ flow up to `check NEW`: every answer marked as it truly is, a
+    """The lenient LLM-as-a-judge's flow up to `check NEW`: every answer marked as it truly is, a
     plain run (the old LLM-as-a-judge's result), fix, marked-answers.csv graded again by
     `grade` (the right grade by default) into new-results.csv, `fix` and `check` on it.
     `named`: the first runs name results.csv (`judgekeeper results.csv`). `models`: each

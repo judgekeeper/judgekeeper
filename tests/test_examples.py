@@ -26,15 +26,14 @@ def _unranged(text: str) -> list[str]:
 
 
 def test_every_percent_in_the_readme_comes_with_its_range():
-    """The bare percentages are the bar for "good enough to use" and its range's level, from the
-    code."""
+    """The README has no bare percentage; the bar for "good enough to use" and its range's
+    level, from the code, are in the reference."""
     from judgekeeper import targets, weighted
 
-    gate = (f"a wider range ({weighted.VERDICT_LEVEL:.0%}) starts at {targets.RATE_GATE:.0%} or "
-            "more for both.")
-    text = README.read_text(encoding="utf-8")
-    assert gate in text
-    assert not _unranged(text.replace(gate, ""))
+    gate = (f"when the low end of both wider ranges ({weighted.VERDICT_LEVEL:.0%}) is at least "
+            f"{targets.RATE_GATE:.0%}")
+    assert gate in (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+    assert not _unranged(README.read_text(encoding="utf-8"))
 
 
 def test_the_range_check_catches_a_bare_percent():
