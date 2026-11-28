@@ -226,7 +226,7 @@ def _read_task(records: RecordList, t: dict, control: str | None, keys, version:
         raise TypeError("a task with no id")
     common = {"target_id": target_id, "name": control or "verdict", "input": question,
               "output": output,
-              "mark": Mark(graded_on=graded_rest(data, {ask, answer}))}  # the task's other data
+              "mark": Mark(graded_fields=graded_rest(data, {ask, answer}))}  # the task's other data
 
     for kind, label in _predictions(t, control, version):
         records.append(ScoreRecord(

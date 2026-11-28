@@ -154,7 +154,7 @@ def test_a_new_reference_answer_in_a_promptfoo_assertion_is_another_setup(tmp_pa
 
 
 def test_a_label_studio_task_with_other_data_is_another_answer(tmp_path):
-    """Label Studio: the task's data beside the question and the answer is in the hash."""
+    """Label Studio: the task's data beside the question and the answer is hashed."""
     from judgekeeper.readers import label_studio
 
     def sums(context: str) -> set:
@@ -166,7 +166,7 @@ def test_a_label_studio_task_with_other_data_is_another_answer(tmp_path):
                   "annotations": []} for i in range(3)]
         path = tmp_path / f"export-{context[-1]}.json"
         path.write_text(json.dumps(tasks), encoding="utf-8")
-        return {r.mark.graded_on for r in label_studio.read_label_studio(path)}
+        return {r.mark.graded_fields for r in label_studio.read_label_studio(path)}
 
     assert None not in sums("doc A") and sums("doc A") != sums("doc B")
 
@@ -186,7 +186,7 @@ def test_a_mapped_item_with_other_fields_is_another_answer(tmp_path):
             "id": f"q{i}", "question": f"Q{i}?", "answer": f"A{i}.", "context": context,
             "scores": {"a": 0.9, "b": b}, "reasons": {"a": "ok", "b": "fine"},
             "latency_seconds": seconds}) + "\n" for i in range(3)), encoding="utf-8")
-        return {r.mark.graded_on for _, recs in read_mapped(path, m) for r in recs}
+        return {r.mark.graded_fields for _, recs in read_mapped(path, m) for r in recs}
 
     assert None not in sums("doc A") and sums("doc A") != sums("doc B")
     assert sums("doc A") == sums("doc A", b=0.1, seconds=9)  # another judge's grade, a time

@@ -162,7 +162,7 @@ def _records(item, side, judge, question, answer, model, m, unnamed) -> list[Sco
     if m.get("id") and item_id is None:
         metadata["no_id"] = True  # its id is blank: _own_ids
     return [ScoreRecord(
-        mark=Mark(graded_on=_rest(item, m)),
+        mark=Mark(graded_fields=_rest(item, m)),
         target_id=item_id or derive_record_id(question, answer),
         name=judge if judge is not None else unnamed, annotator_kind=LLM, label=verdict,
         score=float(score) if score is not None else None,

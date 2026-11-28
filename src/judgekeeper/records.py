@@ -289,7 +289,9 @@ class Mark:
     For before_after, whether an answer stayed the same: `graded_on`, a hash (graded_sum) of
     what else of the case the grade can follow that the file holds (a DeepEval case's
     retrievalContext, a conversation's turns, an MLflow trace's spans); `graded_unread`, the
-    grade follows something the file doesn't hold (a promptfoo agent assertion's run).
+    grade follows something the file doesn't hold (a promptfoo agent assertion's run);
+    `graded_fields`, the rest of a row or record (graded_rest), each field as a hash, so a
+    field the same on every row of a file (a run number, a date) is left out of the answer.
     """
 
     problem: str | None = None
@@ -297,6 +299,7 @@ class Mark:
     output_elsewhere: bool = False
     graded_on: str | None = None
     graded_unread: bool = False
+    graded_fields: tuple[tuple[str, str], ...] | None = None
 
 
 # Field names of what changes on every run, not what a grade follows: ids, times, durations,
@@ -306,21 +309,49 @@ _EVERY_RUN = re.compile(r"(^|_)(ids?|uuid|at|time|timestamp|date|duration|latenc
                         r"|Duration|Latency|Cost|Usage|Tokens?|Ms|Seconds)$")
 
 
+# What an LLM-as-a-judge writes beside its grade: its words, a score or confidence of its own.
+# Names compared in lower case, with "-", "_" and spaces left out.
+_JUDGE_SAID = {"explanation", "rationale", "reasoning", "reason", "critique", "feedback",
+               "comment", "comments", "notes", "confidence"}
+_JUDGE_PART = ("reason", "score", "judge", "grader", "eval", "verdict", "grade", "critique",
+               "rationale")
+
+
+def judge_said(name: str) -> bool:
+    """Whether a field named `name` is what the LLM-as-a-judge wrote (_JUDGE_SAID)."""
+    flat = re.sub(r"[-_\s]", "", name.lower())
+    return flat in _JUDGE_SAID or any(part in flat for part in _JUDGE_PART)
+
+
+def _every_run(name: str) -> bool:
+    """Whether a field named `name` changes on every run (_EVERY_RUN)."""
+    return bool(_EVERY_RUN.search(name))
+
+
 def _kept(value):
-    """`value` without the fields that change on every run (_EVERY_RUN), at any depth."""
+    """`value` without the fields that change on every run (_EVERY_RUN) and the ones the
+    LLM-as-a-judge writes (judge_said), at any depth."""
     if isinstance(value, dict):
         return {k: _kept(v) for k, v in value.items()
-                if not (isinstance(k, str) and _EVERY_RUN.search(k))}
+                if not (isinstance(k, str) and (_every_run(k) or judge_said(k)))}
     if isinstance(value, list):
         return [_kept(v) for v in value]
     return value
 
 
-def graded_rest(item: dict, left: set) -> str | None:
-    """For Mark.graded_on: every field of `item` but the ones in `left` (the question, the
-    answer, the grade, its score and reason, the LLM-as-a-judge's setup) and the ones that
-    change on every run. Erring toward a field kept: a changed answer is compared."""
-    return graded_sum({"rest": _kept({k: v for k, v in item.items() if k not in left})})
+def graded_rest(item: dict, left: set, prefix: str = "") -> tuple[tuple[str, str], ...] | None:
+    """For Mark.graded_fields: every field of `item` but the ones in `left` (the question, the
+    answer, the grade, its score and reason, the LLM-as-a-judge's setup), the ones that change
+    on every run and the ones the LLM-as-a-judge writes (_kept), as (`prefix` + name, a hash
+    of its value). Erring toward a field kept: a changed answer is compared. None for none."""
+    from judgekeeper.anchors import canonical_json
+
+    kept = _kept({k: v for k, v in item.items() if k not in left})
+    fields = tuple(sorted(
+        (prefix + str(k), hashlib.sha256(canonical_json(v).encode(
+            "utf-8", "surrogatepass")).hexdigest()[:16])
+        for k, v in kept.items() if v not in (None, "", [], {})))
+    return fields or None
 
 
 def graded_sum(parts: dict) -> str | None:
@@ -383,9 +414,8 @@ class ScoreRecord:
         extra = {k: v for k, v in d.items() if k not in ALL_FIELDS}
         metadata = dict(d.get("metadata") or {})
         setup = ("pass_mark", "pass_op")  # how the score is held: the LLM-as-a-judge's
-        graded = graded_sum({"extra": _kept(extra),
-                             "metadata": _kept({k: v for k, v in metadata.items()
-                                                if k not in setup})})
+        graded = (graded_rest(extra, set(), "extra:") or ()) + (
+            graded_rest(metadata, set(setup), "metadata:") or ())
         return cls(
             target_id=None if _blank(d.get("target_id")) else str(d["target_id"]).strip(),
             name=_name(d.get("name")),
@@ -404,7 +434,7 @@ class ScoreRecord:
             app_version=None if _blank(d.get("app_version")) else str(d["app_version"]),
             schema_version=1 if version is None else int(version),
             extra=extra,
-            mark=Mark(graded_on=graded) if graded else NO_MARK,
+            mark=Mark(graded_fields=graded) if graded else NO_MARK,
         )
 
 

@@ -150,20 +150,38 @@ def _answer_sums(answers) -> dict[str, list[str]]:
     their text. Each hash holds the whole question (a prompt changed inside it, under the same
     id, is a change), the answer, and its steps and outcome (output, trajectory, outcome),
     their texts without the spaces at their ends (_ends), and what else of the case the grade
-    follows (mark.graded_on). An answer whose grade follows something the results don't hold
-    (mark.graded_unread) is BLANK: compared, as an answer that may have changed."""
+    follows (mark.graded_on, and mark.graded_fields but the ones the same on every answer of
+    the file: a run number, a date). An answer whose grade follows something the results don't
+    hold (mark.graded_unread) is BLANK: compared, as an answer that may have changed."""
     from judgekeeper.table import ID_LENGTH, canonical_json
 
+    per_run = _per_run([mark.graded_fields for *_, (_, _, _, mark) in answers])
     out: dict[str, list[str]] = {}
     for case, question, _, (output, trajectory, outcome, mark) in answers:
+        fields = [list(f) for f in mark.graded_fields or () if f not in per_run]
         data = canonical_json(["answer", _ends(question), _ends(output), trajectory, outcome]
-                              + ([mark.graded_on] if mark.graded_on else [])).encode(
+                              + ([mark.graded_on] if mark.graded_on else [])
+                              + ([fields] if fields else [])).encode(
             "utf-8", errors="surrogatepass")
         blank = mark.graded_unread or (  # empty is an answer
             output is None and trajectory is None and outcome is None)
         out.setdefault(_key(case, question), []).append(
             BLANK if blank else hashlib.sha256(data).hexdigest()[:ID_LENGTH])
     return {k: sorted(v) for k, v in out.items()}
+
+
+def _per_run(fields: list) -> set:
+    """The (name, value) fields that every answer of a file has the same: what a run gives
+    each of its rows (a run number, a date, a version), not an answer of its own. None with
+    fewer than two answers."""
+    if len(fields) < 2 or any(not f for f in fields):
+        return set()
+    same = set(fields[0])
+    for f in fields[1:]:
+        same &= set(f)
+        if not same:
+            break
+    return same
 
 
 def _blank(question) -> bool:

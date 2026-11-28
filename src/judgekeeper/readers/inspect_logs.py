@@ -1082,7 +1082,7 @@ def _read(path: Path, data, samples, with_errors: bool) -> RecordList:
                     label=label, score=number,
                     explanation=judged.get("explanation") or None, run=epoch, **content,
                     evaluator=dict(evaluator), created_at=created_at,
-                    mark=replace(_mark(judged, label), graded_on=rest)))
+                    mark=replace(_mark(judged, label), graded_fields=rest)))
                 if stand_in:
                     waiting.append((len(records) - 1, records[-1]))
             if edit:

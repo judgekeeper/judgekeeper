@@ -861,7 +861,7 @@ def read_results_table(path: Path, answers: bool = False) -> RecordList:
         content = {"target_id": ids[n - 1] if own else derive_record_id(row.get("input"),
                                                                         row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
-        mark = Mark(graded_on=graded_rest(row, graded))
+        mark = Mark(graded_fields=graded_rest(row, graded))
         model = row.get(model_at) if model_at else None
         score = _number(mapper.number(row.get("score"))) if "score" in columns else None
         for verdict in verdicts:
