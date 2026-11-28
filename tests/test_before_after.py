@@ -1236,8 +1236,8 @@ def test_a_first_run_on_graded_results_says_what_it_said_before(here, capsys):
 def test_a_verdict_flipped_on_the_same_answers_is_not_an_agent_change(here, capsys, before):
     """The old shape of these tests: 12 verdicts flipped, every answer word for word the same,
     and no model in the file. Since 1.5.0 that is the LLM-as-a-judge's doing, not the agent's:
-    a plain run starts again, --before does not compare them (exit 3). With a model named in
-    both files, their setups decide, as before."""
+    a plain run starts again, --before does not compare them (exit 3). With the same model
+    named in both files too: the same LLM-as-a-judge may grade otherwise."""
     from judgekeeper import before_after
 
     projects.table_project(here, ALL_PASS, name="main.csv")
@@ -1251,4 +1251,4 @@ def test_a_verdict_flipped_on_the_same_answers_is_not_an_agent_change(here, caps
     projects.table_project(here, ALL_PASS, name="main.csv", model="judge-a")
     projects.table_project(here, MADE_WORSE, name="results.csv", model="judge-a")
     code, out = said(capsys, path, "--before", "main.csv")
-    assert code == 1 and counts(0, 12, 28) in flat(out), out
+    assert code == 3 and before_after.ONLY_GRADES_BEFORE in flat(out), out

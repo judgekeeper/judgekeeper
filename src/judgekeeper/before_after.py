@@ -43,6 +43,9 @@ LEFT_OUT = {1: "{n} question is in only one of the two results and is left out."
             2: "{n} questions are in only one of the two results and are left out."}
 NO_GRADE = {1: "{n} question has no Pass or Fail grade in one of the results and is left out.",
             2: "{n} questions have no Pass or Fail grade in one of the results and are left out."}
+REGRADED_LEFT = {
+    1: "{n} question with the same answers and another grade is left out.",
+    2: "{n} questions with the same answers and other grades are left out."}
 NEXT_WORSE = "Next: fix what broke or undo your change, then run your eval again."
 NO_MATCH = "No question is in both results, so there is nothing to compare."
 NO_MATCH_NEXT = ("Next: give each question an id that stays the same from run to run (such as "
@@ -189,14 +192,14 @@ def setup_of(found: start.Found) -> str:
     return hashlib.sha256(data.encode("utf-8", errors="surrogatepass")).hexdigest()
 
 
-def compare(before: dict, now: dict, answers: bool = False) -> Comparison:
+def compare(before: dict, now: dict) -> Comparison:
     """Two sides (grades_of): a question in both is compared when each has a grade for it."""
     b, n = before["questions"], now["questions"]
     both = b.keys() & n.keys()
     graded = {k for k in both if b[k] and n[k]}
     # the same answers graded otherwise: the LLM-as-a-judge's doing, not the agent's (when
     # both sides keep their answers: results read before 1.5.0 don't)
-    sums = (before.get("answers"), now.get("answers")) if answers else (None, None)
+    sums = (before.get("answers"), now.get("answers"))
     unchanged = {k for k in both if None not in sums and k in sums[0]
                  and sums[0][k] == sums[1].get(k) and BLANK not in sums[0][k]}
     regraded = {k for k in graded if b[k] != n[k] and k in unchanged}
@@ -227,6 +230,7 @@ def lines(c: Comparison) -> list[list[str]]:
         return [[NO_MATCH], [NO_MATCH_IDS_NEXT if c.ids else NO_MATCH_NEXT]]
     left = [LEFT_OUT[min(c.only, 2)].format(n=c.only)] if c.only else []
     left += [NO_GRADE[min(c.ungraded, 2)].format(n=c.ungraded)] if c.ungraded else []
+    left += [REGRADED_LEFT[min(c.regraded, 2)].format(n=c.regraded)] if c.regraded else []
     counted = [COMPARED.format(questions=plural(c.n, "question"), fixed=c.fixed, broke=c.broke,
                                same=c.same), COUNTED, *left]
     out = [counted, [no_grades.CHANGE[c.kind]]]
@@ -382,8 +386,7 @@ def look(talk, ws, found: start.Found, given: str | None = None,
     if given is not None:
         other = file_found(talk, found, given)
         keep = raw is not None and raw["setup"] != setup
-        c = compare(grades_of(other, numbers=True), grades_of(found, numbers=True),
-                    answers=not (_says_who(found) and _says_who(other)))
+        c = compare(grades_of(other, numbers=True), grades_of(found, numbers=True))
         # a --before that compares nothing leaves the last grades read here as they were
         if _judged(found) and _judged(other) and setup_of(other) != setup \
                 or _two_judges(ws, found, other):  # two setups
@@ -392,7 +395,7 @@ def look(talk, ws, found: start.Found, given: str | None = None,
             return Look(None, last, now, setup, state is not None, other_setup=True, keep=True,
                         only_grades=True)
         return Look(c, last, now, setup, state is not None, keep=keep or not c.n)
-    c = compare(baseline, now, answers=not _says_who(found)) if baseline is not None else None
+    c = compare(baseline, now) if baseline is not None else None
     if regraded_only(c):  # graded otherwise: they start again, said once
         return Look(None, None, now, setup, state is not None, restarted=True, only_grades=True)
     return Look(c, last, now, setup, state is not None, restarted=restarted)
