@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.5.0 (2026-11-27)
+## 1.5.0 (2026-11-28)
 
 - `judgekeeper steps runs.jsonl` now opens a page in your browser where you mark each agent run: click its first wrong step, or "All steps are fine", then Next. Keys: `1` to `9` for steps 1 to 9, `0` for all fine, Enter or `→` for Next, `Z` for Undo. The runs come in one random order, the same for the same runs file, and you see your agent-as-a-judge's picks only on the result page.
 - Your marks are saved in `.judgekeeper/steps/marks.jsonl`, one line per mark, with a hash of the run's steps. A run whose steps changed loses its mark, and a line that is not a mark is said by its number and left out. The file holds no step text, name or email.

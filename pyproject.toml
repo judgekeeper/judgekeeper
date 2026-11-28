@@ -6,7 +6,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [{ name = "Sathvik Thota" }]
-keywords = ["llm", "llm-as-a-judge", "llm-as-judge", "llm-judge", "evaluation", "evals", "llm-evaluation", "human-labels", "rubric", "cohens-kappa", "promptfoo", "deepeval", "inspect-ai", "mlflow", "label-studio", "inter-annotator-agreement", "krippendorff-alpha", "human-judgment", "ai-agents"]
+keywords = ["ai-agents", "agent-as-a-judge", "llm-as-a-judge", "llm", "llm-as-judge", "llm-judge", "evaluation", "evals", "llm-evaluation", "human-labels", "rubric", "cohens-kappa", "promptfoo", "deepeval", "inspect-ai", "mlflow", "label-studio", "inter-annotator-agreement", "krippendorff-alpha", "human-judgment"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
