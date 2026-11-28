@@ -51,6 +51,8 @@ OTHER_TAB = ("Not marked: this run was already marked in another tab. "
 STALE = "this run was already marked in another tab"
 NOTHING_TO_UNDO = "Nothing to undo."
 EMPTY_STEP = "(empty step)"
+MOVED = "Your last mark was not saved: this link now opens the page for agent runs."
+
 # The result page
 RESULT_TITLE = "Your result"
 CHANGE = "Change a mark"
@@ -342,6 +344,19 @@ __TOP__
   var opened = {};  // the steps shown whole ("Show all"), on the run on screen
   var $ = function (id) { return document.getElementById(id); };
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
+
+  // Opened by a tab of the other kind of page whose mark was refused (the page started again
+  // for another command): the status says so until a mark is saved. The address loses
+  // `moved`, so a reload never says it again.
+  var moved = false;
+  try {
+    var query = new URLSearchParams(window.location.search || "");
+    moved = query.get("moved") === "1";
+    if (moved && window.history && window.history.replaceState) {
+      query.delete("moved");
+      window.history.replaceState(null, "", (window.location.pathname || "/") + "?" + query);
+    }
+  } catch (e) { moved = false; }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
     if (cls) { e.className = cls; }
@@ -349,6 +364,7 @@ __TOP__
     return e;
   }
   function say(text, calm) {
+    if (!text && moved) { text = WORDS.moved; calm = false; }
     $("status").textContent = text || "";
     $("status").classList.toggle("calm", !!calm);
   }
@@ -472,10 +488,12 @@ __TOP__
       return r.json().then(function (b) { return {ok: r.ok, status: r.status, body: b}; });
     }).then(function (res) {
       clearTimeout(waited);
-      if (res.status === 409 && res.body.reload) { window.location.reload(); return; }
+      if (res.status === 409 && res.body.reload) {  // the page is the answers page now
+        window.location.href = url("/") + "&moved=1"; return; }
       if (res.status === 409 && res.body.stale) { refresh(WORDS.otherTab); return; }
       busy = false;
       if (!res.ok) { say("Not saved: " + res.body.error); return; }
+      moved = false;
       marked = res.body.summary.marked;
       run.mark = change;
       then();
@@ -565,6 +583,7 @@ __TOP__
 
   take(data);
   open(pos);
+  if (moved) { hear(WORDS.moved); }  // open() put it in the status, under the welcome box
   if (data.intro === true) {
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     $("intro-box").focus();
@@ -579,7 +598,7 @@ __TOP__
 def _words() -> str:
     words = {"you": "You", "see": SEE_FIRST, "all": "Show all", "less": "Show less", "next": "Next",
              "result": SEE_READY, "fine": FINE, "empty": EMPTY_STEP, "otherTab": OTHER_TAB,
-             "noAnswer": NO_ANSWER, "nothing": NOTHING_TO_UNDO}
+             "noAnswer": NO_ANSWER, "nothing": NOTHING_TO_UNDO, "moved": MOVED}
     # no `<` and no `_`: the page can never hold a name the server fills in
     return json.dumps(words).replace("<", "\\u003c").replace("_", "\\u005f")
 

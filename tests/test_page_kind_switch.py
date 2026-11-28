@@ -123,17 +123,27 @@ RELOAD = """
   answer = function () { return Promise.resolve({ok: false, status: 409, json: function () {
     return Promise.resolve({error: "x", stale: true, reload: true}); }}); };
 """
+# the page as the link opens it, with `moved=1` when it was the other kind's tab
+MOVED = """
+  var replaced = [];
+  window.location.search = "?token=t0k&moved=1";
+  window.location.pathname = "/";
+  window.history = {replaceState: function (s, t, u) { replaced.push(u); }};
+"""
+STEPS_LINE = ("Your last mark was not saved: this link now opens the page for agent runs.")
+ANSWERS_LINE = "Your last mark was not saved: this link now opens the page for answers."
 
 
-def test_a_steps_tab_told_to_reload_loads_again_and_asks_for_no_list():
+def test_a_steps_tab_told_to_reload_opens_its_link_saying_so():
     got = steps_script(RELOAD + """
       REFRESHED = null;
       later(300); key("2"); key("Enter"); await settled();
-      console.log(JSON.stringify({reloads: reloads, sent: sent.length}));""")
-    assert got == {"reloads": 1, "sent": 1}
+      console.log(JSON.stringify({reloads: reloads, href: window.location.href,
+                                  sent: sent.length}));""")
+    assert got == {"reloads": 0, "href": "/?token=t0k&moved=1", "sent": 1}
 
 
-def test_an_answers_tab_told_to_reload_loads_again_and_asks_for_no_list():
+def test_an_answers_tab_told_to_reload_opens_its_link_saying_so():
     got = answers_script("""
       var asked = 0;
       fetch = function (url, opts) {
@@ -143,5 +153,40 @@ def test_an_answers_tab_told_to_reload_loads_again_and_asks_for_no_list():
           return Promise.resolve({error: "x", stale: true, reload: true}); }});
       };
       key("ArrowLeft"); for (var n = 0; n < 6; n++) { await settle(); }
-      console.log(JSON.stringify({reloads: reloads, asked: asked, sent: sent.length}));""")
-    assert got == {"reloads": 1, "asked": 0, "sent": 1}
+      console.log(JSON.stringify({reloads: reloads, asked: asked, sent: sent.length,
+                                  href: window.location.href}));""")
+    assert got["href"].endswith("&moved=1") and "token=" in got["href"]
+    assert {k: got[k] for k in ("reloads", "asked", "sent")} == {"reloads": 0, "asked": 0,
+                                                                 "sent": 1}
+
+
+def test_the_steps_page_opened_so_says_the_mark_was_not_saved_until_one_is():
+    got = steps_script("""
+      var first = ids["status"].textContent, red = !ids["status"].classList.contains("calm");
+      later(300); key("1"); await settled();
+      var picked = ids["status"].textContent;
+      key("Enter"); await settled();
+      console.log(JSON.stringify({first: first, red: red, picked: picked, replaced: replaced,
+                                  heard: ids["done"].textContent,
+                                  after: ids["status"].textContent}));""", before=MOVED)
+    assert got["first"] == STEPS_LINE and got["red"] and got["picked"] == STEPS_LINE
+    assert got["replaced"] == ["/?token=t0k"]  # a reload later never says it again
+    assert got["after"] == ""
+
+
+def test_the_answers_page_opened_so_says_the_mark_was_not_saved_until_one_is():
+    got = answers_script("""
+      var status = document.getElementById("status"), first = status.textContent;
+      key("ArrowRight"); for (var n = 0; n < 6; n++) { await settle(); }
+      console.log(JSON.stringify({first: first, replaced: replaced,
+                                  after: status.textContent}));""", before=MOVED)
+    assert got["first"] == ANSWERS_LINE
+    assert got["replaced"] == ["/?token=t0k"]
+    assert got["after"] == ""
+
+
+def test_a_page_opened_plainly_says_nothing_of_it():
+    steps = steps_script("""console.log(JSON.stringify({s: ids["status"].textContent}));""")
+    answers = answers_script(
+        """console.log(JSON.stringify({s: document.getElementById("status").textContent}));""")
+    assert steps == answers == {"s": ""}
