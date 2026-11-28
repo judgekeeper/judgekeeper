@@ -980,17 +980,22 @@ def _marked_files(talk: FrontTalk, path: Path, saved, found: start.Found) -> sta
 def _remember(ws: Workspace, found: start.Found) -> None:
     """A results file named on a plain run once marking started: start.json's `given`, as the
     first run keeps the file it was given (_remembered reads it on later runs). Not for a
-    file read with a saved map (judgekeeper.toml names it), nor through a link."""
+    file read with a saved map (judgekeeper.toml names it), nor through a link. Only in the
+    folder start.json names its files from (_same_files), so those names still hold."""
     given = getattr(found, "given", None)
     if not given or ws.start.is_symlink():
         return
     with page.one_at_a_time(ws.dir, lambda line: None):  # two runs at once: one writes
         try:
             data = ws.data()
+            base = start.results_path(ws.root, data)
+            base = base if base.is_dir() else base.parent
+            if data.get("given") == given or os.path.realpath(base) != os.path.realpath(
+                    Path(textio.kept_at(given, ws.root)).parent):
+                return
         except (OSError, ValueError):
             return
-        if data.get("given") != given:
-            start_label._write_json(ws.start, {**data, "given": given})
+        start_label._write_json(ws.start, {**data, "given": given})
 
 
 def _remembered(talk: FrontTalk, path: Path) -> Path:
