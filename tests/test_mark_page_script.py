@@ -1659,3 +1659,75 @@ def test_one_undo_waits_while_a_mark_saves_and_a_second_does_nothing(presses):
                data=_data(6))
     assert got["sent"] == [["a0", "pass"], ["a1", "fail"], ["a2", "pass"], ["a2", None]]
     assert got["at"] == "Question 2?"  # back on the answer taken back, to mark again
+
+
+@pytest.mark.parametrize("presses", [
+    'key("z"); later(120); key("z");',
+    'key("z"); later(120); ids["undo"].fire("click");',
+    'ids["undo"].fire("click"); later(120); key("z");',
+    'ids["undo"].fire("click"); later(120); ids["undo"].fire("click");',
+], ids=["Z-Z", "Z-click", "click-Z", "click-click"])
+def test_two_quick_undos_after_a_save_take_back_one_mark(presses):
+    """Every save done: two Undos 120 ms apart, by key or button, take back one mark, as on
+    the steps page (each key took one back: two marks without a word)."""
+    got = _run("""
+      ids["pass"].fire("click"); await settle(); later(1250);
+      ids["fail"].fire("click"); await settle(); later(1250);
+      ids["pass"].fire("click"); await settle(); later(1250);
+      ids["fail"].fire("click"); await settle(); later(300); """ + presses + """
+      await settle(); later(1000); await settle();
+      console.log(JSON.stringify({at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(6))
+    assert got["sent"][4:] == [["a3", None]], got["sent"]
+    assert got["at"] == "Question 3?"  # back on the answer taken back, to mark again
+
+
+def test_two_undos_further_apart_take_back_two_marks():
+    """The lock is only against a double press: a second Undo after LOCK_MS takes the mark
+    before back too."""
+    got = _run("""
+      ids["pass"].fire("click"); await settle(); later(1250);
+      ids["fail"].fire("click"); await settle(); later(1250);
+      key("z"); await settle(); later(500); key("z"); await settle();
+      console.log(JSON.stringify({sent: sent.map(function (s) {
+        return [s.body.id, s.body.label]; })}));""", data=_data(6))
+    assert got["sent"][2:] == [["a1", None], ["a0", None]], got["sent"]
+
+
+@pytest.mark.parametrize("presses", [
+    'key("z"); later(120); key("z");',
+    'key("z"); later(120); ids["undo"].fire("click");',
+    'ids["undo"].fire("click"); later(120); key("z");',
+    'ids["undo"].fire("click"); later(120); ids["undo"].fire("click");',
+], ids=["Z-Z", "Z-click", "click-Z", "click-click"])
+def test_a_second_quick_undo_while_the_first_one_saves_does_nothing(presses):
+    """Every mark saved, then two Undos 120 ms apart while the first Undo's own save is slow
+    (as once a result is shown): one mark is taken back. The second waited for that save
+    and then took a second mark back, without a word."""
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await tick(1300);
+      ids["fail"].fire("click"); await tick(1300);
+      ids["pass"].fire("click"); await tick(1300); """ + presses + """ await settle();
+      await tick(5000);
+      console.log(JSON.stringify({at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(6))
+    assert got["sent"] == [["a0", "pass"], ["a1", "fail"], ["a2", "pass"], ["a2", None]]
+    assert got["at"] == "Question 2?"
+
+
+def test_two_undos_apart_while_one_saves_take_back_two_marks():
+    """The same with the second Undo 500 ms after the first, past the 400 ms that makes a
+    double press one: both are meant, and both take a mark back."""
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await tick(1300);
+      ids["fail"].fire("click"); await tick(1300);
+      ids["pass"].fire("click"); await tick(1300);
+      key("z"); await settle(); later(500); key("z"); await settle();
+      await tick(5000);
+      console.log(JSON.stringify({at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(6))
+    assert got["sent"] == [["a0", "pass"], ["a1", "fail"], ["a2", "pass"], ["a2", None],
+                           ["a1", None]], got["sent"]

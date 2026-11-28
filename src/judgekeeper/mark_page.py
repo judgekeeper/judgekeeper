@@ -366,7 +366,7 @@ __TOP__
   var status = data.status;  // whether a result is ready, from the server
   var ended = false;         // nothing left to mark: the page says what comes next
   var walkingSkipped = false;  // "Mark them" or "Go back to them": going through the skipped ones
-  var lockUntil = 0;         // an undo click is ignored until then, after the one before
+  var lockUntil = 0;         // an undo is ignored until then, after the one before
   // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
   // nobody reads an answer that fast, so it was a second press meant for the one before.
   var FRESH_MS = 250, freshUntil = 0;
@@ -1004,15 +1004,16 @@ __TOP__
     return true;
   }
 
-  // An undo click waits LOCK_MS after the one before: a double click undoes one mark. A mark
+  // An undo, by click or key, pressed within LOCK_MS of the one before does nothing, also
+  // while that one still saves: a double press undoes one mark, as on the steps page. A mark
   // or skip, by click or key, does nothing within FRESH_MS of its answer showing (fresh), so a
   // double click never marks an answer not yet read; any later click marks the answer on
   // screen. A Pass, Fail or Skip, by click or key, made while a mark is saved waits for it
   // (press), for the answer on screen when it was made; an undo key waits for it too (act); a
   // key held down does nothing.
-  function locked(key) {
+  function locked() {
     var t = Date.now();
-    if (t < lockUntil && !key) { return true; }
+    if (t < lockUntil) { return true; }
     lockUntil = t + LOCK_MS;
     return false;
   }
@@ -1029,11 +1030,13 @@ __TOP__
   function act(f) { if (busy) { queued.push({run: f}); } else { f(); } }
 
   // While a mark saves, one undo waits to take it back: a second undo, by key or button,
-  // does nothing (each would take back another mark, without a word).
-  function undoWhenSaved(key) {
-    if (!busy) { undo(key); return; }
+  // does nothing (each would take back another mark, without a word). The lock is held from
+  // the press: an undo pressed while the one before saves would run after it, past LOCK_MS.
+  function undoWhenSaved() {
+    if (locked()) { return; }
+    if (!busy) { undo(); return; }
     if (queued.some(function (q) { return q.undo; })) { return; }
-    queued.push({run: function () { undo(key); }, undo: true});
+    queued.push({run: undo, undo: true});
   }
 
   function fresh() { return Date.now() < freshUntil; }
@@ -1131,12 +1134,11 @@ __TOP__
       leaveTimer = null; window.location.href = url("/result"); }, OPEN_MS);
   }
 
-  function undo(key) {
+  function undo() {
     $("end-sub").hidden = true;  // the end card goes with the undo
     if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null; leaving = false; }
     if (leaving) { say(WORDS.opening, true); return; }
     if (!history.length) { say("Nothing to undo.", true); return; }
-    if (locked(key)) { return; }
     closeReady();  // an undo can take the result back below ready
     var back = history.pop();
     walkingSkipped = false; open(back.pos);
@@ -1153,7 +1155,7 @@ __TOP__
   // reached from the keyboard) counts.
   var DO = {fail: function () { mark("fail"); }, pass: function () { mark("pass"); },
             skip: function () { skip(); }, undo: function () { undoWhenSaved(); },
-            "end-undo": function () { undoWhenSaved(true); }};
+            "end-undo": function () { undoWhenSaved(); }};
   var down = null, pressed = false;
   Object.keys(DO).forEach(function (id) {
     var button = $(id);
@@ -1182,7 +1184,7 @@ __TOP__
     if (e.repeat) { return; }
     if (KEYS[k]) { mark(KEYS[k]); }
     else if (k === "s") { skip(); }
-    else if (k === "z" || k === "u") { undoWhenSaved(true); }
+    else if (k === "z" || k === "u") { undoWhenSaved(); }
     else { return; }
     e.preventDefault();
   });
