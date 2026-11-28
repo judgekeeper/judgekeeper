@@ -9,9 +9,11 @@ const fc = require("../website/assets/freecheck.js");
 
 const path = process.argv[2];
 const result = fc.checkBytes(readFileSync(path), basename(path));
-if (result.ok) {
+if (result.ok && result.judges) {
   for (const judge of result.judges) {
     judge.lines = fc.reportLines(result, judge).map((line) => (line.k || "") + line.text);
   }
+} else if (result.ok) {  // answers with no grades, or agent runs: every line the page prints
+  result.lines = fc.kindLines(result).map((line) => (line.k || "") + line.text);
 }
 console.log(JSON.stringify(result));

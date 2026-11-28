@@ -1,0 +1,2 @@
+{"id": "r1", "steps": [{"role": "user", "content": "I want to return order 4471."}, {"role": "tool call", "content": "lookup_order(4471)"}, {"role": "tool", "content": "Delivered 72 days ago."}, {"role": "assistant", "content": "Sure, I've started your refund."}]}
+{"id": "r2", "steps": [{"role": "user", "content": "hi"}, "just text"]}

@@ -27,8 +27,11 @@ FULL_TOOL_NEXT = "Next: pick another file, or run that command in your project."
 
 
 @pytest.mark.parametrize("example", ["promptfoo-results.json", "two-llm-as-a-judge-metrics.json"])
-def test_an_example_with_too_few_answers_says_a_first_result_needs_30(example):
-    (state,) = _page_state(f"click:{example}")
+def test_an_example_with_too_few_answers_says_a_first_result_needs_30(example, tmp_path):
+    """No card opens these two now, so each is dropped as a file of your own."""
+    own = tmp_path / example
+    own.write_text(_text(example), encoding="utf-8")
+    (state,) = _page_state(f"file:{own}")
     assert state["output"].endswith(FEW) and "mark some answers" not in state["output"]
 
 

@@ -41,7 +41,8 @@ REPORT = json.loads((ROOT / "docs/examples/jailbreakbench/true-figures.json").re
 REALCHECK = json.loads((ROOT / "docs/examples/real-data-check/report.json").read_text(
     encoding="utf-8"))
 COVERAGE = json.loads((ROOT / "docs/examples/coverage/coverage.json").read_text(encoding="utf-8"))
-SOURCE_ATTRS = ("data-report", "data-const", "data-realcheck", "data-coverage")
+SOURCE_ATTRS = ("data-report", "data-const", "data-realcheck", "data-coverage", "data-share",
+                "data-kappa", "data-quote")  # the last three: checked in the public datasets' tests
 
 
 def test_site_has_its_pages():
@@ -100,9 +101,11 @@ def test_the_pages_show_commands():
     counts = {p.name: len(commands(p)) for p in pages()}
     assert counts["index.html"] == 0  # Home is about judgekeeper; setup lives on the Guide
     assert counts["start.html"] >= 6  # the install, then a command for each step
-    # the handy commands, typed at the Guide's small terminal window
-    handy = [argv for line, argv in commands(WEBSITE / "start.html") if line.startswith("$ ")]
-    assert handy == [["--stop"], ["--new"], ["--no-browser"], ["--help"]]
+    # the handy commands, each in its own box in the Guide's last section, in this order
+    (misc,) = [el for el in parse(WEBSITE / "start.html").iter() if el.attrs.get("id") == "misc"]
+    handy = [el.text().split() for el in misc.iter() if el.tag == "code"]
+    assert handy == [["judgekeeper", "--stop"], ["judgekeeper", "--new"],
+                     ["judgekeeper", "--no-browser"], ["judgekeeper", "--help"]]
     assert counts["check.html"] == 0  # its status bar links to the Guide's install instead
 
 
@@ -120,6 +123,8 @@ def _options() -> set[str]:
 # Flags of the eval tools whose commands the Reference shows (promptfoo, Inspect AI)
 OTHER_FLAGS = {"--output-file", "--grader", "--repeat", "--log-format", "--no-log-samples",
                "--from"}  # uvx --from "judgekeeper[inspect]"
+# uv's own flags, typed between a uv command and judgekeeper: `uv add --dev judgekeeper`
+UV_OWN = re.compile(r"\buv (?:add|remove|sync|run)(?: --[a-z][a-z-]*)+(?= judgekeeper\b)")
 
 
 def _every_text(page: Path) -> str:
@@ -138,8 +143,14 @@ def test_no_page_names_a_removed_command_or_flag(page):
     text = _every_text(page)
     for name in REMOVED:
         assert not re.search(rf"(?<!from )\bjudgekeeper {name}\b", text), name
-    named = {m for m in re.findall(r"(?<![\w-])--[a-z][a-z-]*", text)}
+    named = {m for m in re.findall(r"(?<![\w-])--[a-z][a-z-]*", UV_OWN.sub("uv", text))}
     assert named <= _options() | OTHER_FLAGS, sorted(named - _options() - OTHER_FLAGS)
+
+
+def test_the_flag_rule_knows_uvs_flags_but_not_a_removed_one_after_judgekeeper():
+    assert UV_OWN.sub("uv", "uv add --dev judgekeeper") == "uv judgekeeper"
+    assert UV_OWN.sub("uv", "uv run judgekeeper --dev") == "uv run judgekeeper --dev"
+    assert UV_OWN.sub("uv", "uvx --dev judgekeeper") == "uvx --dev judgekeeper"
 
 
 def test_the_flag_rule_finds_a_removed_flag(tmp_path):
@@ -217,39 +228,93 @@ def test_coverage_numbers_match_the_committed_grid():
         assert el.text().strip() == render(value, fmt), (page.name, el.attrs)
 
 
+def _kappa(passed: tuple[int, int], failed: tuple[int, int]) -> float:
+    """Cohen's kappa from "agreed of all" on the answers people passed and on those they
+    failed, as a report's table gives them."""
+    (pp, p_all), (ff, f_all) = passed, failed
+    n = p_all + f_all
+    judge_pass = pp + (f_all - ff)
+    seen = (pp + ff) / n
+    chance = (p_all * judge_pass + f_all * (n - judge_pass)) / n / n
+    return (seen - chance) / (1 - chance)
+
+
+def _panel_report(panel) -> tuple[str, str]:
+    (link,) = [el for el in panel.iter() if "tf-link" in el.classes()]
+    report = link.attrs["href"].split("/blob/main/", 1)[1]
+    return report, (ROOT / report).read_text(encoding="utf-8")
+
+
 def test_the_public_dataset_tiles_match_the_reports_they_link_to():
-    """Home's "On public datasets.": one number, and the number it counts up to, comes from the
-    committed report its tile links to. The other tile names how many datasets the real-data
-    check used, with no share, so the page makes one "96" claim, not two."""
-    draws = json.loads((ROOT / "docs/examples/jailbreakbench/hundred-marks/summary.json")
-                       .read_text(encoding="utf-8"))
-    held = draws["all_three_inside"]
-    assert draws["every_draw_counted_its_marks_and_showed_no_text"]
+    """Home's "On public datasets.": three tabs, each a panel whose numbers come from the
+    committed report its "see its report" link opens. A share names its counts
+    (`data-share="175 of 182"`), a kappa names its row of the report's table
+    (`data-kappa="Setup A"`), and both are worked out again here from the report."""
+
+    def shares_in(panel, text, expected):
+        shares = [el for el in panel.iter() if "data-share" in el.attrs]
+        assert [el.attrs["data-share"] for el in shares] == expected
+        for el in shares:
+            a, b = map(int, el.attrs["data-share"].split(" of "))
+            assert re.sub(r"[^\d%]", "", el.text()) == f"{a / b:.0%}", el.attrs
+            assert re.search(rf"\b{a} of (?:the )?{b}\b", text), el.attrs
+
+    panels = {el.attrs["id"]: el for el in parse(WEBSITE / "index.html").iter()
+              if "ds-panel" in el.classes()}
+    assert list(panels) == ["ds-a", "ds-b", "ds-c"]
+    reports = {key: _panel_report(panel)[0] for key, panel in panels.items()}
+    assert reports == {"ds-a": "docs/examples/agent-steps/report.md",
+                       "ds-b": "docs/examples/label-studio/report.md",
+                       "ds-c": "docs/examples/real-data-check/report.md"}
+
+    def big(panel):
+        return [" ".join(el.text().split()) for el in panel.iter() if "ds-big" in el.classes()]
+
+    # Agent runs: three shares, each "a of b" in the report and shown as a whole percent
+    _, text = _panel_report(panels["ds-a"])
+    shares_in(panels["ds-a"], text, ["175 of 182", "20 of 67", "100 of 175"])
+    assert "| Runs the people say went wrong | 175 of 182 (96%) |" in text
+    assert "| Runs the people say were fine | 47 of 67 (70%) |" in text  # 20 of 67 flagged
+    assert "| Same first wrong step (on 175 runs both say went wrong) | 100 of 175 (57%) |" in text
+    assert "of the 175 runs both said went wrong" in panels["ds-a"].text()
+    (kappa,) = [el for el in panels["ds-a"].iter() if "data-kappa" in el.attrs]
+    assert kappa.attrs["data-kappa"] == "Kappa" and kappa.text() == "0.71"
+    assert "| Kappa | 0.71 | 0.58 to 0.80 |" in text and "Kappa 0.71 (" in text
+    assert "249 agent runs" in panels["ds-a"].text() and "on the 249 runs" in text
+
+    # Chatbot answers: setup A's kappa, then setup B's, from the counts in the report's table
+    _, text = _panel_report(panels["ds-b"])
+    kappas = [el for el in panels["ds-b"].iter() if "data-kappa" in el.attrs]
+    assert [el.attrs["data-kappa"] for el in kappas] == ["Setup A", "Setup B"]
+    for el in kappas:
+        (row,) = [line for line in text.splitlines()
+                  if line.startswith(f"| {el.attrs['data-kappa']} ")]
+        counts = [tuple(map(int, m)) for m in re.findall(r"(\d+) of (\d+) \(", row)]
+        assert len(counts) == 2, row
+        shown = re.search(r"\d\.\d\d", el.text()).group()
+        assert shown == f"{_kappa(*counts):.2f}" == row.rstrip(" |").rsplit("| ", 1)[1], row
+    assert big(panels["ds-b"]) == ["0.88 → 0.97", "88% → 97%"]
+    # and beside it, how often it said Fail when the people did (TPR), and Pass (TNR)
+    shares_in(panels["ds-b"], text, ["190 of 217", "211 of 217", "230 of 230"])
+    assert "| Setup A (Sonnet 5.5) | 230 of 230 (100%) | 190 of 217 (88%) |" in text
+    assert "| Setup B (Haiku 5.5) | 230 of 230 (100%) | 211 of 217 (97%) |" in text
+    assert "447 answers" in panels["ds-b"].text() and "On the 447 answers" in text
+
+    # judgekeeper itself: the share of checks whose range held the real value, the one "96"
+    # this page claims about judgekeeper (the agent tile's 96% is the agent-as-a-judge's)
     mean = REALCHECK["summary"]["25+25"]["tpr_tnr"]["mean"]
-    expected = {
-        "docs/examples/jailbreakbench/report.md": (held, f"{held} of {draws['draws']}"),
-        "docs/examples/real-data-check/report.md": (round(mean * 100), f"{round(mean * 100)} in 100"),
-    }
-    tiles = [el for el in parse(WEBSITE / "index.html").iter() if "rt" in el.classes()]
-    found = {}
-    for tile in tiles:
-        report = tile.attrs["href"].split("/blob/main/", 1)[1]
-        counts = [el for el in tile.iter() if "rt-n" in el.classes()]
-        (big,) = [el for el in tile.iter() if "rt-big" in el.classes()]
-        (line,) = [el for el in tile.iter() if "rt-line" in el.classes()]
-        for n in counts:
-            assert int(n.attrs["data-to"]) == int(n.text()), report
-        found[report] = (int(counts[0].attrs["data-to"]) if counts else None,
-                         " ".join(big.text().split()))
-        if "jailbreakbench" in report:  # the count is of draws with all three inside
-            assert " ".join(line.text().split()) == (
-                "random tests where judgekeeper's ranges held the true numbers"), report
-    assert found == expected
-    # and the reports say the same in words
-    jbb = (ROOT / "docs/examples/jailbreakbench/report.md").read_text(encoding="utf-8")
-    assert f"**{held} of {draws['draws']} draws**" in jbb
-    real = (ROOT / "docs/examples/real-data-check/report.md").read_text(encoding="utf-8")
+    assert big(panels["ds-c"]) == [f"{round(mean * 100)} in 100"]
+    real = _panel_report(panels["ds-c"])[1]
     assert f"in {mean * 100:.1f} checks in 100 on average" in real
+
+
+def test_a_quoted_range_is_what_judgekeeper_printed_in_the_report_it_names():
+    quoted = [(el, el.attrs["data-quote"]) for page in pages() for el in parse(page).iter()
+              if "data-quote" in el.attrs]
+    assert quoted
+    for el, report in quoted:
+        (said,) = re.findall(r"“(.+?)”", el.text())
+        assert said in (ROOT / report).read_text(encoding="utf-8"), (report, said)
 
 
 def test_constants_match_the_code():
@@ -386,12 +451,12 @@ SITE = "https://www.judgekeeper.com/"
 SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url", "og:image",
               "og:image:width", "og:image:height", "og:image:alt", "twitter:card",
               "twitter:title", "twitter:description", "twitter:image"]
-SHARE_ALT = ("The judgekeeper logo and the words: The keeper of human judgment for AI. "
+SHARE_ALT = ("The judgekeeper logo and the words: Check agents and chatbots with human judgment. "
              "Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
-HOME_DESCRIPTION = ("Human judgment decides what's right. See how often each automated check "
-                    "agrees with it, from an LLM-as-a-judge grading one answer to a reviewer "
-                    "checking each step of an agent, and see if agreement goes up or down after "
-                    "each change.")
+HOME_DESCRIPTION = ("judgekeeper checks your AI agent or chatbot with human judgment. You mark "
+                    "what's right, and it shows how often an agent-as-a-judge or an "
+                    "LLM-as-a-judge (an AI model that grades another model's work) agrees with "
+                    "you, and where it goes wrong.")
 HOME_MORE = (" Read. Measure. Fix. Re-check. Open source; it reads the results "
              "your eval tool saved.")
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}
@@ -631,19 +696,23 @@ def test_home_links_to_the_check_page_twice():
 
 def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
     text = " ".join(parse(CHECK).text().split())
-    for words in ("Try the Read step in your browser.",
-                  "Drop your results file here or click to choose one",
-                  "promptfoo · DeepEval · CSV · TSV · JSONL",
-                  "Waiting for your results file.",
+    for words in ("Try judgekeeper in your browser.",
+                  "Drop your file here or click to choose one",
+                  "or try an example",
+                  "Waiting for your file.",
                   "Drop it in the box, or try an example.",
                   "your file stays on your computer"):
         assert words in text, words
+    kinds = [el.text() for el in parse(CHECK).iter() if el.tag == "span"
+             and el.parent is not None and "fc-kinds" in el.parent.classes()]
+    assert kinds == ["promptfoo", "DeepEval", "CSV", "TSV", "JSONL"]
 
 
 # Scroll areas: one the keyboard can't reach can't be scrolled without a mouse (Lighthouse and
 # axe: "scrollable-region-focusable"). Each class whose rule scrolls (overflow auto or scroll)
 # is checked on every page that uses it, unless the area holds a link or button of its own.
-SCROLLS = re.compile(r"(?m)^\s*\.([\w-]+)\s*\{[^}]*overflow(?:-[xy])?:\s*(?:auto|scroll)")
+# The class is the rule's last one: `.term-out {` or `.ck2-term .ck-out {`.
+SCROLLS = re.compile(r"(?m)^\s*(?:[^{}\n]*\s)?\.([\w-]+)\s*\{[^}]*overflow(?:-[xy])?:\s*(?:auto|scroll)")
 FOCUSABLE = {"a", "button", "input", "select", "textarea", "summary"}
 
 
@@ -657,7 +726,7 @@ def test_every_scroll_area_can_be_reached_by_keyboard():
     site_css = "".join(p.read_text(encoding="utf-8")
                        for p in sorted((WEBSITE / "assets").glob("*.css")))
     reports = sorted((ROOT / "docs" / "examples").rglob("*.html"))
-    checked = 0
+    checked = []
     for path in [*pages(), WEBSITE / "errors" / "404.html", *reports]:
         text = path.read_text(encoding="utf-8")
         css = site_css if path.is_relative_to(WEBSITE) else "".join(
@@ -667,5 +736,6 @@ def test_every_scroll_area_can_be_reached_by_keyboard():
             assert el.attrs.get("tabindex") == "0", where
             assert el.attrs.get("role") == "region", where
             assert el.attrs.get("aria-label", "").strip(), where
-            checked += 1
-    assert checked >= 3  # the scroll areas on the pages and in the example reports
+            checked.append(where)
+    # Home's terminal and the browser check's output (the example reports have none)
+    assert sorted(checked) == ["website/check.html: div.ck-out", "website/index.html: pre.term-out"]

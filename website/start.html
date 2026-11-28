@@ -4,230 +4,105 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guide | judgekeeper</title>
-<meta name="description" content="Read. Measure. Fix. Re-check. The commands to run and what you see.">
+<meta name="description" content="Check agents and chatbots with human judgment. Read. Measure. Fix. Re-check: the commands to run, for an agent-as-a-judge or an LLM-as-a-judge, and what you see.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Guide | judgekeeper">
-<meta property="og:description" content="Read. Measure. Fix. Re-check. The commands to run and what you see.">
+<meta property="og:description" content="Check agents and chatbots with human judgment. Read. Measure. Fix. Re-check: the commands to run, for an agent-as-a-judge or an LLM-as-a-judge, and what you see.">
 <meta property="og:url" content="https://www.judgekeeper.com/start.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The judgekeeper logo and the words: The keeper of human judgment for AI. Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper">
+<meta property="og:image:alt" content="The judgekeeper logo and the words: Check agents and chatbots with human judgment. Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Guide | judgekeeper">
-<meta name="twitter:description" content="Read. Measure. Fix. Re-check. The commands to run and what you see.">
+<meta name="twitter:description" content="Check agents and chatbots with human judgment. Read. Measure. Fix. Re-check: the commands to run, for an agent-as-a-judge or an LLM-as-a-judge, and what you see.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="canonical" href="https://www.judgekeeper.com/start.html">
 <meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=35">
-<script src="assets/site.js?v=35" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=40">
+<script src="assets/site.js?v=40" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
 <header class="menu"><div class="wrap">
 <nav class="menu-l" aria-label="Pages"><a href="index.html">Home</a><a href="start.html" aria-current="page">Guide</a></nav>
 <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper<sup>™</sup></span></a>
-<div class="menu-r"><a class="gh" href="https://github.com/judgekeeper/judgekeeper">GitHub</a></div>
+<div class="menu-r"><a class="gh" href="https://github.com/judgekeeper/judgekeeper"><svg class="gh-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
 </div></header>
 <main id="main" class="gx">
 <section class="hero gx-hero" id="install"><div class="wrap">
   <div class="hero-l">
     <h1>Install <span class="h-brand">judgekeeper</span><br>in your project.</h1>
-    <p class="gx-lede">Works with promptfoo, DeepEval, Inspect AI, MLflow or your own file.</p>
+    <ul class="gx-facts gf" id="keys"><li><b>No API key needed</b></li><li><b>Runs locally</b></li><li><b>Open source</b></li></ul>
+    
   </div>
   <div class="hero-r"><div class="gx-install gwin">
-    <div class="rt-bar" aria-hidden="true"><span class="rt-title">your project folder</span></div>
-    <div class="gwin-body">
-      <p class="gx-way-h"><b>With pip</b>, in your project’s virtual environment</p>
-      <div class="gx-pair">
-        <div class="cmd"><code>pip install judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: pip install judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-        <div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      </div>
-      <p class="gx-way-h"><b>With <a href="https://docs.astral.sh/uv/">uv</a></b></p>
-      <div class="gx-pair"><div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: uvx judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div>
-      <p class="gx-small">Works on macOS, Linux and Windows, with Python 3.11 to 3.14.</p>
-      <p class="gx-small">Using a coding agent? Give it this page and tell it: "Follow this to run judgekeeper on my project." It runs the steps and gives you the marking page link; you mark, then the coding agent explains the result.</p>
+    <div class="gi-tabs" role="tablist" aria-label="How to install" hidden><button type="button" role="tab" id="gi-tab-gi-pip" aria-controls="gi-pip" aria-selected="false">pip</button><button type="button" role="tab" id="gi-tab-gi-uv" aria-controls="gi-uv" aria-selected="false">uv</button><button type="button" role="tab" id="gi-tab-gi-agent" aria-controls="gi-agent" aria-selected="false">Coding agent</button></div>
+    <div class="gi-stack">
+      <div class="gi-panel" role="tabpanel" id="gi-pip" aria-labelledby="gi-tab-gi-pip"><p class="gx-way-h"><b>Install</b> in your project’s virtual environment</p><div class="cmd"><code>pip install judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: pip install judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div><p class="gx-way-h"><b>Run</b> in your project folder</p><div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div>
+      <div class="gi-panel" role="tabpanel" id="gi-uv" aria-labelledby="gi-tab-gi-uv"><p class="gx-way-h"><b>Run</b> in your project folder, with nothing to install first (<a href="https://docs.astral.sh/uv/">uv</a>)</p><div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: uvx judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div><p class="gx-way-h"><b>Or add it</b> to your project, then run <code>uv run judgekeeper</code></p><div class="cmd"><code>uv add --dev judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: uv add --dev judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div>
+      <div class="gi-panel" role="tabpanel" id="gi-agent" aria-labelledby="gi-tab-gi-agent"><p class="gx-way-h"><b>Give your coding agent</b> this prompt</p><div class="cmd prompt"><code>Follow www.judgekeeper.com/start.html to run judgekeeper on my project.</code><button type="button" class="copy" data-copy aria-label="Copy the prompt for your coding agent"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div><p class="gi-note">It installs judgekeeper, runs it and gives you the marking page link. You mark, then it explains the result.</p></div>
     </div>
+    <p class="gi-foot">macOS, Linux and Windows. Python 3.11 to 3.14.</p>
   </div></div>
 </div></section>
-<section class="gx-steps" id="steps"><div class="wrap">
-  <h2>The 4 steps.</h2>
-  <div class="sp">
-  <nav class="sp-rail" aria-label="The 4 steps"><ol>
-    <li><a href="#step-find">Read.</a></li>
-    <li><a href="#step-measure">Measure.</a></li>
-    <li><a href="#step-fix">Fix.</a></li>
-    <li><a href="#step-check">Re-check.</a></li>
-  </ol></nav>
-  <ol class="gl">
-    <li class="gl-step" id="step-find">
-    <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Read<span class="sp-dot">.</span></p>
-      <h3>Read your eval results, then mark answers</h3>
-      <p>Run judgekeeper in your project folder. It finds and reads your eval results, and opens the marking page.</p>
-      <dl class="sp-ifs">
-        <div><dt>Nothing found?</dt><dd>Run your eval first so it saves its results, or point judgekeeper to your results file.</dd></div>
-      </dl>
-      <p>Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, so you can stop at any time and come back later.</p>
-      <p class="done">When <b>See the numbers so far</b> or <b>See your result</b> appears at the top, click it.</p>
-      <dl class="sp-ifs">
-        <div><dt>Already have Pass/Fail labels, for example from Label Studio?</dt><dd>Run <code>judgekeeper <span class="nb">--labels</span> <span class="nb">your-labels.csv</span></code> (a Label Studio export works too), or <code>judgekeeper <span class="nb">--labels</span></code> if they are in your results. Then mark more if needed.</dd></div>
-      </dl>
-    </div>
-    <div class="sp-side">
-      <div class="gwin sp-win">
-        <div class="rt-bar" aria-hidden="true"><span class="rt-title">your project folder</span></div>
-        <div class="gwin-body">
-          <div class="sp-cmds">
-            <div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-            <div class="cmd"><code>judgekeeper path/<wbr>to/<wbr>results.json</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper path/to/results.json"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-          </div>
-        </div>
-      </div>
-      <div class="gwin sp-shot">
-        <div class="rt-bar" aria-hidden="true"><span class="rt-title">marking page</span></div>
-        <figure class="gx-shot"><a href="assets/shots/label.webp" aria-label="Enlarge the picture of the marking page" data-close-low><img src="assets/shots/label.webp" width="2880" height="1704" loading="lazy" decoding="async" alt="The marking page: one question and its answer, with Fail and Pass buttons under them. On the left, the list of questions with the marks made so far; at the top, how many are marked."></a></figure>
-      </div>
-      <p class="gx-tap">Tap to enlarge</p>
-    </div></li>
-    <li class="gl-step" id="step-measure">
-    <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Measure<span class="sp-dot">.</span></p>
-      <h3>See how often your LLM-as-a-judge agrees with you</h3>
-      <p>The result page tells you one of three things: your LLM-as-a-judge is good enough to use, it needs work, or it’s too early to tell. Below that, it lists the answers where you and your LLM-as-a-judge disagreed.</p>
-      <p>Two or more people marked the same answers? judgekeeper also says how much they agree with each other (kappa, or Krippendorff’s alpha for three or more people), because a check cannot be expected to agree with them more than they agree with each other.</p>
-      <dl class="sp-ifs">
-        <div><dt>Result says it’s too early to tell?</dt><dd>Your LLM-as-a-judge needs more of your marks to be measured. Mark more answers, then look again.</dd></div>
-      </dl>
-    </div>
-    <div class="sp-side">
-      <div class="sp-cmds">
-        <div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-        <div class="cmd"><code>judgekeeper mark</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper mark"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      </div>
-      <div class="gwin sp-shot">
-        <div class="rt-bar" aria-hidden="true"><span class="rt-title">result page</span></div>
-        <figure class="gx-shot"><a href="assets/shots/result.webp" aria-label="Enlarge the picture of the result page"><img src="assets/shots/result.webp" width="2880" height="1704" loading="lazy" decoding="async" alt="The result page: &quot;Your LLM-as-a-judge needs work.&quot; Under it, how many answers you and your LLM-as-a-judge disagreed on, then three numbers: how often it also says Pass when you say Pass, how often it also says Fail when you say Fail, and kappa. Below them, how many answers you passed and failed, and what your LLM-as-a-judge said on each."></a></figure>
-      </div>
-      <p class="gx-tap">Tap to enlarge</p>
-    </div></li>
-    <li class="gl-step" id="step-fix">
-    <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Fix<span class="sp-dot">.</span></p>
-      <h3>Write a better rule and test it</h3>
-      <dl class="sp-ifs">
-        <div><dt>Result says your LLM-as-a-judge needs work?</dt><dd>It saves the answers your LLM-as-a-judge got wrong in <code class="path">.judgekeeper/<wbr>fix/<wbr>mistakes.md</code>, apart from the marks kept aside to test your rule. Read it to write a better rule yourself, or hand it to a coding agent to help you write one.</dd></div>
-      </dl>
-      <p>Change the rule in your eval tool. Have it grade the answers in <code class="path">.judgekeeper/<wbr>fix/<wbr>marked-answers.csv</code> again, then save the results.</p>
-      <p>judgekeeper tests the new rule on the marks kept aside and tells you if it’s <b>better</b>, <b>safe to try</b>, <b>worse</b>, or if it <b>can’t tell yet</b>. How many marks you need depends on how big the change is: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#fix-see-where-your-llm-as-a-judge-goes-wrong-then-test-a-better-rule">the reference</a>.</p>
-    </div>
-    <div class="sp-side">
-      <div class="gwin sp-win">
-        <div class="rt-bar" aria-hidden="true"><span class="rt-title">your project folder</span></div>
-        <div class="gwin-body">
-          <div class="sp-cmds">
-            <div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper fix"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-            <div class="cmd"><code>judgekeeper fix new-results.json</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper fix new-results.json"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-          </div>
-          <p class="gx-small">judgekeeper prints how to grade the answers again with your eval tool. It only reads the new results.</p>
-        </div>
-      </div>
-    </div></li>
-    <li class="gl-step" id="step-check">
-    <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Re-check<span class="sp-dot">.</span></p>
-      <h3>Re-check after you change your LLM-as-a-judge</h3>
-      <dl class="sp-ifs">
-        <div><dt>Changed your LLM-as-a-judge’s model or rule?</dt><dd>Grade your marked answers again (<code>judgekeeper fix</code> writes them to <code class="path">.judgekeeper/<wbr>fix/<wbr>marked-answers.csv</code>).</dd></div>
-      </dl>
-      <p>judgekeeper compares the new grades with your marks and tells you if your LLM-as-a-judge still agrees with you. You don’t need to mark anything again.</p>
-      <p>Checking an agent? <code>judgekeeper steps</code> helps you label the first wrong step of each run in Label Studio, then shows how often your reviewer finds the same one.</p>
-    </div>
-    <div class="sp-side">
-      <div class="gwin sp-win">
-        <div class="rt-bar" aria-hidden="true"><span class="rt-title">your project folder</span></div>
-        <div class="gwin-body">
-          <div class="sp-cmds">
-            <div class="cmd"><code>judgekeeper check new-results.json</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper check new-results.json"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-          </div>
-        </div>
-      </div>
-    </div></li>
+<section class="gd-sec" id="steps"><div class="wrap">
+  <h2>What do you have?</h2>
+  <div class="gd">
+  <div class="gd-tabs" role="tablist" aria-label="What do you have?" hidden><button type="button" role="tab" id="gd-tab-agent-steps" aria-controls="agent-steps" aria-selected="false"><b>Agent runs</b><span>the steps of each run</span></button><button type="button" role="tab" id="gd-tab-results" aria-controls="results" aria-selected="false"><b>Eval results</b><span>graded by an LLM-as-a-judge</span></button><button type="button" role="tab" id="gd-tab-ai-check" aria-controls="ai-check" aria-selected="false"><b>Answers only</b><span>no LLM-as-a-judge</span></button></div>
+  <div class="gd-stack">
+<div class="gd-panel" role="tabpanel" id="agent-steps" aria-labelledby="gd-tab-agent-steps">
+  <h3 class="gd-h">Agent runs</h3>
+  <p class="gd-intro">Runs of your agent in a JSONL file, one run per line with an <code>id</code> and its <code>steps</code>.</p>
+  <ol class="gd-steps">
+    <li><div class="gd-say"><h3 class="gd-word">Read<span class="sp-dot">.</span></h3><p>Opens a page with each run’s steps. Click the first wrong step, or <b>All steps are fine</b>.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper steps runs.jsonl</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper steps runs.jsonl"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
+    <li><div class="gd-say"><h3 class="gd-word">Measure<span class="sp-dot">.</span></h3><p>Add the picks of your <span class="nb">agent-as-a-judge</span> to see how often it finds the same first wrong step as you.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper steps runs.jsonl --reviewer picks.jsonl</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper steps runs.jsonl --reviewer picks.jsonl"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
+    <li><div class="gd-say"><h3 class="gd-word">Re-check<span class="sp-dot">.</span></h3><p>Change your <span class="nb">agent-as-a-judge</span>, save its new picks and run it again. No new marking.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper steps runs.jsonl --reviewer new-picks.jsonl</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper steps runs.jsonl --reviewer new-picks.jsonl"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
   </ol>
-  </div>
-</div></section>
-<section class="gx-more" id="ai-check"><div class="wrap">
-  <div class="sp-band">
-  <div class="gm-row sp-block">
-    <h3>No LLM-as-a-judge? Check your AI’s answers</h3>
-    <div class="gx-text">
-      <p>For a chatbot, agent or any AI that answers questions. Save its answers in a CSV, TSV or JSONL file with <code>input</code> and <code>output</code> columns and no grades.</p>
-      <p><b>1. Read:</b> run <code>judgekeeper</code> in your project folder. It finds your answers. Mark each answer Pass or Fail. On the result page, add a reason to the failed ones.</p>
-      <p><b>2. Measure:</b> from 10 marks, see how many passed, with a range.</p>
-      <p><b>3. Fix:</b> judgekeeper saves the failed answers, apart from the half kept aside, with a prompt for your coding agent to improve your AI’s prompt.</p>
-      <p><b>4. Re-check:</b> run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.</p>
-      <p class="gx-small"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md">An example run</a></p>
-    </div>
-  </div>
-  <div class="gm-row sp-block" id="question-prompt">
-    <h3>No answers yet?</h3>
-    <div class="gx-text">
-      <p>Paste this into your coding agent (Claude Code, Cursor or Codex):</p>
-      <div class="cmd prompt"><code>Read this project and list what its AI is meant to do (its prompt and the tasks it handles).
-Write about 40 test questions the way its real users would ask them: cover every task, and make about half of them hard (missing details, out of scope, against the AI's own rules, a wrong premise, or more than one step). No near-duplicates.
+  <div class="gd-more"><h4>Other starting points</h4><div class="gd-more-row"><div><b>The picks file</b><span>One line per run. 0 means all steps are fine.</span></div><div class="cmd prompt"><code>{&quot;id&quot;: &quot;run-1&quot;, &quot;first_wrong_step&quot;: 3, &quot;model&quot;: &quot;my-judge&quot;}</code><button type="button" class="copy" data-copy aria-label="Copy an example picks line"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div><div class="gd-more-row"><div><b>Already labelled in Label Studio</b><span>judgekeeper reads the project’s JSON export.</span></div><div class="cmd"><code>judgekeeper steps export.json</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper steps export.json"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></div>
+  <div class="gd-foot"><a class="b-main" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/agent-steps/README.md">See an example run</a><a class="b-side" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#steps-mark-an-agent-runs-first-wrong-step-then-check-an-agent-as-a-judge">Full reference</a></div>
+</div>
+<div class="gd-panel" role="tabpanel" id="results" aria-labelledby="gd-tab-results">
+  <h3 class="gd-h">Eval results</h3>
+  <div class="gd-intro gd-with"><p>Results graded by your <span class="nb">LLM-as-a-judge</span>, from</p><ul class="gx-chips"><li>promptfoo</li><li>DeepEval</li><li>Inspect AI</li><li>MLflow</li><li>Your own file</li></ul></div>
+  <ol class="gd-steps">
+    <li><div class="gd-say"><h3 class="gd-word">Read<span class="sp-dot">.</span></h3><p>Run it in your project folder. It finds your results and opens the marking page. Mark each answer Pass or Fail. While you mark, the grade from your <span class="nb">LLM-as-a-judge</span> stays hidden.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
+    <li><div class="gd-say"><h3 class="gd-word">Measure<span class="sp-dot">.</span></h3><p>See how often your <span class="nb">LLM-as-a-judge</span> agrees with you, and the answers where you disagree. Too early to tell? Mark more.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper mark</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper mark"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
+    <li><div class="gd-say"><h3 class="gd-word">Fix<span class="sp-dot">.</span></h3><p>Get the answers it got wrong and write a better rule. Grade the marked answers again with the new rule, and judgekeeper tests it on marks kept aside.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper fix"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div><div class="cmd"><code>judgekeeper fix new-results.json</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper fix new-results.json"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
+    <li><div class="gd-say"><h3 class="gd-word">Re-check<span class="sp-dot">.</span></h3><p>Changed its model or rule? Grade your marked answers again and see if it still agrees with you. No new marking.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper check new-results.json</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper check new-results.json"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
+  </ol>
+  <div class="gd-more"><h4>Other starting points</h4><div class="gd-more-row" id="own-format"><div><b>Your own file</b><span>A CSV, TSV or JSONL file with <code>input</code>, <code>output</code> and <code>verdict</code> columns.</span></div><div class="cmd"><code>judgekeeper results.csv</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper results.csv"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div><div class="gd-more-row"><div><b>Grading in your own code</b><span>Add this line after each grade, then run <code>judgekeeper</code>.</span></div><div class="cmd prompt"><code>judgekeeper.record(input=question, output=answer, verdict=grade)</code><button type="button" class="copy" data-copy aria-label="Copy code: judgekeeper.record()"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div><div class="gd-more-row"><div><b>Already have Pass or Fail labels</b><span>A CSV, TSV or JSONL file with an answer and a label column, or a Label Studio export.</span></div><div class="cmd"><code>judgekeeper --labels your-labels.csv</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper --labels your-labels.csv"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></div>
+  <div class="gd-foot"><a class="b-main" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/label-studio/README.md">See an example run</a><a class="b-side" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md">Full reference</a></div>
+</div>
+<div class="gd-panel" role="tabpanel" id="ai-check" aria-labelledby="gd-tab-ai-check">
+  <h3 class="gd-h">Answers only</h3>
+  <p class="gd-intro">Answers from your agent or chatbot, with no grades: a CSV, TSV or JSONL file with <code>input</code> and <code>output</code> columns.</p>
+  <ol class="gd-steps">
+    <li><div class="gd-say"><h3 class="gd-word">Read<span class="sp-dot">.</span></h3><p>Run it in your project folder. Mark each answer Pass or Fail, and add a reason to the failed ones.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
+    <li><div class="gd-say"><h3 class="gd-word">Measure<span class="sp-dot">.</span></h3><p>From 10 marks, see how many passed, with a range.</p></div><div class="gd-cmds"></div></li>
+    <li><div class="gd-say"><h3 class="gd-word">Fix<span class="sp-dot">.</span></h3><p>Get the failed answers, apart from the half kept aside, with a prompt for your coding agent to improve the prompt of your agent or chatbot.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper fix"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
+    <li><div class="gd-say"><h3 class="gd-word">Re-check<span class="sp-dot">.</span></h3><p>Save the new answers over the old file and mark them. On the answers kept aside, see how many were fixed and how many broke.</p></div><div class="gd-cmds"><div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></li>
+  </ol>
+  <div class="gd-more"><h4>Other starting points</h4><div class="gd-more-row" id="question-prompt"><div><b>No answers yet</b><span>Your coding agent writes about 40 test questions with you, runs your agent or chatbot on them and saves the answers. This may use your API credits.</span></div><div class="cmd gd-prompt"><code hidden>Read this project and list what its AI is meant to do (its prompt and the tasks it handles).
+Write about 40 test questions the way its real users would ask them: cover every task, and make about half of them hard (missing details, out of scope, against the AI&#x27;s own rules, a wrong premise, or more than one step). No near-duplicates.
 Show me the questions as a numbered table (question, the task it tests, normal or hard) and wait for my yes. I may edit or drop any.
-Then run the AI on each question and save the questions and answers in results.csv, with two columns: input (the question) and output (the answer). Do not grade the answers. Then run judgekeeper.</code><button type="button" class="copy" data-copy aria-label="Copy the prompt"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      <p class="gx-small">Your AI runs once for each question, so this may use your API credits.</p>
-    </div>
-  </div>
-  <div class="gm-row sp-block" id="agent-steps">
-    <h3>Checking an agent? Check its reviewer step by step</h3>
-    <div class="gx-text">
-      <p>For an agent and a reviewer: an AI that reads a run and says which step went wrong first. judgekeeper only reads and writes files; it never calls Label Studio or an AI.</p>
-      <p><b>1.</b> Save your agent runs in a JSONL file, one run per line with an <code>id</code> and its <code>steps</code>. Run <code>judgekeeper steps runs.jsonl</code>. It writes a Label Studio import file and labelling setup in <code>.judgekeeper/steps/</code>, with each step and its tool calls.</p>
-      <p><b>2.</b> In Label Studio, make a project from that setup and import the file. Your people label the first wrong step of each run (0 if all steps are fine).</p>
-      <p><b>3.</b> Run <code>judgekeeper steps export.json</code> on the project’s JSON export. It shows how often your reviewer finds the same first wrong step as your people, and how often it is within one step. Your reviewer’s guesses come from the export’s predictions, or from a file given with <code>--reviewer</code>.</p>
-      <p class="gx-small"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/agent-steps/README.md">An example run</a> · <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#steps-check-an-agent-reviewers-first-wrong-step">Full reference</a></p>
-    </div>
+Then run the AI on each question and save the questions and answers in results.csv, with two columns: input (the question) and output (the answer). Do not grade the answers. Then run judgekeeper.</code><button type="button" class="copy" data-copy aria-label="Copy the prompt"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="gd-copy-say">Copy the prompt</span><span class="copied" aria-live="polite"></span></button></div></div></div>
+  <div class="gd-foot"><a class="b-main" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md">See an example run</a><a class="b-side" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md">Full reference</a></div>
+</div>
   </div>
   </div>
 </div></section>
-<section class="gx-more"><div class="wrap">
-  <div class="sp-band">
-  <div class="gm-row sp-block" id="own-format">
-    <h3>Your own file or code</h3>
-    <div class="gx-text">
-      <p><b>No eval tool?</b> Save your results as a CSV, TSV or JSONL file with three columns: <code>input</code> (the question), <code>output</code> (the answer) and <code>verdict</code> (Pass or Fail from your LLM-as-a-judge). Other names work too: judgekeeper asks how to read them. Then run:</p>
-      <div class="cmd"><code>judgekeeper results.csv</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper results.csv"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      <p><b>Your LLM-as-a-judge runs in your own code?</b> Add this after each grade:</p>
-      <pre class="gx-code" tabindex="0" role="region" aria-label="Code: judgekeeper.record() in your code"><code>import judgekeeper
-judgekeeper.record(<wbr>input=question, output=answer, verdict=grade)</code></pre>
-      <p>It saves in <code class="path">.judgekeeper/<wbr>records/</code> in your project folder. Run <code>judgekeeper</code> there.</p>
-      <p class="gx-small">Your LLM-as-a-judge gives a score instead of Pass or Fail? The <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-grades-are-read">full reference</a> shows how to set where Pass starts, and every other option.</p>
-    </div>
-  </div>
-  <div class="sp-stack">
-  <div class="gm-row sp-block" id="keys">
-    <h3>No API key needed</h3>
-    <div class="gx-text"><p>In your project, judgekeeper reads your results files and writes only in <code>.judgekeeper/</code>, plus <code>judgekeeper.toml</code> after you say yes. It makes no AI call and needs no API key. When you grade answers again, your own eval tool makes the calls, with your own key.</p></div>
-  </div>
-  <div class="gm-row sp-block" id="misc">
-    <h3>Handy commands</h3>
-<pre class="gm-pre" tabindex="0" role="region" aria-label="Handy commands"><span class="t-prompt">$</span> judgekeeper --stop         <span class="t-dim"># close the marking page</span>
-<span class="t-prompt">$</span> judgekeeper --new          <span class="t-dim"># start over (old marks are kept)</span>
-<span class="t-prompt">$</span> judgekeeper --no-browser   <span class="t-dim"># get the link, no browser</span>
-<span class="t-prompt">$</span> judgekeeper --help         <span class="t-dim"># see every option</span></pre>
-  </div>
-  </div>
-  </div>
+<section class="gd-sec gd-handy" id="misc"><div class="wrap">
+  <h2>Handy commands</h2>
+  <div class="gd-handy-grid"><div><span>Close the marking page</span><div class="cmd"><code>judgekeeper --stop</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper --stop"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div><div><span>Start over (old marks are kept)</span><div class="cmd"><code>judgekeeper --new</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper --new"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div><div><span>Get the link, no browser</span><div class="cmd"><code>judgekeeper --no-browser</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper --no-browser"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div><div><span>See every option</span><div class="cmd"><code>judgekeeper --help</code><button type="button" class="copy" data-copy aria-label="Copy command: judgekeeper --help"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div></div>
 </div></section>
 </main>
 <footer class="foot"><div class="wrap">
 <div class="brand"><svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/><path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/><path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>judgekeeper</span></div>
-<div class="foot-r" role="navigation" aria-label="Legal"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md">Full reference</a><a href="privacy.html">Privacy</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">Trademarks</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md">Security</a><span class="copy">© 2026 Sathvik Thota · <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">Apache-2.0 license</a></span></div>
+<div class="foot-r" role="navigation" aria-label="Legal"><a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md">Full reference</a><a href="privacy.html">Privacy</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md">Trademarks</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md">Security</a><a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE">Apache-2.0 license</a><span class="copy">© 2026 Sathvik Thota</span></div>
 </div></footer>
 </body>
 </html>

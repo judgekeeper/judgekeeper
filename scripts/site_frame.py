@@ -19,7 +19,7 @@ LEGAL = [(f"{GITHUB}/blob/main/docs/reference.md", "Full reference"), ("privacy.
          (f"{GITHUB}/blob/main/SECURITY.md", "Security")]
 THEME = "#0b0c0e"  # style.css --bg: a phone's browser bar takes the page's colour
 FONTS = ("manrope-latin-wght-normal.woff2",)  # the text font, so the first screen never jumps
-ASSETS = 35  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
+ASSETS = 40  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
 LOGO = ('<svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
         '<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>'
         '<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>'
@@ -55,7 +55,7 @@ def header(target: str) -> str:
         '<header class="menu"><div class="wrap">\n'
         f'<nav class="menu-l" aria-label="Pages">{_links(NAV, target)}</nav>\n'
         f'<a class="brand" href="index.html">{LOGO}<span>judgekeeper<sup>™</sup></span></a>\n'
-        f'<div class="menu-r"><a class="gh" href="{GITHUB}">GitHub</a></div>\n'
+        f'<div class="menu-r"><a class="gh" href="{GITHUB}"><svg class="gh-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>\n'
         "</div></header>")
 
 
@@ -66,8 +66,8 @@ def footer() -> str:
         '<footer class="foot"><div class="wrap">\n'
         f'<div class="brand">{LOGO}<span>judgekeeper</span></div>\n'
         f'<div class="foot-r" role="navigation" aria-label="Legal">{_links(LEGAL)}'
-        f'<span class="copy">© 2026 Sathvik Thota · <a href="{GITHUB}/blob/main/LICENSE">'
-        "Apache-2.0 license</a></span></div>\n"
+        f'<a href="{GITHUB}/blob/main/LICENSE">Apache-2.0 license</a>'
+        '<span class="copy">© 2026 Sathvik Thota</span></div>\n'
         "</div></footer>")
 
 

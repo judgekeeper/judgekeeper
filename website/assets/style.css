@@ -9,7 +9,7 @@
   --bg: #0b0c0e; --fg: #e6e8eb; --muted: #8b919a; --faint: #767c86; --line: #262a30;
   --hover: #121418; --current: #17191e; --panel: #0b0c0e; --rule: #343941;
   --term-bg: #07080a; --term-bar: #101215; --term-dot: #33373e;
-  --green: #10B981; --green-fill: #047857; --green-muted: rgb(16 185 129 / 80%); --green-glow: rgb(16 185 129 / 20%);
+  --green: #10B981; --green-fill: #047857; --green-muted: rgb(16 185 129 / 80%);
   --slate: #1E293B; --slate-panel: rgb(30 41 59 / 40%);  /* the logo's dark half, and a soft panel of it */ --red: #e5484d; --red-fill: #c73b40;
   --sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; }
@@ -84,9 +84,32 @@ img, svg { max-width: 100%; }
 .jk-bar { flex: none; }  /* the window bar: it never takes the card's spare room */
 /* site.js gives the card the height of its tallest answer; the room left sits under the answer */
 .jk-live { flex: 1; display: flex; flex-direction: column; }
-.jk-row { padding: 32px 40px; border-bottom: 1px solid var(--line); }
+/* the demo's two tabs, One answer and Agent steps, sit in the window bar in place of its title
+   (the title shows only without JavaScript) */
+.jk-tabs { flex: 1; display: flex; justify-content: center; gap: 24px; height: 100%; margin-right: 74px; }
+.jk-tab { position: relative; height: 100%; font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--muted); }
+.jk-tab:hover, .jk-tab[aria-selected=true] { color: var(--fg); }
+.jk-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--green); opacity: 0; }
+.jk-tab[aria-selected=true]::after { opacity: 1; }
+.jk-pane { flex: 1; display: flex; flex-direction: column; }
+.jk-sl { flex: 1; display: flex; flex-direction: column; }
+.jk-row-t { padding-block: 22px; }
+.jk-task { font-size: 22px; max-width: none; }  /* an agent run's task: one line */
+/* the run's count sits beside its label, so the task has the whole width and stays on one line */
+.jk-row-t > div:first-child { grid-column: 1 / -1; grid-row: 1; }
+.jk-row-t .jk-state { grid-column: 2; grid-row: 1; margin-top: -12px; }
+.jk-row-s { flex: 1; padding-block: 18px 20px; }
+.jk-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.jk-step { width: 100%; display: grid; grid-template-columns: 24px 1fr; align-items: center; gap: 12px; text-align: left; padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 15px; line-height: 1.4; }
+.jk-step:hover { border-color: var(--red); background: var(--hover); }
+.jk-step .n { width: 24px; height: 24px; border: 1px solid var(--rule); border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; color: var(--muted); }
+.jk-step:hover .n { border-color: var(--red); color: var(--red); }
+.jk-send { display: none; flex-direction: column; }
+.jk-pane.is-done .jk-sl { display: none; }
+.jk-pane.is-done .jk-send { display: flex; flex: 1; }
+.jk-row { padding: 26px 36px; border-bottom: 1px solid var(--line); }
 .jk-row-q { display: grid; grid-template-columns: 1fr auto; gap: 16px; }
-.jk-row-a { flex: 1; min-height: 168px; }
+.jk-row-a { flex: 1; min-height: 120px; }
 .jk-label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
 /* the count of marks so far, in a small pill */
 .jk-state { border: 1px solid var(--line); background: var(--hover); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; line-height: 1.2; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -94,9 +117,9 @@ img, svg { max-width: 100%; }
 .jk-state b { font-weight: 700; }
 .jk-state b.p { color: var(--green); }
 .jk-state b.f { color: var(--red); }
-.jk-question { font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; margin: 0; max-width: 28ch; }
+.jk-question { font-size: 24px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; margin: 0; max-width: 28ch; }
 .jk-answer { font-size: 20px; line-height: 1.6; margin: 0; max-width: 60ch; }
-.jk-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 40px 16px; }
+.jk-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 18px 36px 14px; }
 .jk-btn { height: 50px; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px; font-weight: 700; color: #fff; transition: filter 100ms ease; }
 .jk-btn:active { filter: brightness(.9); }
 .jk-ico { width: 15px; height: 15px; }
@@ -106,6 +129,37 @@ img, svg { max-width: 100%; }
 .jk-pass { background: var(--green-fill); }
 .jk-fail:hover { filter: brightness(1.08); }
 .jk-pass:hover { filter: brightness(1.08); }
+/* After a mark: what the check said, whether it agrees with you, and Next. */
+.jk-said { display: none; }
+.is-said .jk-acts { display: none; }
+.is-said .jk-said { display: grid; }
+.is-said #d-skip { display: none; }
+.jk-verdict { height: 50px; border: 1px solid var(--line); border-radius: 4px; display: flex; flex-direction: column; justify-content: center; padding: 0 16px; font-size: 14px; line-height: 1.3; }
+.jk-verdict b { font-weight: 700; }
+.jk-verdict b.p { color: var(--green); }
+.jk-verdict b.f { color: var(--red); }
+.jk-verdict .m { font-size: 13px; }
+.jk-verdict.agree { border-color: var(--green-muted); }
+.jk-verdict.differ { border-color: var(--red); }
+.jk-verdict.agree .m, .jk-match.agree { color: var(--green); }
+.jk-verdict.differ .m, .jk-match.differ { color: var(--red); }
+.jk-next { background: var(--slate); border: 1px solid var(--rule); }
+.jk-next:hover { filter: brightness(1.15); }
+#s-match, #s-next { display: none; }
+.is-said #s-fine { display: none; }
+.is-said #s-match, .is-said #s-next { display: inline-flex; }
+.jk-match { padding: 8px 12px; font-size: 14px; font-weight: 700; }
+/* The agent-as-a-judge's pick gets its own line, so it never wraps between the buttons */
+.jk-sub { flex-wrap: wrap; }
+.jk-sub button { white-space: nowrap; }
+.is-said .jk-match { flex-basis: 100%; justify-content: center; text-align: center; padding: 16px 12px 6px; }
+.is-said .jk-step { grid-template-columns: 24px 1fr auto; cursor: default; }
+.is-said .jk-step:hover { border-color: var(--line); background: none; }
+.is-said .jk-step:hover .n { border-color: var(--rule); color: var(--muted); }
+.is-said .jk-step.you, .is-said .jk-step.you:hover { border-color: var(--red); }
+.jk-step .tag:empty { display: none; }
+.jk-step .tag { border: 1px solid var(--rule); border-radius: 999px; padding: 1px 8px; font-size: 12px; line-height: 1.4; color: var(--fg); white-space: nowrap; }
+.jk-step .tag.you { border-color: var(--red); color: var(--red); }
 .jk-sub { display: flex; align-items: center; justify-content: center; padding: 0 24px 10px; }
 .jk-sub button { padding: 8px 20px; font-size: 14px; color: var(--muted); }
 .jk-sub button:hover { color: var(--fg); background: var(--hover); }
@@ -117,11 +171,12 @@ img, svg { max-width: 100%; }
 .jk-end-top .jk-label { margin: 0; }
 .jk-end-top .jk-again { margin: 0; border: 1px solid var(--line); background: var(--hover); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; line-height: 1.2; color: var(--fg); }
 .jk-end-top .jk-again:hover { border-color: var(--rule); }
-.jk-end-head h2 { margin: 0; font-size: clamp(16px, 1.6vw, 20px); font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
+.jk-end-head h2 { margin: 0; font-size: clamp(16px, 1.4vw, 18px); font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
 .jk-end-head h2 .mono { font-family: var(--sans); white-space: nowrap; }
 .jk-end-head h2 .mono:first-of-type { color: var(--red); }
 .jk-end-head h2.ok .mono { color: var(--green); }
-@media (min-width: 1000px) { .jk-end-head h2 { white-space: nowrap; } }
+.jk-end-head h2 { text-wrap: balance; }
+.jk-end-head h2 b { font-weight: inherit; }  /* wraps inside the card, two even lines when it must */
 .jk-end-list { list-style: none; margin: 0; padding: 8px 40px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .jk-end-list li { display: grid; grid-template-columns: 10px 1fr 52px 116px; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
 .jk-end-list li:last-child { border-bottom: 0; }
@@ -134,6 +189,7 @@ img, svg { max-width: 100%; }
 .jk-end-list li.head .g { font-family: var(--sans); font-size: 11px; color: var(--muted); }
 .jk-end-list .g.p { color: var(--green); }
 .jk-end-list .g.f { color: var(--red); }
+.jk-end-list .g.s { color: var(--fg); }
 .jk-end-actions { display: flex; justify-content: center; align-items: center; padding: 20px 40px 24px; border-top: 1px solid var(--line); }
 .jk-go { font-weight: 700; border-radius: 4px; color: #fff; background: var(--green-fill); height: 46px; padding: 0 22px; font-size: 15px; display: inline-flex; align-items: center; text-decoration: none; transition: filter 100ms ease; }
 .jk-go:hover { filter: brightness(1.08); }
@@ -230,57 +286,59 @@ img, svg { max-width: 100%; }
    word to word never flashes it */
 .five:not(:hover) a.is-on::after { transition-delay: 120ms; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; }
-.cta .hero-note { flex-basis: 100%; margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+
 .steps { border-bottom: 1px solid var(--rule); }
 .steps .wrap { padding-block: 80px; }
 .steps h2 { font-size: 32px; font-weight: 800; letter-spacing: -.022em; margin: 0 0 36px; }
+.steps h2:has(+ .steps-lede) { margin-bottom: 12px; }
+.steps-lede { margin: 0 0 36px; max-width: 68ch; font-size: 18px; line-height: 1.55; color: var(--muted); text-wrap: balance; }  /* even line lengths */
 .steps-grid { display: grid; grid-template-columns: 400px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.steplist { list-style: none; margin: 0; padding: 0; border-right: 1px solid var(--line); display: grid; grid-template-rows: repeat(5, 1fr); min-height: 0; }
+.steplist { list-style: none; margin: 0; padding: 0; border-right: 1px solid var(--line); display: grid; grid-template-rows: repeat(4, 1fr); min-height: 0; }
 .steplist button { width: 100%; height: 100%; text-align: left; display: grid; grid-template-columns: 28px 1fr; align-content: center; gap: 12px; padding: 16px 22px 16px 20px; border-bottom: 1px solid var(--line); border-left: 2px solid transparent; color: var(--muted); line-height: 1.4; }
 .steplist button:last-child { border-bottom: 0; }
 .steplist button:hover { background: var(--hover); color: var(--fg); }
 .steplist button[aria-selected=true] { background: var(--current); color: var(--fg); border-left-color: var(--green); }
 .steplist .n { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid transparent; border-radius: 50%; font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; color: var(--muted); }
-.steplist button[aria-selected=true] .n { color: var(--green); border-color: var(--green); box-shadow: 0 0 0 4px var(--green-glow); }
+.steplist button[aria-selected=true] .n { color: var(--green); border-color: var(--green); }
 .steplist b { display: block; font-size: 16px; font-weight: 700; color: var(--fg); }
 .steplist .d { display: block; font-size: 14.5px; margin-top: 2px; }
 .steps-grid .term { border: 0; min-width: 0; background: var(--slate-panel); }
-/* "On public datasets.": two numbers in a window like the steps box, each a link to its report */
-.real { padding: 24px 0 8px; }
+/* "On public datasets.": one row per result, the numbers inside the sentence, its report on the right */
+.real { padding: 80px 0 0; }
 .real h2 { margin: 0 0 28px; font-size: 32px; font-weight: 800; letter-spacing: -.022em; }
-.rt-win { border: 1px solid var(--slate); border-radius: 12px; overflow: hidden; background: var(--slate-panel); }
-.rt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.rt { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 32px 36px 28px; border-left: 1px solid var(--line); color: var(--fg); text-decoration: none; font-family: var(--mono); font-variant-ligatures: none; transition: background 120ms ease; }
-.rt:first-child { border-left: 0; }
-/* on hover, a green line grows across the top of the tile */
-.rt::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--green); transform: scaleX(0); transition: transform 300ms ease; }
-.rt:hover { background: var(--hover); }
-.rt:hover::before { transform: scaleX(1); }
-.rt-big { color: var(--green); font-size: 30px; font-weight: 500; letter-spacing: -.01em; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.rt-line { flex: 1; color: var(--muted); font-size: 14px; line-height: 1.5; text-wrap: pretty; }
-.rt-src { margin-top: 8px; font-size: 13px; font-weight: 500; }
-.rt-src::after { content: " →"; color: var(--muted); }
-.rt:hover .rt-src::after { color: var(--fg); }
-@media (max-width: 560px) {
-  .real h2 { font-size: 26px; }
-  .rt-grid { grid-template-columns: 1fr; }
-  .rt { border-left: 0; padding: 24px 18px; }
-  .rt + .rt { border-top: 1px solid var(--line); }
-  .rt-big { font-size: 24px; }
+/* the three results: a list on the left, the chosen one in a window on the right (the steps box's pattern) */
+.ds-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ds-list { display: grid; grid-template-rows: repeat(3, 1fr); border-right: 1px solid var(--line); }
+.ds-list button { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 24px 24px 24px 22px; text-align: left; border-left: 2px solid transparent; border-bottom: 1px solid var(--line); }
+.ds-list button:last-child { border-bottom: 0; }
+.ds-list button b { font-size: 16px; font-weight: 700; color: var(--fg); }
+.ds-list button span { font-family: var(--mono); font-variant-ligatures: none; font-size: 12.5px; color: var(--muted); }
+.ds-list button:hover { background: var(--hover); }
+.ds-list button[aria-selected=true] { border-left-color: var(--green); background: var(--current); }
+.ds-win { border: 0; background: var(--slate-panel); }
+/* the three results share one spot, so the window keeps the tallest one's height and the page never moves */
+.ds-stack { flex: 1; display: grid; }
+.ds-panel { grid-area: 1 / 1; display: flex; flex-direction: column; }
+.ds-panel.is-off { visibility: hidden; }
+.ds-body { flex: 1; display: flex; flex-direction: column; gap: 24px; padding: 32px 28px; font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; line-height: 1.7; }
+.ds-nums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.ds-nums.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ds-nums > div { display: flex; flex-direction: column; gap: 8px; }
+.ds-nums span { color: var(--muted); }
+.ds-big { font-size: 40px; font-weight: 700; line-height: 1; color: var(--fg); font-variant-numeric: tabular-nums; }
+.ds-big.g, .ds-big .g { color: var(--green); }
+.ds-big.r { color: var(--red); }
+.ds-big .was { color: var(--muted); font-weight: 500; }
+.ds-body p { margin: 0; max-width: 64ch; color: var(--fg); }
+.tf-dot.ok { background: var(--green); }
+@media (max-width: 860px) {
+  .ds-grid { grid-template-columns: 1fr; }
+  .ds-list { grid-template-rows: none; border-right: 0; border-bottom: 1px solid var(--line); }
 }
+.real .ds-grid { margin-bottom: 64px; }
 .close .wrap { padding-block: 80px; }
-.close-box { border: 1px solid var(--line); padding: 40px 44px; display: grid; grid-template-columns: 1fr auto; gap: 24px 48px; align-items: center; }
 .close h2 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.022em; }
 .close p { margin: 8px 0 0; color: var(--muted); font-size: 17px; }
-/* "Have eval results?" as your own terminal: a green border (no glow), waiting at a prompt,
-   with the same space above it as above "On public datasets." (8 + 17 = 24 + the 1px line) */
-.close { padding-top: 17px; }
-.close-win { border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: 12px; overflow: hidden; background: var(--slate-panel); }
-.close-win .close-box { border: 0; padding: 36px 40px; }
-.close-win h2 { font-family: var(--mono); font-variant-ligatures: none; font-weight: 500; font-size: 26px; letter-spacing: -.01em; }
-.close-win p { font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; margin-top: 10px; }
-.close-win .close-prompt { font-size: 15px; color: var(--fg); margin-top: 18px; }
-.close-prompt .t-prompt { color: var(--green); }
 @media (max-width: 1100px) {
   .hero .wrap { grid-template-columns: minmax(0, 1fr) 500px; gap: 48px; }
   .hero h1 { font-size: 52px; }
@@ -299,13 +357,10 @@ img, svg { max-width: 100%; }
   .steplist { border-right: 0; border-bottom: 1px solid var(--line); grid-template-rows: none; }
   .steplist button { padding: 14px 16px; }
   .close .wrap { padding-block: 56px; }
-  .close-box { grid-template-columns: 1fr; padding: 28px 20px; }
   .close h2 { font-size: 24px; }
-  .close-win .close-box { padding: 24px 18px; }
-  .close-win h2 { font-size: 21px; }
 }
 @media (max-width: 760px) {
-  .steplist .d, .rt-line, .close-win p { font-size: 15px; }
+  .steplist .d { font-size: 15px; }
 }
 /* small phones: the five words stay on one line and "LLM-as-a-judge" fits, down to 320px wide
    (64px is the two side paddings of .wrap) */
@@ -329,10 +384,9 @@ img, svg { max-width: 100%; }
 
 /* ---- text: Privacy, and the Guide's steps and cards ---- */
 /* code inside a sentence or a table (a command box has its own look) */
-.g-main code, .gx-text p code, .gx-text td code, .gx-small code { font-family: var(--mono); font-variant-ligatures: none; font-size: .92em; background: rgba(255, 255, 255, .06); border-radius: 4px; padding: 2px 6px; white-space: nowrap; }
-.gx-text code.long { white-space: normal; overflow-wrap: anywhere; }
-.g-main a, .gx-text a, .gx-small a { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--muted); }
-.g-main a:hover, .gx-text a:hover, .gx-small a:hover { text-decoration-color: var(--fg); }
+.g-main code { font-family: var(--mono); font-variant-ligatures: none; font-size: .92em; background: rgba(255, 255, 255, .06); border-radius: 4px; padding: 2px 6px; white-space: nowrap; }
+.g-main a { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--muted); }
+.g-main a:hover { text-decoration-color: var(--fg); }
 p.done b { font-weight: 800; }
 details { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 20px 0 0; }
 summary { cursor: pointer; padding: 14px 18px; font-weight: 700; list-style: none; display: flex; gap: 12px; align-items: center; }
@@ -341,7 +395,6 @@ summary::before { content: ""; width: 7px; height: 7px; border-right: 1.5px soli
 details[open] summary::before { transform: rotate(45deg); }
 details p { padding: 0 16px; }
 details p:last-child { padding-bottom: 14px; }
-.tw { overflow-x: auto; margin: 4px 0 16px; }
 table { border-collapse: collapse; width: 100%; }
 th { text-align: left; font-family: var(--mono); font-variant-ligatures: none; font-weight: 500; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0 24px 10px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
 td { padding: 14px 24px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; }
@@ -379,19 +432,14 @@ td:first-child { min-width: 14ch; }
 .gx-hero .wrap { padding-block: 64px 56px; }
 .gx-hero .hero-l { gap: 24px; }
 .h-brand { color: var(--green); }
-.gx-lede { margin: 0; font-size: 18px; line-height: 1.55; color: var(--muted); max-width: 44ch; }
 /* a window like Home's: the install card and each step's window */
 .gwin { border: 1px solid var(--slate); border-radius: 12px; overflow: hidden; background: var(--slate-panel); }
-.gwin-body { padding: 28px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 /* the install card: pip and uv, both in view, one command per box, all the same width */
 .gx-install { display: flex; flex-direction: column; gap: 16px; }
 .gx-way-h { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
 .gx-way-h:first-child { margin-top: 0; }
 .gx-way-h b { color: var(--fg); }
 .gx-way-h a { color: inherit; }
-.gx-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-.gx-pair .cmd { display: grid; width: 100%; min-width: 0; }
-.gwin-body .gx-small { margin: 8px 0 0; }
 /* every command looks like a terminal line: a green "$" the copy button never copies */
 .gx .cmd { background: var(--term-bg); border-radius: 8px; }
 .gx .cmd code { font-family: var(--mono); font-variant-ligatures: none; color: var(--fg); }
@@ -399,129 +447,10 @@ td:first-child { min-width: 14ch; }
 /* a prompt for a coding agent: its lines as they are, no "$" */
 .cmd.prompt code { align-items: flex-start; white-space: pre-wrap; overflow-wrap: anywhere; }
 .gx .cmd.prompt code::before { content: none; }
-/* the AI-check band: left-aligned (no wide gaps), and its path whole on one line */
-.gx-small { margin: 0; font-size: 15px; line-height: 1.6; color: var(--muted); }
-.gx-text h3 { margin: 0 0 12px; font-size: 18px; font-weight: 700; }
-.gx-text p { margin: 0 0 16px; line-height: 1.6; max-width: 66ch; overflow-wrap: anywhere; }
-.gx-text p:last-child { margin-bottom: 0; }
-.gx-text .cmd { margin: 8px 0 24px; }
-.gx-text .cmd:last-child { margin-bottom: 0; }
-/* a picture of the real page, with a plain border */
-.gx-shot { margin: 8px 0 24px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.gx-shot img { display: block; width: 100%; height: auto; }
-/* each picture opens full size when clicked; phones say so under it */
-.gx-shot a { display: block; }
-.gx-shot a:focus-visible { outline-offset: -2px; border-radius: 8px; }
-/* a picture of the Guide, opened over the page: as wide as the screen, so nothing is off the edge */
-.shot-view { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--fg); }
-.shot-view[open] { display: flex; flex-direction: column; }
-.shot-view::backdrop { background: var(--bg); }
-/* Close: red as the Fail button, floating over the picture's top right corner */
-.shot-close { position: absolute; top: 16px; right: 16px; z-index: 1; min-height: 44px; padding: 0 20px; border-radius: 4px; background: var(--red-fill); color: #fff; font-weight: 700; font-size: 15px; }
-.shot-close:hover { filter: brightness(1.08); }
-/* the marking page's counter is in that corner, so Close sits just under its header (5% of the
-   picture's width); on a phone the counter ends above Close */
-@media (min-width: 601px) { .shot-view.close-low .shot-close { top: calc(5vw + 8px); } }
-.shot-pane { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-.shot-pane img { display: block; width: 100%; max-width: 100%; height: auto; }
-html.has-view, html.has-view body { overflow: hidden; }
-.gx .gx-tap { display: none; margin: 0; font-size: 13px; color: var(--muted); text-align: center; }
-.gx-code { margin: 8px 0 24px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; }
-/* the steps: the five words in a bar across the top that stays in view, the Guide's own mark;
-   each step's words beside its commands and pictures. The word of the step in view is green
-   (site.js). */
-.gx-steps .wrap { padding-block: 64px 0; }
-.gx-steps h2 { margin: 0 0 36px; font-size: 32px; font-weight: 800; letter-spacing: -.022em; }
-.sp-rail { position: sticky; top: 0; z-index: 2; margin: 0 0 48px; background: var(--bg); overflow-x: auto; scrollbar-width: none; }
-.sp-rail ol { list-style: none; margin: 0; padding: 0; position: relative; display: flex; justify-content: space-between; gap: 24px; width: max-content; min-width: 100%; }
-/* the thin line under the five words */
-.sp-rail ol::before, .sp-rail ol::after { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; }
-.sp-rail ol::before { right: 0; height: 1px; background: var(--line); }
-/* the green part, from the first word to the end of the word in view (site.js sets --fill) */
-.sp-rail ol::after { width: var(--fill, 0px); background: var(--green); }
-.sp-rail a { display: flex; align-items: center; min-height: 56px; font-size: 19px; font-weight: 700; color: var(--muted); text-decoration: none; white-space: nowrap; }
-.sp-rail a:hover { color: var(--fg); }
-/* passed words muted green, the word in view green, later ones grey */
-.sp-rail a.is-done { color: var(--green-muted); }
-.sp-rail a[aria-current] { color: var(--green); }
-.gl { list-style: none; margin: 0; padding: 0; }
-.gl-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 48px; align-items: start; padding-block: 48px; border-top: 1px solid var(--line); scroll-margin-top: 56px; }
-.gl-step:first-child { border-top: 0; padding-top: 0; }
-.gl-body { min-width: 0; }
-/* the step's word: big and bold like Home's hero, but smaller */
-.sp-word { margin: 0 0 8px; font-size: 44px; line-height: 1.05; letter-spacing: -.025em; font-weight: 800; }
+/* the green dot after a step's word */
 .sp-dot { color: var(--green); }
-.gl-body > h3 { margin: 0 0 16px; font-size: 22px; font-weight: 700; line-height: 1.3; letter-spacing: -.01em; }
-.gl-body p { max-width: 60ch; }
-/* the "if" notes: a soft slate box, the question in white with its answer muted under it */
-.sp-ifs { margin: 24px 0 0; max-width: 60ch; display: grid; gap: 12px; }
-.sp-ifs + p { margin-top: 24px; }  /* a note that opens a step, with the words after it */
-.sp-ifs > div { padding: 16px 20px; border-radius: 12px; background: var(--slate-panel); }
-.sp-ifs dt { font-weight: 600; line-height: 1.6; color: var(--fg); }
-.sp-ifs dd { margin: 4px 0 0; color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
-/* beside the words: the step's command bars, then its window, with no second frame around
-   them; as tall as what it holds, in the middle of the step's height */
-.sp-side { min-width: 0; align-self: center; display: grid; gap: 16px; }
-.sp-cmds { display: grid; gap: 12px; }
-.sp-cmds .cmd { display: grid; width: 100%; min-width: 0; }
-/* a long command wraps in its box, never cut at the edge; Copy still copies one line */
-.sp-cmds .cmd code { align-items: flex-start; white-space: pre-wrap; overflow-wrap: anywhere; }
-.sp-shot .gx-shot { margin: 0; border: 0; border-radius: 0; }
-/* a step with no picture: its commands in a window like the install box's */
-.sp-win .gwin-body { padding: 24px; }
-/* below the steps: the long box on the left, two boxes stacked on the right; both columns end
-   on one line, the right one by stretching its last box */
-.gx-more .wrap { padding-block: 0 80px; }
-.sp-band { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; padding-top: 48px; border-top: 1px solid var(--line); }
-.sp-stack { min-width: 0; display: flex; flex-direction: column; gap: 24px; }
-.sp-stack > .sp-block:last-child { flex: 1; display: flex; flex-direction: column; }
-.sp-block { min-width: 0; padding: 28px; border: 1px solid var(--line); border-radius: 12px; }
-.sp-block > h3 { margin: 0 0 16px; font-size: 19px; font-weight: 700; line-height: 1.3; }
-.sp-block .cmd { display: grid; width: 100%; min-width: 0; }
-/* the reference line sits apart from the lines above it */
-#own-format .gx-small { margin-top: 24px; }
-.gm-pre { margin: 0; padding: 20px 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; line-height: 1.8; color: var(--fg); overflow-x: auto; }
-.gm-pre .t-prompt { color: var(--green); }
-.gm-pre .t-dim { color: var(--muted); }
-.sp-stack .gm-pre { flex: 1; }
-/* in a narrow box each comment goes under its command; half of a wide page fits both on a line */
-.sp-block .gx-code, .sp-block .gm-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-.sp-block .gm-pre .t-dim { display: block; padding-left: 2ch; }
-@media (min-width: 1280px) {
-  .sp-block .gm-pre { padding-inline: 20px; font-size: 13px; line-height: 3; }
-  .sp-block .gm-pre .t-dim { display: inline; padding-left: 0; }
-  /* running text has straight edges on both sides once the columns are full width; narrower
-     lines stay left-aligned, as they would get big holes between words */
-  .gl-body p:not(.sp-word), .sp-ifs dd, .sp-win .gx-small, .gx-install .gx-small, .sp-block p, .rt-line { text-align: justify; }
-  .rt-line { text-wrap: wrap; }  /* "pretty" evens the lines out, which leaves the first one short */
-  /* a path wraps after a "/", so the line before it isn't left short */
-  .gx-text code.path { white-space: normal; }
-}
-@media (max-width: 1100px) {
-  .gl-step { grid-template-columns: minmax(0, 1fr); row-gap: 24px; }
-  .sp-band { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 860px) {
-  .sp-rail { margin-bottom: 32px; }
-  .sp-rail ol { gap: 20px; }
-  .sp-rail a { min-height: 48px; font-size: 16px; }
-  .gl-step { padding-block: 40px; scroll-margin-top: 48px; }
-  .gl-step:first-child { padding-top: 0; }
-  .sp-word { font-size: 36px; }
-  .gx-steps .wrap { padding-block: 56px 0; }
-  .gx-more .wrap { padding-bottom: 56px; }
-  .gx-steps h2 { font-size: 26px; margin-bottom: 32px; }
-  .gwin-body { padding: 20px; }
-  .gx-pair .cmd code { padding: 12px 14px; font-size: 14px; }
-}
 @media (max-width: 760px) {
-  .gm-pre { font-size: 12.5px; }
   .g-nav a { display: inline-flex; align-items: center; min-height: 44px; }
-}
-@media (max-width: 640px) {
-  .gl-body > h3 { font-size: 19px; }
-  .gx-text .cmd { margin: 6px 0 20px; }
-  .gx-code { margin: 6px 0 20px; }
 }
 
 /* phones: a long command wraps in its box (at a space, after a "/", or anywhere) and Copy
@@ -529,23 +458,13 @@ html.has-view, html.has-view body { overflow: hidden; }
    terminal wraps its lines and is as tall as the screen it shows */
 @media (max-width: 600px) and (min-width: 301px) {
   body:has(> main.gx) .wrap { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
-  .sp-rail { margin-inline: -20px; padding-inline: 20px; }
 }
 @media (max-width: 600px) {
-  .sp-block { padding: 20px; }
-  .sp-win .gwin-body { padding: 16px; }
   .cmd code { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px 14px; }
-  /* a step's command stays on one line; a long one scrolls inside its bar */
-  .sp-cmds .cmd code { white-space: pre; overflow-wrap: normal; font-size: 14px; }
-  .sp-cmds .cmd code wbr { display: none; }
   .cmd .copy { min-width: 44px; padding: 0 12px; }
-  .gx-code { white-space: pre-wrap; overflow-wrap: anywhere; }
-  .gm-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-  .gm-pre .t-dim { display: block; padding-left: 2ch; }
   .term-out { white-space: pre-wrap; overflow-wrap: anywhere; height: auto; }
-  .gx .gx-tap { display: block; }
   /* a command in a sentence wraps at its spaces, so no box is cut off on the right */
-  .gx-text p code, .gx-small code, .gx-way-h code { white-space: normal; overflow-wrap: anywhere; }
+  .gx-way-h code { white-space: normal; overflow-wrap: anywhere; }
 }
 /* the smallest phones: a narrower margin, so a command fits its box */
 @media (max-width: 359px) {
@@ -577,7 +496,7 @@ html.has-view, html.has-view body { overflow: hidden; }
 .fc-loaded .fc-main b { font-family: var(--mono); font-variant-ligatures: none; font-weight: 600; font-size: 16px; overflow-wrap: anywhere; }
 .ck2-or { font-size: 14px; color: var(--muted); }
 .fc-kinds { font-family: var(--mono); font-variant-ligatures: none; font-size: 13px; color: var(--muted); }
-.fc-clear { position: absolute; bottom: 22%; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bar); color: var(--fg); font: 500 13.5px/1 var(--sans); }
+.fc-clear { position: absolute; bottom: 14%; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bar); color: var(--fg); font: 500 13.5px/1 var(--sans); }
 .fc-clear svg { width: 12px; height: 12px; color: var(--muted); }
 .fc-clear:hover, .fc-clear:focus-visible { border-color: var(--red); outline: none; }
 .fc-clear:hover svg, .fc-clear:focus-visible svg { color: var(--red); }
@@ -588,7 +507,7 @@ html.has-view, html.has-view body { overflow: hidden; }
 .ex-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--term-bg); text-align: left; cursor: grab; transition: border-color 140ms ease, transform 140ms ease; }
 .ex-card:active { cursor: grabbing; transform: none; }
 .ex-card:hover, .ex-card:focus-visible { border-color: var(--green); transform: translateY(-1px); outline: none; }
-.ex-ico { width: 22px; height: 22px; flex: none; color: var(--muted); transition: color 140ms ease; }
+.ex-ico { width: 16px; height: 16px; flex: none; color: var(--muted); transition: color 140ms ease; }
 .ex-card:hover .ex-ico, .ex-card:focus-visible .ex-ico { color: var(--green); }
 .ex-t { display: grid; gap: 2px; min-width: 0; }
 .ex-t b { font: 600 14px/1.25 var(--sans); color: var(--fg); }
@@ -686,13 +605,9 @@ html.has-view, html.has-view body { overflow: hidden; }
   .jk-label, .jk-state, .jk-end-top .jk-again { font-size: 14px; }
   .term-bar, .rt-bar, .term-foot, .steplist .n { font-size: 14px; }
   .term-out { font-size: 14px; }
-  .rt-src { font-size: 14px; }
   .foot .wrap { font-size: 15px; }
   /* the Guide: code and the handy commands at 14px, a path breaks after its "/", "$" on the
      command's first line, and Copy shows only its tick (the word stays for screen readers) */
-  .gx-code, .gm-pre { font-size: 14px; }
-  .gx .gx-tap { font-size: 15px; }
-  .gx-text code.path { white-space: normal; overflow-wrap: anywhere; }
   .cmd code { align-items: flex-start; }
   .cmd .copy.done .copied { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   /* the browser check: the result at 14px, the lines under the box at 15px */
@@ -736,20 +651,153 @@ html.has-view, html.has-view body { overflow: hidden; }
   .tf-link { white-space: normal; }
   .ck2-l h1 { font-size: 30px; }
   .ck2-l h1 .nb { white-space: normal; }
-  .gwin-body { padding: 16px 12px; }
-  .sp-rail { margin-inline: -12px; padding-inline: 12px; }
-  .sp-block { padding: 16px 12px; }
-  .sp-win .gwin-body { padding: 12px; }
-  .cmd code, .gx-pair .cmd code { padding: 12px 10px; font-size: 14px; overflow-wrap: normal; }
+  .cmd code { padding: 12px 10px; font-size: 14px; overflow-wrap: normal; }
   .cmd .copy { padding: 0 8px; }
-  .gm-pre { padding: 14px 10px; }
   .jk-row { padding: 16px 12px; }
   .jk-actions { padding: 14px 12px 10px; }
   .jk-end-list { padding: 4px 12px; }
-  .close-win .close-box { padding: 20px 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .ex-card:hover, .ex-card:focus-visible { transform: none; }
 }
+
+/* ---- Home's first screen: the headline, the four words and the buttons on the left, the
+   demo on the right ---- */
+.home-hero { position: relative; isolation: isolate; }
+.home-hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 540px; gap: 56px; align-items: center; padding-block: 0; }
+.home-hero .hero-l { box-sizing: border-box; justify-content: center; gap: 0; min-height: calc(100svh - 77px - 64px); padding-block: 64px; }
+.home-hero h1 { font-size: clamp(36px, 3.1vw, 46px); line-height: 1.05; }  /* "Check agents and chatbots" stays on one line */
+.home-hero .hero-r { padding-block: 56px; }
+/* "human judgment." in green, with a line that draws itself once under it */
+.hl { position: relative; color: var(--green); white-space: nowrap; }
+/* rhythm: the headline and its four words are one group, the buttons a clear step below */
+.home-hero .five { margin-top: 28px; }
+.home-hero .cta { margin-top: 48px; width: 100%; max-width: 540px; flex-wrap: nowrap; }
+.home-hero .cta a { flex: 1; }
+/* narrower: the demo goes under the text */
+@media (max-width: 1100px) {
+  .home-hero .wrap { grid-template-columns: minmax(0, 1fr) 480px; gap: 40px; }  /* two columns down to 900 wide */
+}
+@media (max-width: 900px) {
+  .home-hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .home-hero .hero-l { min-height: 0; padding-block: 56px 0; }
+  .home-hero .hero-r { max-width: 640px; }
+}
+@media (max-width: 860px) {
+  .home-hero h1 { font-size: 40px; }
+  .h1-br { display: none; }  /* narrow: the lines balance on their own */
+  .home-hero .cta { flex-wrap: wrap; }
+}
+.real + .close .wrap { padding-top: 0; }  /* the closing row continues the results' lines */
+/* the closing row: your eval results, then the answers of your agent or chatbot */
+.close-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line); }  /* the footer's line closes it */
+.close-col { display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: 40px 36px 44px 0; }
+.close-col + .close-col { border-left: 1px solid var(--line); padding-left: 36px; padding-right: 0; }
+.close-col .b-main, .close-col .b-side { margin-top: auto; }
+.close-col p { margin-bottom: 28px; }  /* the buttons sit on one line at the bottom of both halves */
+@media (max-width: 860px) {
+  .close-row { grid-template-columns: minmax(0, 1fr); }
+  .close-col, .close-col + .close-col { padding: 32px 0; border-left: 0; }
+  .close-col + .close-col { border-top: 1px solid var(--line); }
+}
+/* the GitHub button carries GitHub's own mark */
+.gh { display: inline-flex; align-items: center; gap: 8px; }
+.gh-mark { width: 16px; height: 16px; flex: none; fill: currentColor; }
+
+/* Guide: install tabs, then what do you have? (three tabs, each its steps with the commands beside) */
+.gx-install { gap: 0; }
+.gi-tabs, .gd-tabs { display: grid; border-bottom: 1px solid var(--line); background: var(--term-bar); }
+.gi-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gi-tabs button { height: 48px; font-size: 15px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.gi-tabs button:hover, .gi-tabs button[aria-selected=true] { color: var(--fg); }
+.gi-tabs button[aria-selected=true] { border-bottom-color: var(--green); }
+.gi-stack, .gd-stack { display: grid; }
+.tabs-on .gi-panel { grid-area: 1 / 1; }
+.gd-panel.is-off { display: none; }  /* each tab its own height: only the part below the box moves */
+.gi-panel { display: flex; flex-direction: column; gap: 10px; padding: 24px 28px 4px; min-width: 0; }
+.gi-panel .cmd { display: grid; width: 100%; min-width: 0; }
+.gi-panel .gx-way-h { margin: 6px 0 0; }
+.gi-panel .gx-way-h:first-child { margin-top: 0; }
+.gi-foot { margin: 16px 28px 0; padding: 16px 0 22px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+.is-off { visibility: hidden; }
+.gd-sec .wrap { padding-block: 64px 0; }
+.gd-sec h2 { margin: 0 0 28px; font-size: 32px; font-weight: 800; letter-spacing: -.022em; }
+.gd { border: 1px solid var(--slate); border-radius: 12px; overflow: hidden; background: var(--slate-panel); }
+.gd-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gd-tabs button { display: flex; flex-direction: column; gap: 4px; padding: 18px 28px 16px; text-align: left; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.gd-tabs button + button { border-left: 1px solid var(--line); }
+.gd-tabs button b { font-size: 16px; font-weight: 700; color: var(--muted); }
+.gd-tabs button span { font-family: var(--mono); font-variant-ligatures: none; font-size: 12.5px; color: var(--muted); }
+.gd-tabs button:hover b, .gd-tabs button[aria-selected=true] b { color: var(--fg); }
+.gd-tabs button[aria-selected=true] { border-bottom-color: var(--green); background: var(--slate-panel); }
+.gd-panel { display: flex; flex-direction: column; min-width: 0; }
+.gd-panel + .gd-panel { border-top: 1px solid var(--line); }
+.tabs-on .gd-panel + .gd-panel { border-top: 0; }
+.gd-h { margin: 0; padding: 28px 28px 0; font-size: 19px; }
+.tabs-on .gd-h { display: none; }
+.gd-intro { margin: 0; padding: 28px 28px 4px; font-size: 16px; line-height: 1.6; color: var(--muted); }
+.gd-steps { list-style: none; margin: 0; padding: 0 28px; }
+.gd-steps li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); gap: 16px 40px; align-items: end; padding: 24px 0; border-bottom: 1px solid var(--line); }
+.gd-say { display: flex; flex-direction: column; gap: 6px; }
+.gd-word { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: var(--green); }
+.gd-say p { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--fg); max-width: 62ch; }
+.gd-cmds { display: grid; gap: 8px; }
+.gd-panel .cmd { display: grid; width: 100%; min-width: 0; }
+.gd-panel .cmd code { padding: 11px 14px; font-size: 13.5px; white-space: normal; overflow-wrap: anywhere; }
+.gd-more { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 26px 28px 28px; }
+.gd-more h4 { margin: 0 0 2px; font-size: 16px; font-weight: 700; }
+.gd-more-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); gap: 8px 40px; align-items: center; }
+.gd-more-row > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+.gd-more-row b { font-size: 15px; font-weight: 700; }
+.gd-more-row span { font-size: 14px; line-height: 1.55; color: var(--muted); }
+.gd-more-row span code, .gd-intro code { font-family: var(--mono); font-variant-ligatures: none; font-size: .92em; color: var(--fg); background: rgba(255, 255, 255, .06); padding: 1px 5px; border-radius: 4px; }
+.gd-prompt.cmd { display: inline-flex; width: auto; justify-self: start; }
+.gd-prompt .copy { border-left: 0; padding: 11px 18px; color: var(--fg); font-weight: 600; font-size: 14px; }
+.gd-prompt .copy.done .gd-copy-say { display: none; }
+.gd-foot { display: flex; gap: 12px; padding: 20px 28px; border-top: 1px solid var(--line); background: var(--term-bar); }
+.gd-handy .wrap { padding-block: 64px 96px; }
+.gd-handy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+.gd-handy-grid > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.gd-handy-grid span { font-size: 14px; color: var(--muted); }
+.gd-handy-grid .cmd { display: grid; width: 100%; min-width: 0; }
+@media (max-width: 900px) {
+  .gd-tabs button { padding: 14px 16px 12px; }
+  .gd-tabs button span { display: none; }
+  .gd-steps li, .gd-more-row, .gd-handy-grid { grid-template-columns: minmax(0, 1fr); }
+  .gd-intro, .gd-h, .gd-steps, .gd-more, .gd-foot, .gi-panel { padding-inline: 20px; }
+  .gi-foot { margin-inline: 20px; }
+  .gd-sec h2 { font-size: 26px; }
+}
+@media (max-width: 600px) { .gd-foot { flex-wrap: wrap; } }  /* a phone: Full reference goes under the example button, never cut off */
+
+/* Guide hero: the eval tools it reads, then three facts */
+.gx-chips, .gx-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; }
+.gx-chips { gap: 8px; flex-wrap: nowrap; }
+.gx-chips li { white-space: nowrap; padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--hover); font-size: 14px; font-weight: 600; color: var(--fg); }
+.gx-facts { gap: 10px 24px; flex-wrap: nowrap; padding-top: 20px; border-top: 1px solid var(--line); }
+.gx-facts li { white-space: nowrap; display: flex; align-items: center; gap: 8px; font-size: 14.5px; color: var(--fg); }
+.gx-facts svg { width: 16px; height: 16px; flex: none; color: var(--green); }
+@media (max-width: 1100px) { .gx-chips, .gx-facts { flex-wrap: wrap; } }  /* one line only where it fits */
+.gx-way-h code { font-family: var(--mono); font-variant-ligatures: none; font-size: .92em; color: var(--fg); background: rgba(255, 255, 255, .06); padding: 1px 5px; border-radius: 4px; }
+.gi-note { margin: 6px 0 0; font-size: 14px; line-height: 1.6; color: var(--muted); }
+.gd-with { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 14px; }
+.gd-with p { margin: 0; }
+/* Guide hero: three facts under the headline, each an icon in a green tile, a bold word and a line */
+.gf { display: flex; flex-wrap: nowrap; gap: 0; margin-top: 8px; padding: 0 0 0 4px; border: 0; }  /* 4px: the N under the I of the headline (the big I sits in from its edge) */  /* three facts in a row, a thin line between them */
+.gf li { white-space: nowrap; padding: 0 20px; border-left: 1px solid var(--line); }
+.gf li:first-child { padding-left: 0; border-left: 0; }
+.gf b { font-size: 15px; font-weight: 600; color: var(--fg); line-height: 1.3; }
+@media (max-width: 600px) { .gf { flex-wrap: wrap; } }  /* a phone: they wrap */
+/* Guide hero at mid widths: a narrower install box, then one column, so the three facts stay on one line */
+@media (max-width: 1250px) { .gx-hero .wrap { grid-template-columns: minmax(0, 1fr) 460px; gap: 48px; } }
+@media (max-width: 1100px) { .gx-hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 40px; } .gx-hero .hero-r { max-width: 640px; } }
+/* check page: the file kinds as pills, as on the Guide */
+.ck-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; font-family: inherit; }
+.ck-pills span { padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--term-bg); font-size: 12.5px; color: var(--fg); }
+.ex-t span { font-family: inherit; }
+.ex-card { padding: 12px 12px; gap: 8px; }  /* room on both sides of the words */
+@media (min-width: 901px) { .ex-t span { white-space: nowrap; font-size: 11px; } }  /* desktop: one line each; phones keep their own sizes */
+@media (max-width: 1250px) { .ex-card .ex-ico { display: none; } }  /* mid widths: the words keep their room */
+.ck2-l h1 { padding-left: .167em; text-indent: -.167em; }  /* the i of "in" under the stem of the T of "Try" */

@@ -1,4 +1,5 @@
-"""The browser check's three example files (website/assets/examples/) and the page around them.
+"""The browser check's example files (website/assets/examples/), its three example cards and
+the page around them.
 
 Each example ships as a small script that sets window.JK_EXAMPLES[<file name>], added to the
 page on the first click, so the page's policy keeps connect-src 'none'. Each example reads the
@@ -18,14 +19,28 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import front, start
-from tests.test_freecheck_parity import NODE, ROOT, _page, browser, tool
+from tests.test_freecheck_parity import (
+    NODE,
+    ROOT,
+    _page,
+    browser,
+    page_answers,
+    page_runs,
+    tool,
+    tool_answers,
+    tool_runs,
+)
 from tests.website_pages import WEBSITE, parse
 
 pytestmark = pytest.mark.skipif(NODE is None, reason="needs node to run the page's free check")
 
 EXAMPLES = WEBSITE / "assets" / "examples"
-NAMES = ["shop-answers.csv", "promptfoo-results.json", "two-llm-as-a-judge-metrics.json"]
-CARDS = [("Shop answers", "CSV"), ("Repeated runs", "promptfoo"), ("Two metrics", "promptfoo")]
+GRADED = ["shop-answers.csv", "promptfoo-results.json", "two-llm-as-a-judge-metrics.json"]
+NAMES = [*GRADED, "shop-answers-no-grades.csv", "agent-runs.jsonl"]
+# The three cards under the drop box: each one's title, line and the example it opens.
+CARDS = [("Agent runs", "for an agent-as-a-judge", "agent-runs.jsonl"),
+         ("Eval results", "LLM-as-a-judge grades", "shop-answers.csv"),
+         ("Answers only", "no LLM-as-a-judge", "shop-answers-no-grades.csv")]
 MADE_UP = "made-up example · "
 
 
@@ -68,18 +83,21 @@ def _page_state(*steps: str) -> list[dict]:
 
 
 def test_the_page_offers_the_three_examples_as_cards_that_drag():
-    cards = [el for el in parse(WEBSITE / "check.html").iter() if "data-example-file" in el.attrs]
-    assert [c.attrs["data-example-file"] for c in cards] == NAMES
-    for card, (name, kind) in zip(cards, CARDS, strict=True):
-        assert card.tag == "button" and card.attrs.get("draggable") == "true"
+    cards = [el for el in parse(WEBSITE / "check.html").iter() if "ex-card" in el.classes()]
+    assert len(cards) == len(CARDS)
+    for card, (name, kind, file) in zip(cards, CARDS, strict=True):
+        assert card.tag == "button" and card.attrs.get("type") == "button"
         assert [" ".join(e.text().split()) for e in card.iter() if e.tag in ("b", "span")
                 and not e.classes() and e.parent.classes() == {"ex-t"}] == [name, kind]
+        assert card.attrs.get("data-example-file") == file  # each opens its example, and drags
+        assert card.attrs.get("draggable") == "true"
+        assert "data-preview-kind" not in card.attrs
     assert sorted(p.name for p in EXAMPLES.iterdir()) == sorted(f"{n}.js" for n in NAMES)
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
     assert "'assets/examples/' + file + '.js'" in script  # a script from the site, never fetched
 
 
-@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("name", GRADED)
 def test_each_example_reads_the_same_in_the_page_and_the_tool(files, name, monkeypatch):
     """Run in the file's own folder, as the page stands for (it knows only the file's name)."""
     path = files[name]
@@ -92,7 +110,7 @@ def test_each_example_reads_the_same_in_the_page_and_the_tool(files, name, monke
         assert judge["lines"][:len(block)] == block
 
 
-@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("name", GRADED)
 def test_each_example_reads_the_same_in_a_folder_under_home(tmp_path, monkeypatch, name):
     """As on a Windows runner, where the temporary folder is under the home folder."""
     home = tmp_path.resolve() / "Users" / "ann-x"
@@ -104,7 +122,7 @@ def test_each_example_reads_the_same_in_a_folder_under_home(tmp_path, monkeypatc
 
 
 def test_each_example_shows_what_it_is_there_for(files):
-    shop, repeats, two = (browser(files[n]) for n in NAMES)
+    shop, repeats, two = (browser(files[n]) for n in GRADED)
     (judge,) = shop["judges"]
     assert (judge["answers"], judge["pass"], judge["fail"]) == (60, 45, 15)
     assert "  reason     the reason column" in judge["lines"]
@@ -118,24 +136,83 @@ def test_each_example_shows_what_it_is_there_for(files):
         text = files[name].read_text(encoding="utf-8")
         for gone in ("What is 1 + 1", "My answer to", "Question 0?", "Answer 0.",
                      "Second line of the rubric", "grader.py", "(shortened)"):
-            assert gone not in text and gone not in "\n".join(
-                line for j in browser(files[name])["judges"] for line in j["lines"]), (name, gone)
+            assert gone not in text and gone not in "\n".join(_printed(files[name])), (name, gone)
+
+
+def _printed(path: Path) -> list[str]:
+    said = browser(path)
+    return said.get("lines") or [line for j in said["judges"] for line in j["lines"]]
+
+
+def test_the_answers_only_example_reads_as_the_tool_reads_it(files, monkeypatch):
+    path = files["shop-answers-no-grades.csv"]
+    monkeypatch.chdir(path.parent)
+    said = browser(path)
+    assert said["kind"] == "answers" and page_answers(said) == tool_answers(path)
+    assert said["lines"][3:13] == [
+        "Eval tool:       your own CSV file",
+        "File:            shop-answers-no-grades.csv",
+        "Answers:         40 answers",
+        "LLM-as-a-judge:  none in your file",
+        "",
+        front.PATH_NO_GRADES.format(file="This file"),  # the tool's own words
+        "",
+        "First answer in your file:",
+        "  Question:      Can I return a lamp after 60 days?",
+        "  Answer:        Of course! We accept returns at any time, no questions asked."]
+
+
+def test_the_agent_runs_example_reads_as_judgekeeper_steps_reads_it(files, monkeypatch):
+    path = files["agent-runs.jsonl"]
+    monkeypatch.chdir(path.parent)
+    said = browser(path)
+    assert said["kind"] == "runs" and page_runs(said) == tool_runs(path)
+    assert said["lines"][:11] == [
+        "$ judgekeeper steps agent-runs.jsonl",
+        "",
+        "File:            agent-runs.jsonl",
+        "Runs:            12 runs",
+        "Steps:           3 to 8 in each run",
+        "",
+        ("This file has agent runs, so judgekeeper checks each run's steps: you click the first "
+         "wrong step, or All steps are fine."),
+        "",
+        "First run in your file:",
+        "  Step 1  user       I want to return order 4471.",
+        "  Step 2  tool call  lookup_order(4471)"]
+    assert said["lines"][-1] == ("Next: to click the first wrong step of each run, run "
+                                 "judgekeeper steps agent-runs.jsonl in your project folder.")
 
 
 @pytest.mark.parametrize("how", ["click", "drag"])
 def test_an_example_clicked_or_dragged_in_is_checked_and_clear_brings_the_page_back(how):
-    before, loaded, cleared = _page_state("clear", f"{how}:promptfoo-results.json", "clear")
-    shown = MADE_UP + "promptfoo-results.json"
+    before, loaded, cleared = _page_state("clear", f"{how}:shop-answers.csv", "clear")
+    shown = MADE_UP + "shop-answers.csv"
     assert loaded["title"] == loaded["name"] == shown
     assert f"File:            {shown}" in loaded["output"]
-    assert "6 answers, each run 3 times" in loaded["output"]
+    assert "Answers:         60 answers" in loaded["output"]
+    assert loaded["scripts"] == ["assets/examples/shop-answers.csv.js"]
     assert loaded["box"] == "file" and loaded["has_file"] and loaded["clear"]
     assert not loaded["examples"] and not loaded["waiting"]
     for state in (cleared, before):
-        assert state["title"] == "your results file" and state["box"] == "empty"
+        assert state["title"] == "your file" and state["box"] == "empty"
         assert state["examples"] and state["waiting"] and not state["clear"]
         assert not state["output"] and not state["has_file"]
     assert cleared["focus"] == "fc-drop"  # Clear puts the focus back on the drop box
+
+
+@pytest.mark.parametrize(("how", "name", "line"), [
+    ("click", "shop-answers-no-grades.csv", "Answers:         40 answers"),
+    ("drag", "agent-runs.jsonl", "Runs:            12 runs")])
+def test_the_answers_and_runs_cards_open_their_examples(how, name, line):
+    before, loaded, cleared = _page_state("clear", f"{how}:{name}", "clear")
+    shown = MADE_UP + name
+    assert loaded["title"] == loaded["name"] == shown
+    assert f"File:            {shown}" in loaded["output"] and line in loaded["output"]
+    assert loaded["scripts"] == [f"assets/examples/{name}.js"]
+    assert loaded["box"] == "file" and loaded["has_file"] and loaded["clear"]
+    for state in (cleared, before):
+        assert state["box"] == "empty" and state["examples"] and not state["output"]
 
 
 def test_each_example_script_only_sets_its_file():

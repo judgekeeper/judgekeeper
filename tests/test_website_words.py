@@ -27,7 +27,15 @@ def test_the_pages_checked_are_every_page():
 @pytest.mark.parametrize("page", CHECKED, ids=lambda p: p.name)
 def test_no_time_estimate_and_no_ai_judge(page):
     text = _shown(page)
-    assert not re.search(r"\bminutes?\b", text, re.IGNORECASE)
+    # Home's demo data is a made-up agent run, whose step tells the customer how long a link
+    # works for: a step to mark, not a time estimate. Only that block is let off, only here.
+    demo = [c for el in parse(page).iter() if el.tag == "script" and el.attrs.get("id") ==
+            "demo-runs" for c in el.children if isinstance(c, str)]
+    assert all(" for 30 minutes" in c for c in demo) and len(demo) <= 1, page.name
+    estimate = text
+    for c in demo:
+        estimate = estimate.replace(c, "")
+    assert not re.search(r"\bminutes?\b", estimate, re.IGNORECASE)
     assert not re.search(r"\bAI judges?\b", text, re.IGNORECASE)
     assert not re.search(r"\bhow sure\b", text, re.IGNORECASE)
 
@@ -86,8 +94,9 @@ def test_llms_txt_follows_the_word_rules():
 
 def test_the_pages_use_the_words_the_rules_ask_for():
     words = {p.name: _visible(p) for p in pages()}
-    assert "The keeper of human judgment for AI." in words["index.html"]
-    assert "The keeper of human judgment for AI." in words["check.html"]  # the share alt
+    assert "Check agents and chatbots with human judgment." in words["index.html"]
+    assert "Check agents and chatbots with human judgment." in words["check.html"]  # the share alt
+    assert not any("The keeper of human judgment" in text for text in words.values())
     assert "kept aside" in words["index.html"]  # Home's Fix step
 
 

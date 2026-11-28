@@ -3,7 +3,9 @@
  * judgekeeper's step 1 for promptfoo and DeepEval results and your own CSV, TSV or JSONL
  * file, as the tool does it (readers/promptfoo.py, readers/deepeval.py, table.py,
  * start.read_results_table, start.build_pool, normalise.py, judge_check.py and the wording in
- * front.py); tests/test_freecheck_parity.py compares the two. The file is read on this
+ * front.py), a table of answers with no grades (find.answers_only, start._answers_only) and
+ * agent runs as `judgekeeper steps` reads them (steps.read_runs, steps.step_text);
+ * tests/test_freecheck_parity.py compares the two. The file is read on this
  * computer with the File API; nothing is sent anywhere, and the page's Content-Security-Policy
  * blocks every connection.
  *
@@ -18,6 +20,7 @@
   var MAX_NESTING = 500;
   var RULE_SHOWN = 58;
   var FIRST_SHOWN = 140;  // the page's first answer: question and answer cut to this many characters
+  var STEPS_SHOWN = 8;  // the first run's steps the page shows
   var ROUGH = 15, MIN_POOL = 30;
 
   // Assertion types graded by a model, and judges that are not one model call
@@ -38,21 +41,26 @@
   };
 
   // a file of no kind it reads (also an unknown text file): what the page reads, and the tool
-  var NOT_RECOGNISED = "This isn't a results file this page can read. It reads promptfoo, DeepEval, CSV, TSV and JSONL files. For other results, run `uvx judgekeeper` in your project.";
-  // a table of answers with no grade column: the tool marks them, the page reads grades only
-  var NO_GRADES = 'This file has answers and no grades. The browser check reads LLM-as-a-judge grades. ' +
-    'To mark these answers, run `uvx judgekeeper` in your project.';
+  var NOT_RECOGNISED = "This isn't a results file this page can read. It reads promptfoo, DeepEval, CSV, TSV and JSONL files, and agent runs. For other results, run `uvx judgekeeper` in your project.";
+  // own_map.ANSWER_COLUMNS: answers under other column names with no grades; the tool says
+  // what to rename (own_map.other_columns)
+  var ANSWER_COLUMNS = 'judgekeeper reads answers from an input column and an output column, with a verdict column only if an LLM-as-a-judge graded them.';
   // a table whose columns it can't place: the columns it found, and those it reads
-  function NOT_COLUMNS(columns) {
+  function notColumns(columns) {
     var names = columns.filter(isStr).map(function (c) { return c.trim().toLowerCase(); });
     var any = function (list) { return names.some(function (n) { return list.indexOf(n) >= 0; }); };
-    if (any(INPUT_WORDS) && any(OUTPUT_WORDS) && !any(SCORE_WORDS) && !gradeColumns(names).length) {
-      return NO_GRADES;
+    var both = names.indexOf('input') >= 0 && names.indexOf('output') >= 0;  // answers to mark: read as such
+    if (any(INPUT_WORDS) && any(OUTPUT_WORDS) && !any(SCORE_WORDS) && !gradeColumns(names).length && !both) {
+      var said = columns.filter(isStr).slice(0, 8).map(function (c) { return oneLine(clean(c, 30)); });
+      if (columns.length > 8) said.push((columns.length - 8) + ' more');
+      var renames = [['question', 'input'], ['answer', 'output']].filter(function (r) { return names.indexOf(r[1]) < 0; });
+      return fail('other-columns', 'This file has the columns ' + andList(said) + ', and no LLM-as-a-judge grades. ' + ANSWER_COLUMNS +
+        ' Rename ' + renames.map(function (r) { return 'the ' + r[0] + ' column to ' + r[1]; }).join(' and ') + '.');
     }
     var shown = columns.filter(isStr).slice(0, 6).map(function (c) { return clean(c, 30); });
-    return "judgekeeper can't tell which columns hold the question, the answer and the grade" +
+    return fail('not-recognised', "judgekeeper can't tell which columns hold the question, the answer and the grade" +
       (shown.length ? ' (this file has ' + andList(shown) + (columns.length > 6 ? ' and more' : '') + ')' : '') + '. ' + READ_NAMES +
-      ' The tool reads other names too. Run `uvx judgekeeper` in your project.';
+      ' The tool reads other names too. Run `uvx judgekeeper` in your project.');
   }
   var IN_PROJECT = ' This page does not read it. Run `uvx judgekeeper` in your project for this file.';
   var RECORDS = 'This is a judgekeeper.record() file.' + IN_PROJECT;
@@ -765,8 +773,8 @@
   }
 
   // csv.DictReader: the first row names the columns, empty lines are skipped
-  function csvRows(text, d) {
-    var all = parseCsv(text, d);
+  function csvRows(text, d, parsed) {
+    var all = parsed || parseCsv(text, d);
     if (!all.length) return { header: [], rows: [] };
     var header = all[0], rows = [];
     for (var r = 1; r < all.length; r++) {
@@ -777,6 +785,17 @@
       rows.push(knownNames(o));
     }
     return { header: header, rows: rows };
+  }
+
+  // find._first_units of a CSV: the first SAMPLE rows under the header as it is written (an
+  // empty line is an empty row)
+  function csvUnits(all) {
+    var header = all[0] || [];
+    return all.slice(1, SAMPLE + 1).map(function (vals) {
+      var o = {};
+      for (var k = 0; k < Math.min(header.length, vals.length); k++) o[header[k]] = vals[k];
+      return o;
+    });
   }
 
   var TABLE_FAIL = {};
@@ -798,15 +817,7 @@
     var columns = [];
     rows.forEach(function (r) { Object.keys(r).forEach(function (k) { if (columns.indexOf(k) < 0) columns.push(k); }); });
     if (columns.indexOf('output_a') >= 0 && columns.indexOf('output_b') >= 0) return { error: 'pairwise', message: PAIRWISE };
-    var verdicts = VERDICT_COLUMNS.filter(function (c) {  // each one is a judge, but a judge column of gpt-4o
-      return columns.indexOf(c) >= 0 && !(c === 'judge' && modelsNamed(rows, c));
-    });
-    if (verdicts.length) {  // and a 0/1 column named for a judge (llm_judge), the judge-named first
-      verdicts = judgeFirst(verdicts.concat(columns.filter(function (c) {
-        return verdicts.indexOf(c) < 0 && KNOWN_COLUMNS.indexOf(c) < 0 && judgeColumn(c, rows);
-      })));
-    }
-    if (!verdicts.length) verdicts = gradeColumns(columns);
+    var verdicts = verdictColumns(rows, columns);
     if (!verdicts.length || columns.indexOf('input') < 0 || columns.indexOf('output') < 0) {
       return { error: 'columns', message: 'This file needs input, output and a verdict or score column.' };
     }
@@ -882,6 +893,257 @@
     return r;
   }
   function andList(items) { return items.length === 1 ? items[0] : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]; }
+
+  /* ---------- answers with no grades: find.is_answers_table, find.answers_only, start._answers_only ---------- */
+
+  // find.is_answers_table: input and output, no verdict or score column, not two answers to
+  // compare, no label column (a labels file) and not a judgekeeper.record() file
+  function isAnswersTable(columns) {
+    var has = function (c) { return columns.indexOf(c) >= 0; };
+    return has('input') && has('output') && !gradeColumns(columns).length &&
+      !['output_a', 'output_b'].concat(HUMAN_COLUMNS).some(has) && !isRecordsFile(columns);
+  }
+  // mapper.guess, as far as find.answers_only asks it: in the first rows (SAMPLE), no part reads
+  // as an LLM-as-a-judge's verdict (named so with verdict-like values, or a 0/1 column named for
+  // a judge) and none is a rule in code's 0/1; true when it would say NO_VERDICTS
+  var SAMPLE = 50, MOST = 0.8, LEAF_DEPTH = 8;
+  var M_RULE_WORDS = ['keyword', 'keywords', 'regex', 'exact', 'contains'];
+  var PASS_MARK_KEYS = ['pass_mark', 'passmark', 'threshold', 'pass_threshold', 'passing_score', 'pass_score', 'min_score', 'cutoff'];
+  var SETTING_PARENTS = ['judge', 'judges', 'judging', 'evaluator', 'grader', 'grading', 'scorer', 'config', 'settings', 'criteria', 'rubric', 'rubrics'];
+  var MODEL_KEYS = ['judge_model', 'evaluation_model', 'evaluator_model', 'grader_model', 'model', 'judge', 'evaluator', 'grader'];
+  var ID_KEYS = ['id', 'case_id', 'item_id', 'example_id', 'sample_id', 'test_id', 'uid'];
+  var ABOUT_WORDS = ['time', 'id', 'model', 'language', 'length', 'ms', 'tokens'];
+  var REFERENCE_WORDS = ['expected', 'reference', 'gold', 'ideal', 'target', 'ground', 'truth'];
+
+  // mapper._leaves: [segments, value] of every leaf, not going into lists; a whole number
+  // written as a decimal (1.0) as Python's str() writes it
+  function leaves(obj, prefix, depth, out) {
+    out = out || [];
+    if (depth > LEAF_DEPTH) return out;
+    Object.keys(obj).forEach(function (k) {
+      var v = obj[k], seg = prefix.concat([k]);
+      if (isObj(v) && Object.keys(v).length) leaves(v, seg, depth + 1, out);
+      else out.push([seg, typeof v === 'number' && numberKind(obj, k) === 'float' && Number.isInteger(v) ? v.toFixed(1) : v]);
+    });
+    return out;
+  }
+  function at(sample, seg) {
+    var out = [];
+    sample.forEach(function (item) {
+      var v = item;
+      for (var i = 0; i < seg.length; i++) {
+        if (!isObj(v) || !Object.prototype.hasOwnProperty.call(v, seg[i])) return;
+        if (i === seg.length - 1 && typeof v[seg[i]] === 'number' && numberKind(v, seg[i]) === 'float' && Number.isInteger(v[seg[i]])) { out.push(v[seg[i]].toFixed(1)); return; }
+        v = v[seg[i]];
+      }
+      out.push(v);
+    });
+    return out;
+  }
+  function mNumber(v) {
+    if (typeof v === 'number') return v;
+    return isStr(v) && /^\s*[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?\s*$/.test(v) ? parseFloat(v) : null;
+  }
+  function mVerdictValue(v) {
+    if (typeof v === 'boolean') return true;
+    var x = mNumber(v);
+    if (x !== null) return x >= 0 && x <= 100;
+    return isStr(v) && VERDICT_VALUES.indexOf(v.trim().toLowerCase()) >= 0;
+  }
+  function pyStr(v) { return typeof v === 'boolean' ? (v ? 'True' : 'False') : v === null || v === undefined ? 'None' : isStr(v) ? v : String(v); }
+  function filled(values) { return values.filter(function (v) { return !noScore(v); }); }
+  function verdictLike(values) {
+    var seen = filled(values);
+    return seen.length > 0 && seen.filter(mVerdictValue).length >= MOST * seen.length;
+  }
+  function plainText(v) {
+    if (!isStr(v) || mNumber(v) !== null) return false;
+    var t = v.trim();
+    return VERDICT_VALUES.indexOf(t.toLowerCase()) < 0 && !('[{'.indexOf(t.charAt(0)) >= 0 && t && ']}'.indexOf(t.charAt(t.length - 1)) >= 0);
+  }
+  function textLike(values) {
+    var seen = filled(values);
+    return seen.length > 0 && seen.filter(plainText).length > (1 - MOST) * seen.length;
+  }
+  function lastWord(k) { var w = words(k); return w.length ? w[w.length - 1] : ''; }
+  function idLike(k) { return ID_KEYS.indexOf(String(k).toLowerCase()) >= 0 || namedFor(k, ['id', 'uid', 'uuid']); }
+  function setting(seg) { return seg.slice(0, -1).some(function (k) { return SETTING_PARENTS.indexOf(String(k).toLowerCase()) >= 0; }); }
+  function namedVerdict(seg) {
+    var last = seg[seg.length - 1];
+    if (idLike(last) || PASS_MARK_KEYS.indexOf(String(last).toLowerCase().replace(/-/g, '_')) >= 0) return false;
+    return namedFor(last, SCORE_WORDS) || (seg.slice(0, -1).some(function (k) { return namedFor(k, JUDGE_WORDS); }) &&
+      !namedFor(last, REASON_WORDS.concat(['model'])));
+  }
+  function ruleValues(values) {
+    var seen = filled(values).map(function (v) { return pyStr(v).trim().toLowerCase(); });
+    return seen.length > 0 && seen.every(function (v) { return RULE_VALUES.indexOf(v) >= 0; });
+  }
+  function judgeSeg(seg, values) { return namedFor(seg[seg.length - 1], JUDGE_WORDS) && !setting(seg.slice(0, -1)) && ruleValues(values); }
+  function ruleSeg(seg, values) { var w = String(seg[seg.length - 1]).match(WORD); return !!w && M_RULE_WORDS.indexOf(w[0].toLowerCase()) >= 0 && ruleValues(values); }
+  function outputsOf(item) {
+    return leaves(item, [], 0).filter(function (x) {
+      var seg = x[0], last = seg[seg.length - 1];
+      return isStr(x[1]) && seg.some(function (k) { return namedFor(k, OUTPUT_WORDS); }) && !namedFor(last, REASON_WORDS) &&
+        !(namedFor(last, OUTPUT_WORDS) && ABOUT_WORDS.indexOf(lastWord(last)) >= 0) && !namedFor(last, REFERENCE_WORDS) &&
+        !seg.some(function (k) { return namedFor(k, INPUT_WORDS); }) && !setting(seg);
+    }).map(function (x) { return x[0]; });
+  }
+  function textsOf(item) {
+    return leaves(item, [], 0).filter(function (x) {
+      var k = x[0][0];
+      return x[0].length === 1 && isStr(x[1]) && !namedFor(k, INPUT_WORDS.concat(SCORE_WORDS, REASON_WORDS)) &&
+        MODEL_KEYS.indexOf(k.toLowerCase()) < 0 && !idLike(k);
+    });
+  }
+  function noVerdicts(units) {
+    units = units.slice(0, SAMPLE).filter(isObj);
+    if (!units.length) return false;  // "it holds no objects or rows"
+    var first = units[0];
+    if (!outputsOf(first).filter(function (seg) { return textLike(at(units, seg)); }).length && !textsOf(first).length) return false;  // no answers
+    var all = leaves(first, [], 0);
+    var rules = all.filter(function (x) { return ruleSeg(x[0], at(units, x[0])); });
+    var scores = all.filter(function (x) {
+      var values = at(units, x[0]);
+      return ((namedVerdict(x[0]) && (noScore(x[1]) || mVerdictValue(x[1])) && verdictLike(values)) || judgeSeg(x[0], values)) && rules.indexOf(x) < 0;
+    });
+    return !scores.length && !rules.length;
+  }
+
+  // start.read_results_table's verdict columns: each one a judge, but a judge column of gpt-4o,
+  // and a 0/1 column named for a judge (llm_judge), the judge-named first; with none, the
+  // score column. With none at all, a table of answers is read to mark.
+  function verdictColumns(rows, columns) {
+    var verdicts = VERDICT_COLUMNS.filter(function (c) {
+      return columns.indexOf(c) >= 0 && !(c === 'judge' && modelsNamed(rows, c));
+    });
+    if (verdicts.length) {
+      verdicts = judgeFirst(verdicts.concat(columns.filter(function (c) {
+        return verdicts.indexOf(c) < 0 && KNOWN_COLUMNS.indexOf(c) < 0 && judgeColumn(c, rows);
+      })));
+    }
+    return verdicts.length ? verdicts : gradeColumns(columns);
+  }
+  // start._answers_only: each answer once, by its question and text
+  function readAnswers(rows, firstColumns, kindWord) {
+    if (!rows.length) return { error: 'no-rows', message: 'This file has no rows.' };
+    var columns = [];
+    rows.forEach(function (r) { Object.keys(r).forEach(function (k) { if (columns.indexOf(k) < 0) columns.push(k); }); });
+    if (columns.indexOf('output_a') >= 0 && columns.indexOf('output_b') >= 0) return { error: 'pairwise', message: PAIRWISE };
+    if (verdictColumns(rows, columns).length) return readTable(rows, firstColumns, kindWord);  // a grade further down
+    var seen = new Set(), first = null;
+    rows.forEach(function (row) {
+      var input = row.input === undefined ? null : row.input, output = row.output === undefined ? null : row.output;
+      var key = canonical({ input: input === null ? '' : input, output: output === null ? '' : output });
+      if (seen.has(key)) return;
+      seen.add(key);
+      if (!first) first = { input: input, output: output };
+    });
+    return { tool: 'answers', kindWord: kindWord, answers: seen.size, first: first };
+  }
+
+  /* ---------- agent runs: steps.read_runs and steps.step_text ---------- */
+
+  var NO_STEPS = ' has no steps (a list of {"role": ..., "content": ...}).';
+  var MADE_UP = 'made-up example · ';  // the page's own prefix for an example file: not the file's name
+
+  // json.dumps(value, ensure_ascii=False): its spaces, the keys in the file's order, a whole
+  // number written as a decimal as Python writes it (1.0)
+  function pyJson(v, holder, key) {
+    if (typeof v === 'number' && holder && Number.isInteger(v)) {
+      var f = FLOATS.get(holder);
+      if (f && f[key]) return v.toFixed(1);
+    }
+    if (Array.isArray(v)) return '[' + v.map(function (x, i) { return pyJson(x, v, String(i)); }).join(', ') + ']';
+    if (isObj(v)) return '{' + Object.keys(v).map(function (k) { return JSON.stringify(k) + ': ' + pyJson(v[k], v, k); }).join(', ') + '}';
+    if (typeof v === 'boolean') return v ? 'true' : 'false';
+    return v === null || v === undefined ? 'null' : JSON.stringify(v);
+  }
+  function stepTextOf(v, holder, key) { return isStr(v) ? v : v === null || v === undefined ? '' : pyJson(v, holder, key); }
+  // steps._call_line: arguments given as JSON text are shown as JSON
+  function callLine(obj, nameKey, argsKey) {
+    var name = stepTextOf(obj[nameKey], obj, nameKey), args = obj[argsKey], holder = obj, key = argsKey;
+    if (isStr(args)) {
+      var box;
+      try { box = parseJSON('[' + args + ']'); } catch (e) { box = null; }
+      if (!box || box.length !== 1) return 'Tool call: ' + name + '(' + args + ')';
+      args = box[0]; holder = box; key = '0';
+    }
+    return 'Tool call: ' + name + '(' + (args === null || args === undefined ? '' : stepTextOf(args, holder, key)) + ')';
+  }
+  // steps._block_lines: text, a tool call and a tool result; any other block is left out
+  function blockLines(block) {
+    if (isStr(block)) return block ? [block] : [];
+    if (!isObj(block)) return [];
+    if (block.type === 'text' && isStr(block.text)) return block.text ? [block.text] : [];
+    if (block.type === 'tool_use') return [callLine(block, 'name', 'input')];
+    if (block.type === 'tool_result') {
+      var c = block.content;
+      return ['Tool result: ' + (Array.isArray(c) ? [].concat.apply([], c.map(blockLines)).join('\n') : stepTextOf(c, block, 'content'))];
+    }
+    return [];
+  }
+  function stepText(step) {
+    var c = step.content, lines;
+    if (Array.isArray(c)) lines = [].concat.apply([], c.map(blockLines));
+    else { var t = stepTextOf(c, step, 'content'); lines = t ? [t] : []; }
+    var calls = step.tool_calls;
+    (Array.isArray(calls) ? calls : []).forEach(function (call) {
+      if (!isObj(call)) return;
+      var fn = isObj(call.function) ? call.function : call;
+      lines.push(callLine(fn, 'name', 'arguments'));
+    });
+    return lines.join('\n');
+  }
+  // steps.read_runs: each line one run (an id, a non-empty list of steps, each with a role or
+  // a name). A problem is said by its line number, never by quoting the line. Each line is
+  // parsed as it comes; only the first run's steps are kept.
+  function readRuns(t) {
+    var ids = new Set(), runs = 0, fewest = Infinity, most = 0, first = null;
+    var at0 = 0, number = 0;
+    while (at0 <= t.length) {
+      var end = t.indexOf('\n', at0);
+      if (end < 0) end = t.length;
+      var line = t.slice(at0, end);
+      at0 = end + 1;
+      number += 1;
+      if (line.charAt(line.length - 1) === '\r') line = line.slice(0, -1);
+      if (!line.trim()) { if (end === t.length) break; continue; }
+      var said = 'Line ' + number + ' of this file', row;
+      try { row = JSON.parse(line); } catch (e) { return { error: 'bad-run', message: said + ' is not valid JSON.' }; }
+      if (row !== null && typeof row === 'object' && tooDeep(row)) return { error: 'bad-run', message: said + ' is not valid JSON.' };
+      if (!isObj(row)) return { error: 'bad-run', message: said + ' is not a JSON object.' };
+      var id = row.id, floatId = false;
+      // a whole number written as one: 2, not 2.0 (read again only when the line may say 2.0)
+      if (typeof id === 'number' && Number.isInteger(id) && (!first || /"id"\s*:\s*-?\d+[.eE]/.test(line) || line.indexOf('\\u') >= 0)) {
+        var again = parseJSON(line);
+        if (numberKind(again, 'id') === 'float') floatId = true;
+        if (!first) row = again;
+      } else if (!first) row = parseJSON(line);  // the first run: how its numbers were written, for its steps
+      // steps.read_runs: missing, null or blank is no id; any other id not text or a whole number is said as such
+      if (id === undefined || id === null || (isStr(id) && !id.trim())) return { error: 'bad-run', message: said + ' has no id.' };
+      if (floatId || !(isStr(id) || (typeof id === 'number' && Number.isInteger(id)))) return { error: 'bad-run', message: said + ' has an id that is not text or a whole number.' };
+      id = String(id);
+      if (ids.has(id)) return { error: 'bad-run', message: said + ' has an id used twice.' };
+      ids.add(id);
+      var steps = row.steps;
+      if (!Array.isArray(steps) || !steps.length) return { error: 'bad-run', message: said + NO_STEPS };
+      for (var k = 0; k < steps.length; k++) {
+        var s = steps[k], role = isObj(s) ? (truthy(s.role) ? s.role : s.name) : null;
+        if (!isStr(role) || !role.trim()) return { error: 'bad-run', message: 'Step ' + (k + 1) + ' on line ' + number + ' of this file has no role or name.' };
+      }
+      if (!first) {
+        first = { n: steps.length, steps: steps.slice(0, STEPS_SHOWN).map(function (s) {
+          return { role: truthy(s.role) ? s.role : s.name, text: stepText(s) };
+        }) };
+      }
+      runs += 1;
+      fewest = Math.min(fewest, steps.length);
+      most = Math.max(most, steps.length);
+      if (end === t.length) break;
+    }
+    if (!runs) return { error: 'bad-run', message: 'This file holds no runs.' };
+    return { tool: 'runs', runs: runs, minSteps: fewest, maxSteps: most, first: first };
+  }
 
   /* ---------- normalise.py: whatever a judge returned, as a decision ---------- */
 
@@ -1201,10 +1463,16 @@
         if (!rows) return fail('bad-line', TABLE_FAIL.message);
         return readTable(rows, cols, jsonlKind);
       }
+      if (Object.prototype.hasOwnProperty.call(first, 'steps')) return readRuns(fileText);  // agent runs
+      if (isAnswersTable(cols)) {
+        var answerRows = jsonlRows(fileText);
+        if (!answerRows) return fail('bad-line', TABLE_FAIL.message);
+        if (noVerdicts(answerRows)) return readAnswers(answerRows, cols, jsonlKind);
+      }
       var flat = Object.keys(first).every(function (k) { return !isObj(first[k]) && !Array.isArray(first[k]); });
       var lines = flat ? jsonlRows(fileText) : null, common = lines && commonNames(lines, Object.keys(first));
       if (common) return readCommon(common, jsonlKind);
-      return fail('not-recognised', flat ? NOT_COLUMNS(Object.keys(first)) : NOT_RECOGNISED);  // a row of a table, or not
+      return flat ? notColumns(Object.keys(first)) : fail('not-recognised', NOT_RECOGNISED);  // a row of a table, or not
     }
     if (!parsed) {
       // CSV or TSV: the header names input, output and a verdict column
@@ -1219,6 +1487,17 @@
         var t = csvRows(fileText, d);
         return readTable(t.rows, header, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
       }
+      if (isAnswersTable(header)) {  // answers with no grades, when no other column is one
+        var all = parseCsv(fileText, d);
+        if (noVerdicts(csvUnits(all))) {
+          var shut = openQuote(fileText, d);
+          if (shut !== null) return fail('open-quote', 'Line ' + shut + " of this file has a quote that never closes, so the rows after it can't be read.");
+          var wider = wideRow(fileText, d);
+          if (wider !== null) return fail('wide-row', wideMessage(wider));
+          if (cutOff(fileText, d)) return fail('cut-off', CUT_OFF);
+          return readAnswers(csvRows(fileText, d, all).rows, header, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
+        }
+      }
       if (/^\s*[\[{]/.test(fileText)) return fail('not-json', endsInTheMiddle(fileText) ? CUT_OFF : NOT_JSON);
       if (header.length >= 2 && openQuote(fileText, d) === null) {
         var wide2 = wideRow(fileText, d);
@@ -1226,7 +1505,7 @@
         if (cutOff(fileText, d)) return fail('cut-off', CUT_OFF);
         var t2 = csvRows(fileText, d), named = commonNames(t2.rows, t2.header);
         if (named) return readCommon(named, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
-        return fail('not-recognised', NOT_COLUMNS(t2.header));
+        return notColumns(t2.header);
       }
     }
     return fail('not-recognised', NOT_RECOGNISED);
@@ -1275,7 +1554,19 @@
     if (!fileText) return fail('empty', EMPTY);
     var r = read(fileText, fileName);
     if (r.ok === false) return r;
-    if (r.error) return fail(r.error, r.message);
+    if (r.error) {
+      var refused = fail(r.error, r.message);
+      if (r.error === 'bad-run') refused.command = stepsCommand(fileName);
+      return refused;
+    }
+    var file = oneLine(clean(fileName || 'your file', 80));
+    if (r.tool === 'answers') {
+      return { ok: true, kind: 'answers', tool: 'table', toolName: 'your own ' + r.kindWord + ' file', file: file, answers: r.answers, first: r.first };
+    }
+    if (r.tool === 'runs') {
+      return { ok: true, kind: 'runs', file: file, command: stepsCommand(fileName), runs: r.runs,
+        minSteps: r.minSteps, maxSteps: r.maxSteps, first: r.first };
+    }
     var metrics = r.order || Array.from(new Set(r.judged.map(function (x) { return x.name; }))).sort(pyOrder);
     if (!metrics.length) {
       var said = oneLine(clean(fileName || 'This file', 80)) + NO_JUDGE;
@@ -1409,8 +1700,8 @@
   /* ---------- the page's own lines: the first answer it read ---------- */
 
   // A question or answer on one line, cut short. For promptfoo's vars, the question's var,
-  // else the longest text in them.
-  function shortText(v) {
+  // else the longest text in them. `hide`: with no key in it (answers with no grades).
+  function shortText(v, hide) {
     if (v === null || v === undefined) return '';
     if (isObj(v)) {
       var key = ['question', 'input', 'prompt', 'query'].find(function (k) { return isStr(v[k]); });
@@ -1419,6 +1710,7 @@
       v = key ? v[key] : (texts.length ? texts[0] : canonical(v));
     }
     var s = oneLine(isStr(v) ? v : canonical(v));
+    if (hide) s = hideKeys(s);
     return s.length > FIRST_SHOWN ? s.slice(0, FIRST_SHOWN - 1).replace(/\s+$/, '') + '…' : s;
   }
 
@@ -1430,7 +1722,84 @@
       { k: '  LLM-as-a-judge:  ', text: j.first.verdict === 'pass' ? 'Pass' : 'Fail' }];
   }
 
-  var api = { check: check, checkBytes: checkBytes, reportLines: reportLines, firstAnswerLines: firstAnswerLines, MAX_BYTES: MAX_BYTES, PRIVACY: PRIVACY,
+  /* ---------- the page's own lines: answers with no grades and agent runs ---------- */
+
+  // redact.py's key shapes and Bearer header: a key in a file is never shown, even here
+  var KEY_SHAPES = [
+    /(?<![A-Za-z0-9])sk-ant-[A-Za-z0-9_-]{8,}/g, /(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}/g,
+    /(?<![A-Za-z0-9])(?:AKIA|ASIA)[A-Z0-9]{16}(?![A-Za-z0-9])/g, /(?<![A-Za-z0-9])gh[opsu]_[A-Za-z0-9]{30,}/g,
+    /(?<![A-Za-z0-9])github_pat_[A-Za-z0-9_]{30,}/g, /(?<![A-Za-z0-9])AIza[A-Za-z0-9_-]{30,}/g,
+    /(?<![A-Za-z0-9])xox[bp]-[A-Za-z0-9-]{20,}/g, /(?<![A-Za-z0-9])gsk_[A-Za-z0-9]{20,}/g,
+    /(?<![A-Za-z0-9])hf_[A-Za-z0-9]{30,}/g, /(?<![A-Za-z0-9])xai-[A-Za-z0-9]{20,}/g,
+    /(?<![A-Za-z0-9])[sr]k_live_[A-Za-z0-9]{16,}/g,
+    /(?<![A-Za-z0-9])eyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g
+  ];
+  var BEARER = /(\bBearer\s+)(?=[A-Za-z0-9._~+\/=-]*\d)[A-Za-z0-9._~+\/=-]{16,}/gi;
+  var REDACTED = '[REDACTED]';
+  function hideKeys(s) {
+    KEY_SHAPES.forEach(function (re) { s = s.replace(re, REDACTED); });
+    return s.replace(BEARER, '$1' + REDACTED);
+  }
+  // A text on one line with no hidden character and no key, cut short as the first answer is
+  function shownText(v, max) {
+    var s = hideKeys(oneLine(v));
+    return s.length > max ? s.slice(0, max - 1).replace(/\s+$/, '') + '…' : s;
+  }
+  // The dropped file's own name in a command: scrubbed and cut like the title, quoted for a
+  // shell when it needs it
+  function stepsCommand(fileName) {
+    var name = oneLine(clean(fileName || 'runs.jsonl', 80));
+    if (name.indexOf(MADE_UP) === 0) name = name.slice(MADE_UP.length);
+    if (!/^[A-Za-z0-9._@%+=:,\/-]+$/.test(name)) name = "'" + name.replace(/'/g, "'\"'\"'") + "'";
+    return 'judgekeeper steps ' + name;
+  }
+
+  var ANSWERS_SAID = "This file has no LLM-as-a-judge grades, so judgekeeper checks the answers of your agent or chatbot: you mark each one Pass or Fail.";
+  var ANSWERS_NEXT = 'to mark each answer Pass or Fail, run judgekeeper in your project folder.';
+  var RUNS_SAID = "This file has agent runs, so judgekeeper checks each run's steps: you click the first wrong step, or All steps are fine.";
+  var ROLE_SHOWN = 20;
+
+  // Every line the page prints for answers with no grades or agent runs, from the command to
+  // the Next line: [{k, text, tone, cmd, step, next}]
+  function kindLines(result) {
+    var L = [], blank = { text: '' };
+    if (result.kind === 'answers') {
+      L.push({ k: '$ ', text: 'judgekeeper', cmd: true }, { text: 'Step 1 of 4: Read', step: true }, blank,
+        { k: 'Eval tool:       ', text: result.toolName },
+        { k: 'File:            ', text: result.file },
+        { k: 'Answers:         ', text: n(result.answers, 'answer') },
+        { k: 'LLM-as-a-judge:  ', text: 'none in your file' }, blank,
+        { text: ANSWERS_SAID }, blank,
+        { text: 'First answer in your file:' },
+        { k: '  Question:      ', text: shortText(result.first.input, true) || '(none)' },
+        { k: '  Answer:        ', text: shortText(result.first.output, true) || '(none)' }, blank,
+        { k: 'Next: ', text: ANSWERS_NEXT, next: true });
+      return L;
+    }
+    var spread = result.minSteps === result.maxSteps ? String(result.minSteps) : result.minSteps + ' to ' + result.maxSteps;
+    L.push({ k: '$ ', text: result.command, cmd: true }, blank,
+      { k: 'File:            ', text: result.file },
+      { k: 'Runs:            ', text: n(result.runs, 'run') },
+      { k: 'Steps:           ', text: spread + ' in each run' }, blank,
+      { text: RUNS_SAID }, blank,
+      { text: 'First run in your file:' });
+    var roles = result.first.steps.map(function (s) { return shownText(s.role, ROLE_SHOWN); });
+    var width = roles.reduce(function (w, r) { return Math.max(w, r.length); }, 0) + 2;
+    result.first.steps.forEach(function (s, i) {
+      L.push({ k: '  Step ' + (i + 1) + '  ' + roles[i] + new Array(width - roles[i].length + 1).join(' '), text: shownText(s.text, FIRST_SHOWN) || '(none)' });
+    });
+    var more = result.first.n - result.first.steps.length;
+    if (more > 0) L.push({ text: '  ... and ' + n(more, 'more step', 'more steps'), tone: 'dim' });
+    L.push(blank, { k: 'Next: ', text: 'to click the first wrong step of each run, run ' + result.command + ' in your project folder.', next: true });
+    return L;
+  }
+
+  // The faded lines under "Waiting for your file.": one shape for results, answers and runs
+  var GHOST = ['', 'File:            ··················', 'Answers or runs: ·······', 'LLM-as-a-judge:  ··············', '',
+    'This file has ········, so judgekeeper checks ····················.', '', 'First answer or run in your file:',
+    '  ·········      ·····························'].join('\n');
+
+  var api = { check: check, checkBytes: checkBytes, reportLines: reportLines, firstAnswerLines: firstAnswerLines, kindLines: kindLines, GHOST: GHOST, MAX_BYTES: MAX_BYTES, PRIVACY: PRIVACY,
     TOO_BIG: TOO_BIG, NOT_UTF8: NOT_UTF8, NOT_RECOGNISED: NOT_RECOGNISED, clean: clean,
     _internal: { statedDecisions: statedDecisions, graderProblem: graderProblem, ruleText: ruleText, passMarkWords: passMarkWords } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -1462,11 +1831,12 @@
     parts.forEach(function (p) { row.appendChild(el('span', p[0], p[1])); });
     return row;
   }
-  function termTop(pre) {
-    var command = termLine([['t-prompt', '$ '], ['t-cmd', 'judgekeeper']]);
+  // `steps`: the command for agent runs, which prints no "Step 1 of 4" line
+  function termTop(pre, steps) {
+    var command = termLine([['t-prompt', '$ '], ['t-cmd', steps || 'judgekeeper']]);
     command.classList.add('ln-cmd');  // one line on a phone too, never "$" above the command
     pre.appendChild(command);
-    pre.appendChild(termLine([['t-step', 'Step 1 of 4: Read']]));
+    if (!steps) pre.appendChild(termLine([['t-step', 'Step 1 of 4: Read']]));
     pre.appendChild(termLine([[null, '']]));
   }
   function termNext(pre, text) {
@@ -1489,6 +1859,8 @@
     var examples = document.querySelector('.fc-try');
     if (!zone || !input || !out || !wait || !title || !clear || !empty || !loaded || !name || !examples) return;
     var waitTitle = title.textContent;
+    var ghost = wait.querySelector && wait.querySelector('.ck-ghost');
+    if (ghost) ghost.textContent = GHOST;  // the faded lines fit results, answers and runs
     var media = function (q) { return !!(root.matchMedia && root.matchMedia(q).matches); };
     var verb = document.getElementById('fc-verb');
     if (verb && media('(hover: none)')) verb.textContent = 'tap';  // a phone: no mouse to click
@@ -1583,19 +1955,20 @@
       boxShows(fileName || 'your file');
     }
 
-    function showError(message, fileName, kind) {
+    function showError(message, fileName, kind, command) {
       begin(fileName);
       var pre = el('pre', 'fc-term');
-      termTop(pre);
+      termTop(pre, command);
       pre.appendChild(termLine([['t-warn', message]]));
       termNext(pre, SAYS_COMMAND.indexOf(kind) >= 0 ? NEXT_FULL_TOOL : NEXT_AFTER_ERROR);
       out.appendChild(pre);
     }
 
     function show(result, count, fileName) {
-      if (!result.ok) return showError(result.message, fileName, result.kind);
+      if (!result.ok) return showError(result.message, fileName, result.kind, result.command);
       begin(result.file);
       if (count > 1) out.appendChild(el('p', 'fc-many', 'You gave ' + count + ' files. This page reads one at a time: it read ' + result.file + '.'));
+      if (!result.judges) return out.appendChild(kindTerm(result));
       var current = 0;
       var pre = el('pre', 'output fc-term');
 
@@ -1657,6 +2030,25 @@
         termNext(pre, j.allModelFailed ? MODEL_FAILED_NEXT : few ? NEXT_FEW : NEXT);
       }
     }
+  }
+
+  // Answers with no grades or agent runs, as the results are painted: labels dim, headings as
+  // Home's step lines, a note dim
+  function kindTerm(result) {
+    var pre = el('pre', 'output fc-term');
+    kindLines(result).forEach(function (line) {
+      var row;
+      if (line.cmd) { row = termLine([['t-prompt', line.k], ['t-cmd', line.text]]); row.classList.add('ln-cmd'); }
+      else if (line.next) { row = termLine([['t-next', 'Next:'], [null, ' ' + line.text]]); row.classList.add('ln-next'); }
+      else if (line.step) row = termLine([['t-step', line.text]]);
+      else {
+        row = el('span', 'ln');
+        if (line.k) row.appendChild(el('span', line.k.trim() ? 'k t-label' : 'k t-label pad', line.k));
+        row.appendChild(el('span', line.tone === 'dim' ? 't-label' : !line.k && /:$/.test(line.text) ? 't-step' : null, line.text));
+      }
+      pre.appendChild(row);
+    });
+    return pre;
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();

@@ -88,9 +88,13 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     # that breaks 5 in 100: the slow number
     assert all(need[f"fixes {f}%, breaks {b}%"]["marks"] <= n for f in (25, 90) for b in (0, 2))
     assert need["fixes 25%, breaks 5%"]["marks"] == slow
-    # the Guide says it depends and points to the reference, which gives the numbers
-    assert ("How many marks you need depends on how big the change is: see the reference."
-            in re.sub(r"<[^>]+>", "", site))
+    # the Guide says the new rule is tested on marks kept aside, names no number of marks and
+    # links the reference, which gives the numbers
+    shown = re.sub(r"<[^>]+>", "", site)
+    (fix,) = re.findall(r"Get the answers it got wrong[^<]*?kept aside\.", shown)
+    assert fix.endswith("judgekeeper tests it on marks kept aside.") and not re.search(r"\d", fix)
+    assert "github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md" in (
+        ROOT / "website/start.html").read_text(encoding="utf-8")
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "examples/kept-aside/report.md" in reference
     assert (f"A rule that fixes 9 in 10 of your LLM-as-a-judge's mistakes or a quarter of them, "
