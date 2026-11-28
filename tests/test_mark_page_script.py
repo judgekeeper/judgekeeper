@@ -1636,3 +1636,26 @@ def test_a_mark_refused_because_its_card_was_marked_elsewhere_says_so_and_takes_
     assert got["stateAsked"] == 1 and got["reloads"] == 0
     assert got["at"] == "Question 1?"  # a0 is marked now, in the list
     assert got["sent"] == [["a0", "fail"]]
+
+
+@pytest.mark.parametrize("presses", [
+    'key("z"); later(100); key("z");',
+    'key("z"); later(100); ids["undo"].fire("click");',
+    'ids["undo"].fire("click"); later(100); ids["undo"].fire("click");',
+    'key("z");',
+], ids=["Z-Z", "Z-click", "click-click", "Z"])
+def test_one_undo_waits_while_a_mark_saves_and_a_second_does_nothing(presses):
+    """Three answers marked, the third save slow: Undo at +300 ms, and again at +400 ms,
+    by key or button. The first waits for the save and takes that mark back; the second
+    does nothing (both ran: two marks taken back without a word)."""
+    got = _run(SLOW_SAVES % 2000 + """
+      ids["pass"].fire("click"); await tick(2500); later(500);
+      ids["fail"].fire("click"); await tick(2500); later(500);
+      ids["pass"].fire("click"); await settle();
+      later(300); """ + presses + """ await settle();
+      await tick(9000);
+      console.log(JSON.stringify({at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(6))
+    assert got["sent"] == [["a0", "pass"], ["a1", "fail"], ["a2", "pass"], ["a2", None]]
+    assert got["at"] == "Question 2?"  # back on the answer taken back, to mark again

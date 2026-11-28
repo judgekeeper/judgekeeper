@@ -605,7 +605,7 @@ def _say_change(talk: FrontTalk, ws: Workspace, seen: before_after.Look,
         talk.say()
         for line in para:
             talk.para(line)
-    if write and not talk.noted and ws.start.is_file():
+    if write and not talk.noted and not seen.keep and ws.start.is_file():
         before_after.write(ws, seen.before, seen.now, seen.setup)
     return code
 
@@ -2914,21 +2914,22 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     closed: list[str] = []  # the marking page it closes: said by a plain run, not by `mark`
     back = None if first or elsewhere else check.back_to_marked(ws, found, talk.say,
                                                                 closed=closed)
-    elsewhere = elsewhere or (None if first or back else _checked_file(ws, found))
-    changed = [] if first or back or elsewhere else _changed(ws, found)
-    held = not (first or changed or back or elsewhere) and found.rule is not None and \
+    marked_on = back is not None  # the judge the marks were made on ("": they never left it)
+    elsewhere = elsewhere or (None if first or marked_on else _checked_file(ws, found))
+    changed = [] if first or marked_on or elsewhere else _changed(ws, found)
+    held = not (first or changed or marked_on or elsewhere) and found.rule is not None and \
         check.open_worse(ws, found, held=True) is not None  # a same-rule "Worse" stays
-    grades = (0 if first or changed or back or elsewhere
+    grades = (0 if first or changed or marked_on or elsewhere
               else check.grades_changed(ws, found, ruled=held))  # a table judge, or held
     regraded = (check.grades_changed(ws, found, ruled=True)
-                if not (first or changed or back or elsewhere or grades)
+                if not (first or changed or marked_on or elsewhere or grades)
                 and found.rule is not None and found.results else 0)
     if regraded:  # the grades the numbers use are not the ones read: which, and the check
         head[:] = [x for x in head if x != newest]  # that compares them, as Next gives it
         head.append(_regraded_line(talk, ws, found, regraded))
     added, took, added_at = 0, None, None
     about = elsewhere  # the file the numbers are about, when not the one read (path_lines)
-    if not (first or changed or back or grades or elsewhere) and found.tool in FILE_TOOLS and \
+    if not (first or changed or marked_on or grades or elsewhere) and found.tool in FILE_TOOLS and \
             (read := _newest_path(found)) is not None and project.rewritten(ws.root, read):
         talk.para(project.REWRITTEN.format(file=textio.line_path(read)))  # never one pool
         talk.other_eval = True  # its grades are not compared either
@@ -2939,7 +2940,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
                 file=textio.line_path(read)))
         raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
             file=textio.line_path(read), program=project.program_anywhere() + talk.away))
-    if not (first or changed or back or grades or elsewhere):
+    if not (first or changed or grades or elsewhere):  # back on the marked judge too
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
         took = check.take_new_grades(ws, found)  # grades on answers left that waited
@@ -2948,7 +2949,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(back)  # the judge marked on
         if not marking and closed:
             head.extend(["", *closed])  # a paragraph of its own
-    elif elsewhere:  # the result is about that file, not the one read here
+    if elsewhere:  # the result is about that file, not the one read here
         head[:] = [x for x in head if x != newest]
         head.append(CHECKED_FILE.format(file=elsewhere))
         if typed:  # an older file typed: every command given names the file the result is about
@@ -2974,7 +2975,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             head.append(labels_mod.found_line(n, talk.command("--labels")))
         if is_open(ws.dir):  # the page open shows the pool without the new batch
             background.stop(ws.dir)
-    elif not first and not regraded and _ran_again(ws, found):
+    elif not first and not regraded and not marked_on and _ran_again(ws, found):
         if not (found.pool.n_pass or found.pool.n_fail):  # nothing was graded again
             head.append(NO_GRADES_HERE.format(numbers=_graded_in(ws, found)))
             about = _graded_files(ws, found)

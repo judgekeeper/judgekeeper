@@ -199,7 +199,7 @@ def test_a_not_sure_check_says_it_again(here, capsys):
     assert len(_history(ws)) == 1
     _results(here, OLD)  # back to the judge the marks were made on
     code, out = check(capsys)
-    assert code == 0 and "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)
+    assert code == 0 and "back to the one you marked with" not in _flat(out)  # never left it
 
 
 # promptfoo grader errors are not grades --------------------------------------------------------

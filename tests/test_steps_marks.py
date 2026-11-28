@@ -501,7 +501,7 @@ def test_numbers_from_marks_with_a_missing_file_is_a_steps_error(here):
         steps.numbers_from_marks(here / "gone.jsonl", here / MARKS, None)
 
 
-# rc2: one undecodable line, or one holding a NUL or a control character, is one damaged line
+# One undecodable line, or one holding a NUL or a control character, is one damaged line
 
 @pytest.mark.parametrize("bad", [
     b'{"id": "r1\x00", "first_wrong_step": 1}',  # NUL: valid UTF-8, not JSON text

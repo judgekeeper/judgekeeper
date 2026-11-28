@@ -678,6 +678,8 @@ def commands(r: dict) -> dict[str, str]:
     them: `mark` keeps every flag, as the terminal's does, `run` every flag but --port,
     `check` and `fix` the path only, `more` (start_label.mark_command) the flags that read
     results. On Windows a value no quotes keep as text shows as NAME (said by held_note)."""
+    from pathlib import PurePosixPath
+
     from judgekeeper.check import given_results
     from judgekeeper.start import command_from, saved_flags
     from judgekeeper.start_label import mark_command
@@ -687,10 +689,16 @@ def commands(r: dict) -> dict[str, str]:
     flags.pop("port", None)
     path = {"path": flags.get("path", ".")}
     run = command_from(flags, kept=True)
+    judge = r.get("judge")
+    read = judge.get("results_files") if isinstance(judge, dict) else None
+    # a results file the result read (named from its own folder), wherever the page is made:
+    # the marking page's process runs in another folder. Given one, fix tests a new rule on it
+    named = given_results(path["path"]) or (
+        isinstance(read, list) and PurePosixPath(path["path"].replace("\\", "/")).name in read)
     return {"run": run, "mark": mark,
             "check": command_from(path, "check", kept=True),
-            "fix": command_from({} if given_results(path["path"]) else path, "fix", kept=True),
-            "more": mark_command(run)}  # fix given a results file tests a new rule on it
+            "fix": command_from({} if named else path, "fix", kept=True),
+            "more": mark_command(run)}
 
 
 def held_note(r: dict, shown: str) -> list[str]:

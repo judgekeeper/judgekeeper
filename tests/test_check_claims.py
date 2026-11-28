@@ -256,7 +256,7 @@ def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys):
     _results(here, MARKED)  # back to the old judge
     code, out = run(capsys)
     assert code == 0 and "has not changed" not in out
-    assert "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)
+    assert "back to the one you marked with" not in _flat(out)  # the marks never left it
 
 
 def test_after_worse_judgekeeper_still_points_at_check(here, capsys):

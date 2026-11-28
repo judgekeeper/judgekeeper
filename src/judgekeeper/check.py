@@ -125,7 +125,8 @@ MOVED = {
     "worse": ("Your LLM-as-a-judge moved: on the {n} answers labelled by the people marking, it "
               "agrees with them less than before."),
     "no_drop": ("Your LLM-as-a-judge did not get worse on the {n} answers labelled by the "
-                "people marking. If your scores changed, look at your app's answers first."),
+                "people marking. If your scores changed, look at the answers of your agent or "
+                "chatbot first."),
     "better": ("Your LLM-as-a-judge now agrees with the people marking more than before, on the "
                "{n} answers they labelled."),
     "not_sure": ("Too early to tell whether your LLM-as-a-judge moved. These {n} labels can't "
@@ -1931,6 +1932,9 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
         data["earlier_grades"] = earlier
     data.pop("results_left", None)  # back_to_marked's: about the judge before this one
     _marked_rule_kept(data)
+    from judgekeeper import before_after
+
+    data[before_after.REPLACED] = before_after.replaced(ws, data, found)  # before `given` moves
     if isinstance(data.get("given"), str) and data["given"] and found.tool != "mapped" \
             and found.results and found.results[0].path.is_file():
         data["given"] = found.results[0].rel  # a file named: plain runs read the one checked
@@ -1943,8 +1947,6 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
                 checked_at=utc_now())
     _write_grades(ws, found, answers, now)
     _write_json(ws.start, data)
-    from judgekeeper import before_after
-
     before_after.restart(ws)  # grades of another LLM-as-a-judge: no change of the answers
 
 
@@ -2094,8 +2096,9 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     closed: list[str] = []  # the marking page's line, said after the "back" one
     back = (back_to_marked(state.ws, found, said.say, again=len(state.marks), closed=closed)
             if found is not None else None)
-    if back:
-        said.say(back)
+    if back is not None:  # "" when the marks never left this judge: nothing to say of it
+        if back:
+            said.say(back)
         for line in closed:  # a paragraph of its own
             said.say()
             said.say(line)
@@ -2107,7 +2110,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
                 "marks": len(state.marks),
                 "free": 0, "groups": {}}))
         _report(state.ws)  # no "Worse" from the other judge on it
-        said.say()
+        if back or closed:
+            said.say()
         said.say(_next_same(state))
         return EXIT_OK
     changed = judge_setup.changes(old, new)
@@ -2742,10 +2746,19 @@ def _marked_setup(ws: Workspace) -> dict | None:
                 None)
 
 
+def _held(checks: list[dict]) -> bool:
+    """The last check (not a "back" one) kept the marks on the judge before it: "Worse", or
+    "Not sure" with a big drop (exit_worse). Then they never left it."""
+    last = next((c for c in reversed(checks) if c.get("trigger") != "back"), {})
+    return any(isinstance(g, dict) and g.get("exit_worse")
+               for g in (last.get("groups") or {}).values())
+
+
 def back_to_marked(ws: Workspace, found, say, again: int | None = None,
                    closed: list[str] | None = None) -> str | None:
     """The judge in the newest results (`found`) is the one the marks were made on, and the
-    last check was of another judge: the line that says so, else None. When that check moved
+    last check was of another judge: the line that says so ("" when that check kept the
+    marks on this judge, _held: they never left it, so there is nothing to say), else None. When that check moved
     the marks to the other judge, they test the judge they were made on again, with the grades
     they were made on (no AI call, _restore); after a "Worse", nothing was moved, and that
     "Worse" no longer applies (open_worse). Only for a judge that gives the marked answers the
@@ -2785,6 +2798,8 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None,
         _save_verdicts(ws, now, found, {i: a.verdict for i, a in graded.items()})
     if restored:
         _close_page(ws, closed.append if closed is not None else (lambda line: None), file=new)
+    elif not left and _held(checks):
+        return ""  # a check refused the other judge: the marks never left this one
     names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
     back = BACK.format(model=", ".join(names) or "model not named")
     if left:
@@ -2980,6 +2995,22 @@ def _refresh_mistakes(ws: Workspace) -> None:
         pass  # the next `fix` writes it
 
 
+def _in_use(ws: Workspace, flags):
+    """The result's flags (start.run_flags) with the file in use now: when they name a
+    results file and the marks test the one start.json's `given` names (a check took it on,
+    _adopt), that one. So every command made from them (--stop, fix, the result pages) reads
+    the LLM-as-a-judge the marks test, never the one before it."""
+    try:
+        given = ws.data().get("given")
+    except (OSError, ValueError, AttributeError):
+        return flags
+    path = flags.get("path") if isinstance(flags, dict) else None
+    if isinstance(given, str) and given and isinstance(path, str) and path != given \
+            and given_results(path):
+        return {**flags, "path": given}
+    return flags
+
+
 def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> None:
     """report.html again (when there is a result). `adopted`: the marks test the new judge
     now, so the result is made again from its grades (start_label.store_result): the report's
@@ -2993,7 +3024,7 @@ def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> N
         return
     try:
         if adopted and isinstance(saved, dict):
-            flags = saved.get("flags")
+            flags = _in_use(ws, saved.get("flags"))
             pm = ws.data().get("pass_mark") or {}
             if isinstance(flags, dict) and flags.get("pass_if") and pm.get("source") == "pass_if":
                 flags = {**flags, "pass_if": pm.get("rule")}  # its commands read with that mark

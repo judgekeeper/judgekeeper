@@ -437,8 +437,10 @@ def test_the_sessions_own_file_is_always_found(tmp_path, capsys, monkeypatch, re
 def test_a_walk_that_stopped_says_so_even_when_it_read_something(tmp_path, capsys,
                                                                  monkeypatch, reads):
     """Over 5,000 files: the folder named like results is looked in first, and the
-    run says it stopped looking, so an older file is never read in silence."""
+    run says it stopped looking, so an older file is never read in silence. The walk's
+    clock stands still: on a busy runner its 2 seconds ran out before the 5,000 files did."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    monkeypatch.setattr(find, "_clock", lambda: 0.0)
     proj = tmp_path / "proj"
     _kind(proj, "file")
     _many(proj / "assets", 5100, ".png")
