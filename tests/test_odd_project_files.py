@@ -25,6 +25,7 @@ import pytest
 
 from judgekeeper import page, recorder, table, textio
 from judgekeeper.table import derive_id
+from tests.speed import FLOOR
 from tests.start_projects import promptfoo_project, split, table_project
 from tests.test_front import run
 from tests.test_mark_background import stop_page
@@ -205,38 +206,45 @@ def test_a_named_pipe_at_a_project_file_is_left_out(tmp_path, name):
 
 # A big table ------------------------------------------------------------------------------------
 
-def _million(path: Path) -> Path:
-    rows = "".join(f"{i},{i},{'pass' if i % 2 else 'fail'}\n" for i in range(1_000_000))
+def _million(path: Path, count: int = 1_000_000) -> Path:
+    rows = "".join(f"{i},{i},{'pass' if i % 2 else 'fail'}\n" for i in range(count))
     path.write_text("input,output,verdict\n" + rows, encoding="utf-8")
     return path
 
 
 def test_a_table_of_a_million_rows_is_read_up_to_the_cap(here, capsys):
+    """How fast the cap makes the read: test_reading_a_million_rows_stays_small."""
     _million(here / "results.csv")
-    began = time.monotonic()
     code, out, err = run(capsys, "--no-browser", "--port", "0")
-    seconds = time.monotonic() - began
     assert code == 0, out + err
     said = "Read the first 100,000 answers of results.csv; the rest are left out."
     assert (out + err).count(said) == 1, out + err
     pool = (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(pool) == table.MAX_ROWS
-    assert seconds < 60, seconds  # without the cap this read takes about 100 seconds and 4 GB
 
 
 def test_reading_a_million_rows_stays_small(tmp_path):
-    """Memory as Python counts it (tracemalloc): a process's peak size can be its parent's."""
-    _million(tmp_path / "results.csv")
+    """Memory as Python counts it (tracemalloc): a process's peak size can be its parent's.
+    The time is a ratio (tests/speed.py): past the cap, a million rows read about as fast as
+    120,000. Without the cap they take about eight times as long, and 4 GB."""
     script = ("import sys, time, tracemalloc; from judgekeeper.table import read_table; "
-              "tracemalloc.start(); t = time.monotonic(); rows = read_table(sys.argv[1]); "
-              "print(len(rows), time.monotonic() - t, tracemalloc.get_traced_memory()[1])")
-    done = subprocess.run([sys.executable, "-c", script, str(tmp_path / "results.csv")],
-                          capture_output=True, text=True, timeout=120, check=True)
-    n, seconds, peak = done.stdout.split()
-    megabytes = int(peak) / 1e6
-    assert int(n) == table.MAX_ROWS
-    assert float(seconds) < 20 and megabytes < 300, (seconds, megabytes)
-    assert done.stderr.count("Read the first 100,000 answers") == 1
+              "tracemalloc.start(); t = time.perf_counter(); rows = read_table(sys.argv[1]); "
+              "print(len(rows), time.perf_counter() - t, tracemalloc.get_traced_memory()[1])")
+
+    def read(path: Path) -> tuple[int, float, float, str]:
+        done = subprocess.run([sys.executable, "-c", script, str(path)],
+                              capture_output=True, text=True, timeout=300, check=True)
+        n, seconds, peak = done.stdout.split()
+        return int(n), float(seconds), int(peak) / 1e6, done.stderr
+
+    some = _million(tmp_path / "some.csv", 120_000)
+    many = _million(tmp_path / "results.csv")
+    n, seconds, megabytes, err = read(many)
+    assert n == table.MAX_ROWS and megabytes < 300, megabytes
+    assert err.count("Read the first 100,000 answers") == 1
+    fewer = min(read(some)[1] for _ in range(2))
+    seconds = min(seconds, read(many)[1])
+    assert seconds <= 3 * max(fewer, FLOOR), (seconds, fewer)
 
 
 def test_a_record_file_over_the_cap_is_read_up_to_it(here, capsys, monkeypatch):

@@ -11,6 +11,7 @@ import json
 import pytest
 
 from judgekeeper import links, redact
+from tests.speed import assert_grows_at_most
 
 KEYS = ["sk-ant-api03-" + "A1b2C3d4" * 5, "sk-proj" + "A1b2C3d4" * 5, "AKIA" + "ABCDEFGH12345678",
         "ghp_" + "A1b2C3d4" * 5, "github_pat_" + "A1b2C3d4" * 5, "AIza" + "A1b2C3d4" * 5,
@@ -152,14 +153,18 @@ def test_text_around_the_key_is_kept():
         f"see \x1b[31m{redact.REDACTED}\x1b[0m here")
 
 
-def test_a_long_text_of_codes_stays_fast():
-    import time
+# Texts of codes and their sizes: each ten times longer takes about ten times as long to scrub
+LONG_CODES = [(lambda n: "\x1b[" * n + "1" * n, 100_000), (lambda n: "\\e]\u200b" * n, 125_000),
+              (lambda n: "\\e]" * n, 165_000), (lambda n: "ESC]" * n, 125_000),
+              (lambda n: "[" * n + "1m" + "m" * n, 50_000)]
 
-    for text in ("\x1b[" * 200_000 + "1" * 200_000, "\\e]\u200b" * 250_000, "\\e]" * 330_000,
-                 "ESC]" * 250_000, "[" * 100_000 + "1m" + "m" * 100_000):
-        start = time.monotonic()
-        redact.scrub(text)
-        assert time.monotonic() - start < 6, text[:8]
+
+@pytest.mark.parametrize("make, size", LONG_CODES, ids=["esc", "zero-width", "slash-e", "ESC",
+                                                         "brackets"])
+def test_a_long_text_of_codes_stays_fast(make, size):
+    """At most 30 times as long for ten times the text (tests/speed.py), never a hundred."""
+    texts = {n: make(n) for n in (size // 10, size)}  # made before the clock starts
+    assert_grows_at_most(lambda n: redact.scrub(texts[n]), size // 10, size, most=30)
 
 
 def test_no_file_keeps_a_key_after_a_code(tmp_path, monkeypatch, capsys):

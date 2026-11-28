@@ -14,6 +14,7 @@ import zlib
 
 import pytest
 
+from tests.speed import FLOOR, seconds
 from tests.test_load_and_failures import (
     OLD_EVAL,
     _old_parts,
@@ -24,6 +25,9 @@ from tests.test_load_and_failures import (
 )
 
 MB = 2**20
+# A refusal takes at most this many times as long as reading the log's JSON (it takes 0 to 8
+# times here); Inspect AI's own reader takes about a hundred times as long on these logs
+MOST_TIMES = 25
 
 
 def _log(tmp_path, parts) -> object:
@@ -33,18 +37,34 @@ def _log(tmp_path, parts) -> object:
 
 
 def _refused(path, monkeypatch) -> tuple[str, float]:
-    """What judgekeeper says refusing the log at `path`, and how long it took; Inspect AI's
-    readers are stubbed, so a log handed to them is never really read."""
+    """What judgekeeper says refusing the log at `path`, and how many times as long as JSON
+    takes to read every part of the log, timed in the same run (tests/speed.py), so a busy
+    runner slows both. Inspect AI's readers are stubbed, so a log handed to them is never
+    really read: they take about 9 s on 8 MB of escapes, many times the JSON read."""
     from judgekeeper.readers import read_inspect
     from judgekeeper.records import RecordsError
 
     calls = _stubbed(monkeypatch)
-    start = time.monotonic()
-    with pytest.raises(RecordsError) as e:
-        read_inspect(path)
-    took = time.monotonic() - start
+    with zipfile.ZipFile(path) as log:
+        parts = [log.read(name) for name in log.namelist()]
+
+    def json_read() -> None:
+        for part in parts:
+            try:
+                json.loads(part)
+            except ValueError:  # a part that isn't JSON is read as bytes only
+                pass
+
+    said = []
+
+    def refuse() -> None:
+        with pytest.raises(RecordsError) as e:
+            read_inspect(path)
+        said.append(str(e.value))
+
+    took = seconds(refuse)
     assert calls == []
-    return str(e.value), took
+    return said[0], took / max(seconds(json_read), FLOOR)
 
 
 # A header that names one sample many times -----------------------------------------------------
@@ -268,7 +288,7 @@ def test_one_text_over_32_mb_is_refused_fast(tmp_path, monkeypatch, field):
     path = _log(tmp_path, parts)
     said, took = _refused(path, monkeypatch)
     assert said == TOO_LONG.format(path=path), said
-    assert took < 5
+    assert took < MOST_TIMES, took
 
 
 def test_a_screenshot_of_20_mb_is_read(tmp_path):
@@ -293,7 +313,7 @@ def test_32_mb_with_a_newline_every_8_characters_is_refused(tmp_path, monkeypatc
     path = _texts_log(tmp_path, [_lines(32, 8)])
     said, took = _refused(path, monkeypatch)
     assert said == SPECIAL.format(path=path), said
-    assert took < 5
+    assert took < MOST_TIMES, took
 
 
 @pytest.mark.parametrize("mb", [9, 32])
@@ -302,7 +322,7 @@ def test_a_long_text_of_special_characters_is_refused_fast(tmp_path, monkeypatch
     path = _texts_log(tmp_path, [_random(mb * MB, "\n\t")])
     said, took = _refused(path, monkeypatch)
     assert said == SPECIAL.format(path=path), said
-    assert took < 3
+    assert took < MOST_TIMES, took
 
 
 def test_long_texts_over_64_mb_together_are_refused(tmp_path, monkeypatch):
@@ -310,7 +330,7 @@ def test_long_texts_over_64_mb_together_are_refused(tmp_path, monkeypatch):
     path = _texts_log(tmp_path, [_png(30), _png(30)], [_png(30)])
     said, took = _refused(path, monkeypatch)
     assert said == LONG_TEXTS.format(path=path), said
-    assert took < 5
+    assert took < MOST_TIMES, took
 
 
 def _texts(mb: float, n: int, chars: str) -> list[str]:
@@ -329,7 +349,7 @@ def test_long_texts_of_escapes_over_11_million_together_are_refused_fast(tmp_pat
     path = _texts_log(tmp_path, _texts(2, 7, "\n\t"))
     said, took = _refused(path, monkeypatch)
     assert said == ESCAPES.format(path=path), said
-    assert took < 3
+    assert took < MOST_TIMES, took
     inspect_logs._check_unpacked(_texts_log(tmp_path, _texts(2, 5, "\n\t")))
     inspect_logs._check_unpacked(_texts_log(tmp_path, _texts(8, 1, "\n\t")))
     path = _texts_log(tmp_path, _texts(2, 4, "\n\t"), _texts(2, 3, "\n\t"))  # across samples
@@ -360,7 +380,7 @@ def test_texts_of_escapes_just_under_1_mb_are_refused_fast(tmp_path, monkeypatch
     path = _texts_log(tmp_path, texts[:10], texts[10:])
     said, took = _refused(path, monkeypatch)
     assert said == SLOW.format(path=path, limit="256 MB"), said
-    assert took < 3
+    assert took < MOST_TIMES, took
     inspect_logs._check_unpacked(_texts_log(tmp_path, [_random(2_080_000, "abcdefgh")
                                                        for _ in range(20)]))
     outputs = [_json_output(1.5, i) for i in range(4)]  # an escape every 6 or 7 characters
@@ -539,7 +559,7 @@ def test_400_tightly_packed_small_samples_are_refused_fast(tmp_path, monkeypatch
     assert said == (f"{path} is too big for judgekeeper to read: its samples would unpack to "
                     f"more than {inspect_logs.VALUES_PER_BYTE} values for each byte they pack "
                     "to, the most judgekeeper reads of an Inspect AI log."), said
-    assert took < 5
+    assert took < MOST_TIMES, took
 
 
 def test_honest_logs_hold_far_fewer_values_per_byte():
