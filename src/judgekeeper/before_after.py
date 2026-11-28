@@ -67,6 +67,9 @@ OTHER_SETUP_NEXT = "Next: compare results graded by the same LLM-as-a-judge setu
 # setup may have changed, or the same one graded otherwise (regraded_only)
 ONLY_GRADES = ("Only the grades changed since the last results, not the answers, so there is "
                "nothing to compare. This run is the new starting point.")
+# last-graded.json as judgekeeper 1.4.0 wrote it: no answer hashes to tell an agent change by
+OLDER = ("Your last results were saved by an older judgekeeper, so there is nothing to compare "
+         "yet. This run is the new starting point.")
 ONLY_GRADES_BEFORE = ("Only the grades changed between the two results, not the answers, so "
                       "judgekeeper does not compare them.")
 NUMBERED_IDS = ("The questions changed and their ids are plain numbers, so judgekeeper can't tell "
@@ -353,6 +356,7 @@ class Look:
     restarted: bool = False  # it was, for another setup of the LLM-as-a-judge: RESTARTED
     other_setup: bool = False  # --before's file was graded by another setup: OTHER_SETUP
     only_grades: bool = False  # restarted or other_setup since only grades changed (ONLY_GRADES)
+    older: bool = False  # restarted: the last results were saved without answer hashes (OLDER)
     # a --before run on another setup than the grades read last (or than a check took on):
     # last-graded.json stays as it is, so no plain run compares grades of two setups
     keep: bool = False
@@ -371,7 +375,8 @@ class Look:
             return [[NO_IDS_ONE_SIDE]], None
         if comparison is not None:
             return lines(comparison), comparison.exit_code
-        return ([[ONLY_GRADES if self.only_grades else RESTARTED]] if self.restarted else []), None
+        said = OLDER if self.older else ONLY_GRADES if self.only_grades else RESTARTED
+        return ([[said]] if self.restarted else []), None
 
 
 def look(talk, ws, found: start.Found, given: str | None = None,
@@ -403,6 +408,8 @@ def look(talk, ws, found: start.Found, given: str | None = None,
             return Look(None, last, now, setup, state is not None, other_setup=True, keep=True,
                         only_grades=True)
         return Look(c, last, now, setup, state is not None, keep=keep or not c.n)
+    if baseline is not None and "answers" not in baseline:  # saved by judgekeeper 1.4.0
+        return Look(None, None, now, setup, state is not None, restarted=True, older=True)
     c = compare(baseline, now) if baseline is not None else None
     if regraded_only(c):  # graded otherwise: they start again, said once
         return Look(None, None, now, setup, state is not None, restarted=True, only_grades=True)
