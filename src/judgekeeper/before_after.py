@@ -8,7 +8,8 @@ for answers with no grade). The verdict is no_grades.change_kind at one test: ea
 compared with one baseline, so nothing is corrected for several tests.
 
 The baseline is the results judgekeeper read last in the project (`last-graded.json` in
-.judgekeeper/: question hashes and grades, never a question or an answer), or `--before FILE`.
+.judgekeeper/: hashes of each question and of each answer with its question and steps, and
+grades, never a question or an answer), or `--before FILE`.
 The same results read again are no new baseline, so a run says the same each time. Grades from
 another setup of the LLM-as-a-judge (another model, rule or pass mark) say nothing about a
 change to the AI: the file keeps a hash of the setup, and a new one starts it again.
@@ -88,6 +89,7 @@ class Comparison:
     ids: bool = False  # both name each question by its own id
     one_side_ids: bool = False  # only one of the two does: their questions can't be matched
     regraded: int = 0  # graded otherwise on the same answers: the LLM-as-a-judge's, left out
+    changed: int = 0  # in both, with answers that changed or may have (their hashes compared)
 
     @property
     def same(self) -> int:
@@ -113,11 +115,13 @@ def grades_of(found: start.Found, numbers: bool = False) -> dict:
     from judgekeeper.project import plain_number
 
     newest = found.used[0] if found.used else None
-    answers = [(a.case, a.input, a.verdict, a.output) for a in found.pool.answers
-               if a.source == newest]
-    answers += [(case, found.pool.left[i][1].input, None, found.pool.left[i][1].output)
+    # the answer as the agent gave it: its text and its steps and outcome (records, Inspect AI)
+    answers = [(a.case, a.input, a.verdict, (a.output, a.agent.get("trajectory"),
+                                             a.agent.get("outcome")))
+               for a in found.pool.answers if a.source == newest]
+    answers += [(case, r.input, None, (r.output, r.trajectory, r.outcome))
                 for i, (source, case) in found.pool.left_from.items()
-                if source == newest]  # no Pass or Fail grade
+                for r in [found.pool.left[i][1]] if source == newest]  # no Pass or Fail grade
     answers = [(c if c is not None and (numbers or not plain_number(c) or _blank(q)) else None,
                 q, v, o) for c, q, v, o in answers]
     return {"questions": _grades([(c, q, v) for c, q, v, _ in answers]),
@@ -130,14 +134,17 @@ BLANK = "-"  # an answer with no text: whether it changed is not known
 
 def _answer_sums(answers) -> dict[str, list[str]]:
     """{question key: a hash of each of its answers}: whether the answers changed, never
-    their text."""
+    their text. Each hash holds the whole question (a prompt changed inside it, under the same
+    id, is a change), the answer, and its steps and outcome (output, trajectory, outcome)."""
     from judgekeeper.table import ID_LENGTH, canonical_json
 
     out: dict[str, list[str]] = {}
-    for case, question, _, answer in answers:
-        data = canonical_json(["answer", answer]).encode("utf-8", errors="surrogatepass")
+    for case, question, _, (output, trajectory, outcome) in answers:
+        data = canonical_json(["answer", question, output, trajectory, outcome]).encode(
+            "utf-8", errors="surrogatepass")
+        blank = _blank(output) and trajectory is None and outcome is None
         out.setdefault(_key(case, question), []).append(
-            BLANK if _blank(answer) else hashlib.sha256(data).hexdigest()[:ID_LENGTH])
+            BLANK if blank else hashlib.sha256(data).hexdigest()[:ID_LENGTH])
     return {k: sorted(v) for k, v in out.items()}
 
 
@@ -190,20 +197,25 @@ def compare(before: dict, now: dict, answers: bool = False) -> Comparison:
     # the same answers graded otherwise: the LLM-as-a-judge's doing, not the agent's (when
     # both sides keep their answers: results read before 1.5.0 don't)
     sums = (before.get("answers"), now.get("answers")) if answers else (None, None)
-    regraded = {k for k in graded if b[k] != n[k] and None not in sums
-                and k in sums[0] and sums[0][k] == sums[1].get(k) and BLANK not in sums[0][k]}
+    unchanged = {k for k in both if None not in sums and k in sums[0]
+                 and sums[0][k] == sums[1].get(k) and BLANK not in sums[0][k]}
+    regraded = {k for k in graded if b[k] != n[k] and k in unchanged}
     graded -= regraded
     fixed = sum(no_grades._fixed(b[k], n[k]) for k in graded)
     broke = sum(no_grades._broke(b[k], n[k]) for k in graded)
     return Comparison(n=len(graded), fixed=fixed, broke=broke, only=len(b.keys() ^ n.keys()),
                       kind=no_grades.change_kind(fixed, broke, len(graded), test=1),
                       ungraded=len(both - graded - regraded), ids=before["ids"] and now["ids"],
-                      one_side_ids=before["ids"] != now["ids"], regraded=len(regraded))
+                      one_side_ids=before["ids"] != now["ids"], regraded=len(regraded),
+                      changed=len(both - unchanged) if None not in sums else 0)
 
 
 def regraded_only(c: Comparison | None) -> bool:
-    """Only grades changed, on the same answers: nothing the agent did to compare."""
-    return c is not None and bool(c.regraded) and not (c.fixed or c.broke)
+    """Only grades changed, on the same answers: nothing the agent did to compare. Every
+    answer in both is the same, and no question is in one of them only; else what changed is
+    compared as usual, without them. When nothing else has a grade in both, too."""
+    return c is not None and bool(c.regraded) and not (c.fixed or c.broke) and (
+        not (c.changed or c.only) or not c.n)
 
 
 def lines(c: Comparison) -> list[list[str]]:

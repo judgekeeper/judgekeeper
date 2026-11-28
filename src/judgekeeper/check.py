@@ -2755,10 +2755,11 @@ def _held(checks: list[dict]) -> bool:
 
 
 def _unchanged(ws: Workspace, graded: dict) -> dict:
-    """The marked answers of `graded` ({id: answer}) whose text is the one they were marked
-    on (pool.jsonl, _same_answer)."""
+    """The marked answers of `graded` ({id: answer}) that are the ones they were marked on
+    (pool.jsonl): the same text and question (_same_answer), steps and outcome."""
     rows = _rows(ws)
-    return {i: a for i, a in graded.items() if i in rows and _same_answer(a, rows[i])}
+    return {i: a for i, a in graded.items() if i in rows and _same_answer(a, rows[i])
+            and all(rows[i].get(k) == a.agent.get(k) for k in ("trajectory", "outcome"))}
 
 
 def _back_by_grades(ws: Workspace, found) -> bool:
