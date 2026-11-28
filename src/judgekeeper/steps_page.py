@@ -780,7 +780,7 @@ def steps_server(ws: Workspace, port: int, flags: dict, token: str | None = None
 OPEN = "The marking page is open in your browser. Click the first wrong step of each run."
 CLICK = "Click the first wrong step of each run."
 NEXT = 'Next: mark runs on the page, then click "See the numbers so far".'
-LABEL_STUDIO = ("Label in Label Studio instead? Import .judgekeeper/steps/label-these.json with "
+LABEL_STUDIO = ("Label in Label Studio instead? Import {folder}/label-these.json with "
                 "label-config.xml, export the project as JSON and run `{command}`.")
 NEW_ANSWERS_ONLY = "--new works for answers only. To take back a step mark, use Undo on the page."
 NO_PAGE_ON_EXPORT = "`{command}` opens no page, so it takes no --port, --no-browser or --wait."
@@ -806,22 +806,51 @@ def opened_with(flags) -> tuple[str, str | None] | None:
 
     if not ok(path):
         return None
-    return path, reviewer if ok(reviewer) else None
+    return (_from_cwd(path, flags.get("steps")),
+            _from_cwd(reviewer, flags.get("reviewer_file")) if ok(reviewer) else None)
+
+
+def _from_cwd(typed: str, whole) -> str:
+    """`typed`, as typed where the page was started, when it still names the file `whole` (or
+    the folder that holds it) from here; else `whole` as a Next: line names it from here
+    (textio.from_here): `steps a` started above `a` is `steps runs.jsonl` inside it."""
+    if not isinstance(whole, str) or not Path(whole).is_absolute():
+        return typed
+    try:
+        at, file = Path(typed).resolve(), Path(whole).resolve()
+        if at == file or (at.is_dir() and at in file.parents):
+            return typed
+    except (OSError, ValueError):
+        return typed
+    return textio.from_here(whole, labels=False, command=True)
 
 
 def stop(given: Path) -> int:
     """`judgekeeper steps --stop`: close the project's open page (one page at a time, so the
-    answers page too), as `judgekeeper --stop` says it."""
+    answers page too), as `judgekeeper --stop` says it: when none is open there and marking
+    never started there, the one open in a folder right below (`steps a` run from here);
+    with several there, where they are."""
     from judgekeeper import background
-    from judgekeeper.front import NEXT_CONTINUE
+    from judgekeeper.front import NEXT_CONTINUE, open_below, open_below_line
     from judgekeeper.label import is_open, read_lock
 
     ws = Workspace(project_of(given))
+    own = (ws.start.is_file() or ws.labels.is_file()  # marking started in this project
+           or (ws.dir / steps.FOLDER / MARKS_FILE).is_file())
+    below = [] if own or is_open(ws.dir) or not given.is_dir() else open_below(given)
+    if len(below) == 1:  # opened from here on runs in the folder right below (`steps a`)
+        ws = Workspace(given / below[0])
     lock = read_lock(ws.dir) if is_open(ws.dir) else None
     typed = opened_with((lock.get("settings") or {}).get("flags")) if lock else None
     again = start.page_flags(lock["asked"], lock["no_browser"] is True) if lock else ()
     _say(f"judgekeeper {__version__}")
     _say()
+    if len(below) > 1:
+        said, go = open_below_line(given, below, textio.program("steps --stop"))
+        _say(said)
+        _say()
+        _say("Next: " + go)
+        return steps.EXIT_NEEDS_YOU
     if lock is None:
         _say("No marking page is open.")
     elif not background.stop(ws.dir):
@@ -911,7 +940,8 @@ def open_runs(file: Path, given: Path, reviewer: str | None, model: str | None,
         code = steps.say_numbers_from_marks(file, shown, reviewer, model, again)  # program
     else:  # with --wait the numbers are said once, when the page closes
         _say(NEXT)
-        _say(LABEL_STUDIO.format(command=textio.program("steps EXPORT.json")))
+        _say(LABEL_STUDIO.format(folder=steps.shown_steps(ws.dir / steps.FOLDER),
+                                 command=textio.program("steps EXPORT.json")))
         code = steps.EXIT_OK
     if opened.server is None:
         return steps.EXIT_OK if code is None else code
