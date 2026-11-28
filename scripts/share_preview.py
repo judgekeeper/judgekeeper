@@ -16,7 +16,7 @@ import html
 SITE = "https://www.judgekeeper.com/"
 IMAGE = SITE + "assets/social-preview.png"  # the file is website/assets/social-preview.png
 IMAGE_SIZE = (1200, 630)  # made by scripts/make_social_preview.py
-IMAGE_ALT = ("The judgekeeper logo and the words: The keeper of human judgment for AI. "
+IMAGE_ALT = ("The judgekeeper logo and the words: Check agents and chatbots with human judgment. "
              "Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
 
 

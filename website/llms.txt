@@ -2,15 +2,15 @@
 
 > Check agents and chatbots with human judgment. Read. Measure. Fix. Re-check. judgekeeper checks your AI agent or chatbot with human judgment. You mark what's right, and it shows how often an agent-as-a-judge or an LLM-as-a-judge (an AI model that grades another model's work) agrees with you, and where it goes wrong. It is an open-source command-line tool that runs on your own computer.
 
+- Agents: `judgekeeper steps runs.jsonl` opens a page where you click the first wrong step of each run, then shows how often your agent-as-a-judge picks the same one. Labels already in Label Studio work too.
 - Label Studio: judgekeeper reads a Label Studio export as your labels, and with too few labels it writes a Label Studio import file with the few answers to label next.
 - People agreement: with two or more people on the same answers, judgekeeper also says how much they agree with each other (kappa, or Krippendorff's alpha for three or more people).
-- Agents: `judgekeeper steps runs.jsonl` opens a page where you click the first wrong step of each run, then shows how often your agent-as-a-judge picks the same one. Labels already in Label Studio work too.
 
 ## Pages
 
 - [Home](https://www.judgekeeper.com/): what judgekeeper is, a demo of the marking page, and what each of the 4 steps prints in the terminal.
-- [Guide](https://www.judgekeeper.com/start.html): install (`pip install judgekeeper`, or `uvx judgekeeper` with uv), the 4 steps, Pass/Fail labels you already have (`judgekeeper --labels your-labels.csv`), why no API key is needed, your own CSV, TSV or JSONL file or `judgekeeper.record()`, checking the answers of your agent or chatbot with no LLM-as-a-judge, and handy commands.
-- [Try the Read step in your browser](https://www.judgekeeper.com/check.html): drop a results file from promptfoo or DeepEval, or your own CSV, TSV or JSONL file, and see judgekeeper's first step on it. The file is read in the page and never sent anywhere.
+- [Guide](https://www.judgekeeper.com/start.html): install (`pip install judgekeeper`, or `uvx judgekeeper` with uv), the 4 steps, Pass/Fail labels you already have (`judgekeeper --labels your-labels.csv`), why no API key is needed, your own CSV, TSV or JSONL file or `judgekeeper.record()`, checking the answers of your agent or chatbot with no LLM-as-a-judge, agent runs (`judgekeeper steps runs.jsonl`: click the first wrong step, then `--reviewer picks.jsonl`), and handy commands.
+- [Try the Read step in your browser](https://www.judgekeeper.com/check.html): drop a results file from promptfoo or DeepEval, your own CSV, TSV or JSONL file, or agent runs, and see judgekeeper's first step on it. The file is read in the page and never sent anywhere.
 - [Privacy](https://www.judgekeeper.com/privacy.html): what this website and judgekeeper do with your data.
 
 ## More

@@ -48,12 +48,13 @@ h1 {{ font-size: 64px; line-height: 1.04; letter-spacing: -.028em; font-weight: 
 .cmd {{ display: inline-block; font-family: "JetBrains Mono", monospace; font-weight: 500;
   font-size: 30px; padding: 14px 26px; border: 1px solid #262a30; border-radius: 10px;
   background: #07080a; }}
+.hl {{ color: #10B981; }}
 .cmd b {{ color: #10B981; font-weight: 500; }}
 .cmds {{ display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }}
 </style></head><body>
 <div class="mark"><div class="logo">{logo}</div><span class="tm">™</span></div>
 <div>
-<h1>The keeper of<br>human judgment<br>for AI.</h1>
+<h1>Check agents and<br>chatbots with<br><span class="hl">human judgment.</span></h1>
 <p class="steps">Read. Measure. Fix. Re-check.</p>
 <div class="cmds"><div class="cmd"><b>$</b> pip install judgekeeper</div><div class="cmd"><b>$</b> uvx judgekeeper</div></div>
 </div>

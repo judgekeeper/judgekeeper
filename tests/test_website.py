@@ -439,7 +439,7 @@ SITE = "https://www.judgekeeper.com/"
 SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url", "og:image",
               "og:image:width", "og:image:height", "og:image:alt", "twitter:card",
               "twitter:title", "twitter:description", "twitter:image"]
-SHARE_ALT = ("The judgekeeper logo and the words: The keeper of human judgment for AI. "
+SHARE_ALT = ("The judgekeeper logo and the words: Check agents and chatbots with human judgment. "
              "Read. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
 HOME_DESCRIPTION = ("judgekeeper checks your AI agent or chatbot with human judgment. You mark "
                     "what's right, and it shows how often an agent-as-a-judge or an "
