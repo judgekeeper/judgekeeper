@@ -80,4 +80,5 @@ def test_files_the_grades_cannot_tell_apart_are_told_by_the_replaced_bytes(tmp_p
     code, out = _run(capsys, "results.csv", "--before", "main-results.csv")
     flat = _flat(out)
     assert code == 3 and before_after.OTHER_SETUP in flat, out
+    assert before_after.OTHER_SETUP_NEXT in flat, out  # what to do: the same setup's files
     assert "questions in both results:" not in flat, out
