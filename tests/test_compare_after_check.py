@@ -70,7 +70,7 @@ def _flat(text: str) -> str:
 
 
 def _checked(here, monkeypatch, capsys, ids: bool, grade=None, named: bool = False,
-             models: tuple[str, str] | None = None):
+             models: tuple[str, str] | None = None, check: bool = True):
     """The tester's lenient/ flow up to `check NEW`: every answer marked as it truly is, a
     plain run (the old LLM-as-a-judge's result), fix, marked-answers.csv graded again by
     `grade` (the right grade by default) into new-results.csv, `fix` and `check` on it.
@@ -102,6 +102,8 @@ def _checked(here, monkeypatch, capsys, ids: bool, grade=None, named: bool = Fal
     _write(here / "new-results.csv", [{**m, "verdict": grade(m["output"])} for m in marked], ids,
            new)
     _run(capsys, "fix", "new-results.csv")
+    if not check:  # graded again, never checked
+        return ws, None, ""
     code, out = _run(capsys, "check", "new-results.csv")
     return ws, code, out
 
@@ -366,3 +368,114 @@ def test_after_a_check_takes_on_a_file_every_next_line_names_it(tmp_path, monkey
     code, out = _run(capsys, "new-results.csv", "--port", "0", "--no-browser")  # as --stop says
     _run(capsys, "--stop")
     assert code == 0 and "back to the one you marked with" not in _flat(out), out
+
+
+BACK_TO = "back to the one you marked with"
+ADDED_10 = "Your newest results have 10 answers you haven't seen. They're added for marking."
+
+
+def _ten_new_answers(path, ids: bool, model: str) -> None:
+    """10 answers the old LLM-as-a-judge passed get new text, which it grades fail."""
+    with path.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    changed = [r for r in rows if r["verdict"] == "pass"][:10]
+    assert len(changed) == 10
+    for r in changed:
+        r["output"] += " Is that right?"
+        r["verdict"] = "fail"
+    _write(path, rows, ids, model)
+
+
+def _pool(ws) -> int:
+    return sum(1 for line in ws.pool.read_text(encoding="utf-8").splitlines() if line.strip())
+
+
+@pytest.mark.parametrize("first", ["plain", "mark"])
+@pytest.mark.parametrize("kind", ["rejected", "taken-back", "never-checked"])
+def test_new_answers_are_added_for_marking_whatever_the_check_history(
+        tmp_path, monkeypatch, capsys, kind, first):
+    """10 answers in results.csv change after a check of another LLM-as-a-judge. They are
+    added for marking whatever that check did: refused (`Worse`, the old one kept), taken on
+    and then left by naming results.csv again, or no check at all (as always). They were not
+    added after a check ("You have marks on all 40 answers"), so they could never be marked.
+    "back to the one you marked with" only after a real return: never when the marks never
+    left the old LLM-as-a-judge."""
+    ws, _, out = _checked(tmp_path, monkeypatch, capsys, True, named=True,
+                             grade=_worse if kind == "rejected" else None,
+                             models=("judge-old", "judge-new"), check=kind != "never-checked")
+    if kind != "never-checked":
+        assert ("Worse" if kind == "rejected" else "Better") in out, out
+    assert _pool(ws) == N
+    _ten_new_answers(tmp_path / "results.csv", True, "judge-old")
+    argv = ["mark"] if first == "mark" else []
+    _, out = _run(capsys, *argv, "results.csv", "--no-browser", "--port", "0")
+    _run(capsys, "--stop")
+    flat = _flat(out)
+    assert ADDED_10 in flat, out
+    assert _pool(ws) == N + 10
+    assert "You have marks on all" not in flat, out
+    assert (BACK_TO in flat) == (kind == "taken-back"), out
+    _, out = _run(capsys, "results.csv", "--no-browser", "--port", "0")  # said once
+    _run(capsys, "--stop")
+    assert ADDED_10 not in _flat(out), out
+
+
+def test_check_of_the_kept_judge_after_a_refused_check_says_no_back(tmp_path, monkeypatch,
+                                                                     capsys):
+    """A check found judge-new worse and kept judge-old; checking results.csv (judge-old)
+    says nothing of going back: the marks never left it."""
+    _checked(tmp_path, monkeypatch, capsys, True, named=True, grade=_worse,
+             models=("judge-old", "judge-new"))
+    code, out = _run(capsys, "check", "results.csv")
+    assert code == 0, out
+    assert BACK_TO not in _flat(out), out
+    assert "\n\n\n" not in out, out  # no empty paragraph where it was
+
+
+@pytest.mark.parametrize("ids", [False, True], ids=["by-text", "by-id"])
+@pytest.mark.parametrize("how", ["named", "copy", "judge-model"])
+def test_before_the_file_a_check_replaced_is_another_setup(tmp_path, monkeypatch, capsys, ids,
+                                                           how):
+    """No judge_model column. `check new-results.csv` took on the new LLM-as-a-judge's grades
+    of the same answers, replacing results.csv's. `--before results.csv` (or a copy of it)
+    compares two setups: judgekeeper knows it, so it says so (exit 3), as with a model
+    column. It said "broke ... Your change made it worse" (exit 1) on answers word for word
+    the same."""
+    _checked(tmp_path, monkeypatch, capsys, ids, named=True)
+    other = "results.csv"
+    if how == "copy":
+        shutil.copy2(tmp_path / "results.csv", tmp_path / "old.csv")
+        other = "old.csv"
+    flags = ["--judge-model", "judge-new"] if how == "judge-model" else []
+    monkeypatch.setenv("CI", "true")
+    code, out = _run(capsys, "new-results.csv", "--before", other, *flags)
+    flat = _flat(out)
+    assert code == 3, out
+    assert before_after.OTHER_SETUP in flat, out
+    assert WORSE not in flat and "questions in both results:" not in flat, out
+
+
+@pytest.mark.parametrize("ids", [False, True], ids=["by-text", "by-id"])
+def test_before_files_of_one_setup_still_compare_after_a_check(tmp_path, monkeypatch, capsys,
+                                                               ids):
+    """Two files without a judge_model column, both from the setup the check took on, still
+    compare, and a real change for the worse fails (exit 1). results.csv graded again after
+    the check is no longer the file it replaced: it compares as documented."""
+    _checked(tmp_path, monkeypatch, capsys, ids, named=True)
+    shutil.copy2(tmp_path / "new-results.csv", tmp_path / "base.csv")
+    with (tmp_path / "new-results.csv").open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    passed = [r for r in rows if r["verdict"] == "pass"][:8]
+    assert len(passed) == 8
+    for r in passed:
+        r["verdict"] = "fail"
+    _write(tmp_path / "new-results.csv", rows, ids)
+    monkeypatch.setenv("CI", "true")
+    code, out = _run(capsys, "new-results.csv", "--before", "base.csv")
+    assert code == 1, out
+    assert "questions in both results: fixed 0, broke 8" in _flat(out), out
+    with (tmp_path / "base.csv").open(encoding="utf-8", newline="") as f:
+        _write(tmp_path / "results.csv", list(csv.DictReader(f)), ids)  # graded again
+    code, out = _run(capsys, "new-results.csv", "--before", "results.csv")
+    assert code == 1, out
+    assert "questions in both results: fixed 0, broke 8" in _flat(out), out
