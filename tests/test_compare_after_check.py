@@ -140,19 +140,54 @@ def test_a_later_change_of_the_answers_compares_as_usual(tmp_path, monkeypatch, 
     assert before_after.RESTARTED not in _flat(out), out
 
 
-def test_a_check_that_keeps_the_old_judge_leaves_the_comparison_alone(
-        tmp_path, monkeypatch, capsys):
-    """A check that finds the new grades worse keeps the old LLM-as-a-judge: no new
-    starting point, the run after compares as before."""
-    def worse(output: str) -> str:  # passes every answer
-        return "pass"
+def _worse(output: str) -> str:  # passes every answer
+    return "pass"
 
-    _, _, out = _checked(tmp_path, monkeypatch, capsys, False, grade=worse)
+
+def _baseline(here) -> str:
+    return (here / ".judgekeeper" / before_after.FILE).read_text(encoding="utf-8")
+
+
+def test_a_run_on_the_judge_a_check_found_worse_compares_nothing(tmp_path, monkeypatch, capsys):
+    """A check that finds the new grades worse keeps the old LLM-as-a-judge: a run on the
+    refused one's grades is about the old one's numbers, so it compares nothing and keeps
+    the last grades read (a table: no model named)."""
+    _, _, out = _checked(tmp_path, monkeypatch, capsys, False, grade=_worse)
     assert "Worse" in out, out
+    kept = _baseline(tmp_path)
     _, out = _run(capsys, "new-results.csv", "--no-browser", "--port", "0")
     _run(capsys, "--stop")
     assert before_after.RESTARTED not in _flat(out), out
-    assert "questions in both results:" in _flat(out), out
+    assert "questions in both results:" not in _flat(out) and WORSE not in _flat(out), out
+    assert _baseline(tmp_path) == kept
+
+
+def test_after_a_worse_check_a_change_of_the_answers_by_the_old_judge_still_compares(
+        tmp_path, monkeypatch, capsys):
+    """Named models: the run on the refused judge-c's file says the numbers still use the
+    old grades, then nothing starts again (it said the setup changed and kept judge-c's
+    grades, so the next runs, back on judge-a, said it again and compared nothing)."""
+    _, _, out = _checked(tmp_path, monkeypatch, capsys, True, grade=_worse,
+                         models=("judge-a", "judge-c"))
+    assert "Worse" in out, out
+    kept = _baseline(tmp_path)
+    for argv in ([], ["results.csv"]):  # the newest file, then the one the marks test
+        code, out = _run(capsys, *argv, "--no-browser", "--port", "0")
+        _run(capsys, "--stop")
+        assert before_after.RESTARTED not in _flat(out), out
+        assert "questions in both results:" not in _flat(out), out
+    assert _baseline(tmp_path) == kept
+    with (tmp_path / "results.csv").open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    passed = [r for r in rows if r["verdict"] == "pass"][:8]
+    for r in passed:  # the agent now gets 8 answers wrong, graded so by judge-a
+        r["verdict"] = "fail"
+    _write(tmp_path / "results.csv", rows, True, "judge-a")
+    code, out = _run(capsys, "results.csv", "--no-browser", "--port", "0")
+    _run(capsys, "--stop")
+    assert code == 1, out
+    assert "questions in both results: fixed 0, broke 8" in _flat(out), out
+    assert WORSE in _flat(out) and before_after.RESTARTED not in _flat(out), out
 
 
 def test_a_pipeline_right_after_the_check_does_not_fail_on_the_judge_change(
@@ -216,3 +251,28 @@ def test_a_named_file_the_check_did_not_take_on_is_still_read(tmp_path, monkeypa
     assert "Worse" in out, out
     assert json.loads((tmp_path / ".judgekeeper" / "start.json").read_text(
         encoding="utf-8"))["given"] == "results.csv"
+
+
+def test_after_a_worse_check_new_results_of_the_old_judge_are_compared_in_a_plain_run(
+        tmp_path, monkeypatch, capsys):
+    """After the Worse check, a plain run (on the refused judge-c's file), then results-a2.csv:
+    the agent changed, graded by judge-a, the judge the marks test. Compared with the grades
+    judge-a gave before: worse, exit 1 (it said the setup changed and exited 0)."""
+    _, _, out = _checked(tmp_path, monkeypatch, capsys, True, grade=_worse,
+                         models=("judge-a", "judge-c"))
+    assert "Worse" in out, out
+    kept = _baseline(tmp_path)
+    code, out = _plain(capsys)
+    assert before_after.RESTARTED not in out and "questions in both results:" not in out, out
+    assert _baseline(tmp_path) == kept
+    with (tmp_path / "results.csv").open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    passed = [r for r in rows if r["verdict"] == "pass"]
+    assert len(passed) >= 18, rows
+    for r in passed[:18]:
+        r["verdict"] = "fail"
+    _write(tmp_path / "results-a2.csv", rows, True, "judge-a")
+    code, out = _plain(capsys)
+    assert code == 1, out
+    assert "questions in both results: fixed 0, broke 18" in out, out
+    assert before_after.RESTARTED not in out, out

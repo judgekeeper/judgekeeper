@@ -549,7 +549,12 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
         return _no_grades(talk, ws, found, wait, marking)
     # the grades compared with the last ones read (or --before's file): a file that can't be
     # read stops here, before anything is said
-    seen = None if marking else before_after.look(
+    # a plain run on the LLM-as-a-judge a check found worse: its numbers are the old one's
+    # (HELD_WORSE), so it compares nothing and keeps the grades read last
+    from judgekeeper import check
+
+    refused = talk.before is None and check.open_worse(ws, found, held=True) is not None
+    seen = None if marking or refused else before_after.look(
         talk, ws, found, talk.before, other_judge=bool(_why_start_over(talk, ws, found)))
     # with --before or in CI the comparison alone sets the exit code: a gate never stops on
     # marks no one in it can give
