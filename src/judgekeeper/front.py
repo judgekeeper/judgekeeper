@@ -3024,10 +3024,10 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if back:
         talk.went_back = True  # its own story: never also "setup changed" (_say_change)
         head.append(back)  # the judge marked on
-    if before_marked and (n := len(batches.new_answers(ws, found))):
-        head.append(_not_added(n, _newest(found)))
         if not marking and closed:
             head.extend(["", *closed])  # a paragraph of its own
+    if before_marked and (n := len(batches.new_answers(ws, found))):
+        head.append(_not_added(n, _newest(found)))
     if elsewhere:  # the result is about that file, not the one read here
         head[:] = [x for x in head if x != newest]
         head.append(CHECKED_FILE.format(file=elsewhere))
