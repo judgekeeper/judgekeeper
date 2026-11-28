@@ -649,7 +649,7 @@ def _reviewer_lines(name: str, r: dict, marks: bool = False) -> list[str]:
     need = run["needed_of_each_kind"]
     compared = plural(r["runs_compared"], "run")
     who = ("Your agent-as-a-judge" if name == DEFAULT_REVIEWER  # the default name: never said
-           else f'Agent-as-a-judge "{name}"')
+           else f'Agent-as-a-judge "{scrub(name)}"')  # a name from the data: a key hidden
     lines = [f"{who} against your marks, on {compared} both marked:" if marks
              else f"{who} against the people marking, on {compared} both labelled:"]
     for what, key, n in (("went wrong", "tpr", run["n_wrong"]),
@@ -1151,7 +1151,7 @@ def _since_lines(entry: dict, then: dict, marks: bool) -> list[str]:
     name = then.get("name")
     named = "" if name == entry["name"] else (
         " (then with no model name)" if name == DEFAULT_REVIEWER or not isinstance(name, str)
-        else f' (then "{name}")')
+        else f' (then "{scrub(name)}")')  # as kept in result.json; a key hidden either way
     lines = [SINCE.format(then=named, marks="marks" if marks else "labels")]
     lines += [f"  {what}: {old} -> {new}." for what, old, new in rows]
     if any(old != new for _, old, new in rows):
