@@ -271,7 +271,7 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
         return [" ".join(el.text().split()) for el in panel.iter() if "ds-big" in el.classes()]
 
     # Agent runs: three shares, each "a of b" in the report and shown as a whole percent
-    report, text = _panel_report(panels["ds-a"])
+    _, text = _panel_report(panels["ds-a"])
     shares_in(panels["ds-a"], text, ["175 of 182", "20 of 67", "100 of 175"])
     assert "| Runs the people say went wrong | 175 of 182 (96%) |" in text
     assert "| Runs the people say were fine | 47 of 67 (70%) |" in text  # 20 of 67 flagged
