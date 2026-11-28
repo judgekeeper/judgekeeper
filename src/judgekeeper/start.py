@@ -1014,9 +1014,12 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
             except UNREADABLE:
                 raise unreadable(r.path, "records") from None
         except RecordsError as e:
-            text = str(e).removeprefix(f"{r.path.name} is damaged: ")
-            text = text[text.find("line "):] if "line " in text else text
-            talk.say(f"  {_here(r)} could not be read ({text.rstrip('.')}), so it was left out.")
+            text = str(e).removeprefix(f"{r.path.name} is damaged: ").rstrip(".")
+            if " damaged field (" in text and text.endswith(")"):  # why, inside these ( )
+                text = text.replace(" damaged field (", " damaged field; ", 1)[:-1]
+            where = text.split("; ", 1)[0]
+            text = text[text.find("line "):] if "line " in where else text
+            talk.say(f"  {_here(r)} could not be read ({text}), so it was left out.")
             continue
         if len(records) > room:
             del records[room:]

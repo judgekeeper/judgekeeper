@@ -260,7 +260,7 @@ A plain `judgekeeper` in a folder with agent runs and no eval results says where
 | Key | What it holds |
 |---|---|
 | `id` | The run's id (text or a whole number), different for every run. Needed |
-| `steps` | A list of steps, each `{"role": ..., "content": ...}` (`name` works in place of `role`). The content is text, or a list of blocks (`{"type": "text", "text": ...}`, `{"type": "tool_use", "name": ..., "input": ...}`, `{"type": "tool_result", "content": ...}`); anything else is written as JSON. A step may also have OpenAI-style `tool_calls`. A step is written as its text, then one line for each tool call (`Tool call: search({"q": "x"})`) and `Tool result: ...` for a result, so the person marking can see which tool was called; no other key of the step is written. Needed |
+| `steps` | A list of steps, each `{"role": ..., "content": ...}` (`name` works in place of `role`). The content is text, or a list of blocks (`{"type": "text", "text": ...}`, `{"type": "tool_use", "name": ..., "input": ...}`, `{"type": "tool_result", "content": ...}`); anything else is written as JSON. A step may also have `tool_calls`, each `{"id": ..., "name": ..., "arguments": ...}` or OpenAI's `{"id": ..., "type": "function", "function": {"name": ..., "arguments": ...}}`. A step is written as its text, then one line for each tool call (`Tool call: search({"q": "x"})`) and `Tool result: ...` for a result, so the person marking can see which tool was called; no other key of the step is written. Needed |
 | `task` or `input` | What the agent was asked to do. Shown above the steps |
 | `outcome` | Allowed and not used |
 
@@ -486,7 +486,7 @@ judgekeeper's own format: one graded answer per JSONL line, written by you or by
 | `evaluator` | the fingerprint (what tells one LLM-as-a-judge setup from another): `provider`, `model`, `prompt` (hashed), `temperature`, `version` (rubric), `rule`, `prompt_hash`, `snapshot`, `endpoint` |
 | `created_at` | when the grade was made |
 | `metadata` | anything else; never part of the fingerprint |
-| `trajectory` | for agents: the steps to the output, as OpenAI-style messages |
+| `trajectory` | for agents: the steps to the output, as OpenAI-style messages. A tool call in `tool_calls` is `{"id", "name", "arguments"}` or OpenAI's `{"id", "type": "function", "function": {"name", "arguments"}}`; the same call gives the answer the same id in either shape |
 | `outcome` | for agents: an automatic check, e.g. `{"passed": true, "source": "unit tests"}` |
 | `app_version` | the version of the program or agent that answered |
 

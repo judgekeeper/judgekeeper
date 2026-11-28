@@ -86,3 +86,14 @@ def test_both_reject_bad_records(validator, bad, words):
     record = {"label": "pass", **bad}
     assert problems(record)
     assert not validator.is_valid(record)
+
+
+def test_a_tool_call_is_valid_in_either_shape_and_by_the_readers_rule(validator):
+    """The schema takes what records.tool_call takes: {id, name, arguments}, or OpenAI's
+    {id, type: "function", function: {name, arguments}}."""
+    from tests.test_tool_call_shapes import FLAT, NEITHER, OPENAI, _row
+
+    for call in (FLAT, OPENAI):
+        assert not list(validator.iter_errors(_row(1, call))), call
+    for call in NEITHER:
+        assert list(validator.iter_errors(_row(1, call))), call
