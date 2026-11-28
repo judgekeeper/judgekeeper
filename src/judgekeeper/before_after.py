@@ -416,13 +416,14 @@ def look(talk, ws, found: start.Found, given: str | None = None,
         keep = raw is not None and raw["setup"] != setup
         c = compare(grades_of(other, numbers=True), grades_of(found, numbers=True),
                     answers=not (_says_who(found) and _says_who(other)))
+        # a --before that compares nothing leaves the last grades read here as they were
         if _judged(found) and _judged(other) and setup_of(other) != setup \
                 or _one_replaced(ws, found, other):  # two setups
-            return Look(None, last, now, setup, state is not None, other_setup=True, keep=keep)
+            return Look(None, last, now, setup, state is not None, other_setup=True, keep=True)
         if regraded_only(c):
-            return Look(None, last, now, setup, state is not None, other_setup=True, keep=keep,
+            return Look(None, last, now, setup, state is not None, other_setup=True, keep=True,
                         only_grades=True)
-        return Look(c, last, now, setup, state is not None, keep=keep)
+        return Look(c, last, now, setup, state is not None, keep=keep or not c.n)
     c = compare(baseline, now, answers=not _says_who(found)) if baseline is not None else None
     if regraded_only(c):  # graded otherwise: they start again, said once
         return Look(None, None, now, setup, state is not None, restarted=True, only_grades=True)
