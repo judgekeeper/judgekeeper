@@ -135,15 +135,23 @@ def grades_of(found: start.Found, numbers: bool = False) -> dict:
 BLANK = "-"  # an answer the results don't hold at all: whether it changed is not known
 
 
+def _ends(text):
+    """Text as an answer is compared: Windows line ends as \n, no spaces at its two ends.
+    Every space inside it counts."""
+    return text.replace("\r\n", "\n").strip() if isinstance(text, str) else text
+
+
 def _answer_sums(answers) -> dict[str, list[str]]:
     """{question key: a hash of each of its answers}: whether the answers changed, never
     their text. Each hash holds the whole question (a prompt changed inside it, under the same
-    id, is a change), the answer, and its steps and outcome (output, trajectory, outcome)."""
+    id, is a change), the answer, and its steps and outcome (output, trajectory, outcome),
+    their texts without the spaces at their ends (_ends)."""
     from judgekeeper.table import ID_LENGTH, canonical_json
 
     out: dict[str, list[str]] = {}
     for case, question, _, (output, trajectory, outcome) in answers:
-        data = canonical_json(["answer", question, output, trajectory, outcome]).encode(
+        data = canonical_json(["answer", _ends(question), _ends(output), trajectory,
+                               outcome]).encode(
             "utf-8", errors="surrogatepass")
         blank = output is None and trajectory is None and outcome is None  # empty is an answer
         out.setdefault(_key(case, question), []).append(
